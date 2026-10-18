@@ -3,12 +3,13 @@ import { useClassroom } from '../../context/ClassroomContext';
 import { Student } from '../../types';
 import { newId } from '../../utils/helpers';
 import { HowItWorks } from '../HowItWorks';
-import { ActionGrid, ActionButton } from '../ActionGrid';
+import { AiAssistCard } from '../AiAssistCard';
 import { exportFileBlob } from '../../utils/nativeFileExport';
 import { buildStudentsAiFile, planStudentsImport } from '../../utils/aiExchange';
 import {
   detectKind,
   readSheetRows,
+  readStudentsFromText,
   readRowsWithAi,
   rowsToStudentsFile,
   aiReadingAvailable,
@@ -26,11 +27,11 @@ import {
   AlertTriangle,
   GraduationCap,
   ChevronDown,
-  ChevronUp,
-  Sparkles,
-  Upload,
-  FileSpreadsheet
+  ChevronUp
 } from 'lucide-react';
+
+const STUDENTS_AI_PLACEHOLDER =
+  "Attach a file and tap Go, or type / paste names here.\n\nYou can add instructions, for example:\n• Only take the Class 5 students\n• Names are in the second column\n• Ali Khan s/o Ahmed 0300-1234567";
 
 export const StudentsView: React.FC = () => {
   const { data, saveData, toast, uiConfirm } = useClassroom();
@@ -287,66 +288,68 @@ export const StudentsView: React.FC = () => {
     if (!ok) toast("Could not export the file.", "error");
   };
 
-  const handleImportFromAi = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    await reviewAndApply(file, "Import from AI");
-  };
-
-  // Import from file: Excel/CSV are read on the device, PDF/photos go to the AI reading service.
-  const [reading, setReading] = useState(false);
-  const handleImportFromFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || reading) return;
-    const kind = detectKind(file);
-    if (kind === "unsupported") {
-      toast("Please choose an Excel, CSV, PDF, photo or JSON file.", "error");
-      return;
-    }
-    if (kind === "json") {
-      // A students file exported with "Export for AI" and filled in by an AI
-      await reviewAndApply(file, "Import from file");
-      return;
-    }
+  // One AI box: attach a file (Excel / CSV / PDF / photo / JSON) and/or type what you want, then tap Go.
+  const handleAiGo = async (file: File | null, text: string): Promise<boolean> => {
+    const needConsent = async (what: string) => {
+      if (hasAiConsent()) return true;
+      const ok = await uiConfirm(
+        `${what} will be sent to Google's AI service over the internet.\n\nIt may contain student names and phone numbers. Continue?`,
+        { title: "Send to AI?", yesText: "Continue", icon: "warning" }
+      );
+      if (ok) saveAiConsent();
+      return ok;
+    };
     try {
-      setReading(true);
+      if (!file) {
+        if (!text) {
+          toast("Attach a file, or type or paste some student names.", "info");
+          return false;
+        }
+        if (!aiReadingAvailable()) {
+          toast("AI is not set up yet. Use an Excel or CSV file.", "error");
+          return false;
+        }
+        if (!(await needConsent("Your text"))) return false;
+        toast("Reading your text…", "info");
+        const rows = await readStudentsFromText(text);
+        return await reviewAndApply(rowsToStudentsFile(rows), "Add students");
+      }
+
+      const kind = detectKind(file);
+      if (kind === "unsupported") {
+        toast("Please choose an Excel, CSV, PDF, photo or JSON file.", "error");
+        return false;
+      }
+      if (kind === "json") {
+        // A students file exported with "Export file" and filled in by an AI
+        return await reviewAndApply(file, "Import from file");
+      }
       let rows: ImportedRow[];
       if (kind === "sheet") {
         rows = await readSheetRows(file);
       } else {
         if (!aiReadingAvailable()) {
           toast("PDF and photo reading is not set up yet. Use an Excel or CSV file.", "error");
-          return;
+          return false;
         }
-        if (!hasAiConsent()) {
-          const ok = await uiConfirm(
-            "To read this file, it will be sent to Google's AI service over the internet.\n\nIt may contain student names and phone numbers. Continue?",
-            { title: "Send file to AI?", yesText: "Continue", icon: "warning" }
-          );
-          if (!ok) return;
-          saveAiConsent();
-        }
+        if (!(await needConsent("This file"))) return false;
         toast("Reading file… this can take a few seconds.", "info");
-        rows = await readRowsWithAi(file);
+        rows = await readRowsWithAi(file, text);
       }
-      setReading(false);
-      await reviewAndApply(rowsToStudentsFile(rows), "Import from file");
+      return await reviewAndApply(rowsToStudentsFile(rows), "Import from file");
     } catch (err) {
       toast((err as Error).message || "Could not read the file.", "error");
-    } finally {
-      setReading(false);
+      return false;
     }
   };
 
-  const reviewAndApply = async (file: File, title: string) => {
+  const reviewAndApply = async (file: File, title: string): Promise<boolean> => {
     try {
       const plan = await planStudentsImport(file, data);
       const adds = plan.additions.length;
       if (plan.changedStudents === 0 && adds === 0) {
         toast("Nothing to update or add.", "info");
-        return;
+        return false;
       }
       const parts: string[] = [];
       if (plan.changedStudents) {
@@ -371,7 +374,7 @@ export const StudentsView: React.FC = () => {
           `\n\nRoll numbers of existing students and all admission numbers are not changed. You can Undo afterwards.`,
         { title, yesText: "Import", icon: "warning" }
       );
-      if (!ok) return;
+      if (!ok) return false;
       saveData(prev => {
         const updated = prev.students.map(s => (plan.updates[s.id] ? { ...s, ...plan.updates[s.id] } : s));
         const added: Student[] = plan.additions.map((n, i) => ({
@@ -388,8 +391,10 @@ export const StudentsView: React.FC = () => {
         return { ...prev, students: [...updated, ...added] };
       });
       toast(`${plan.changedStudents} updated, ${adds} added.`, "success");
+      return true;
     } catch (err) {
       toast((err as Error).message || "Could not read the file.", "error");
+      return false;
     }
   };
 
@@ -556,48 +561,15 @@ export const StudentsView: React.FC = () => {
         </form>
       </div>
 
-      {/* Import from file */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div>
-          <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Import from file</h3>
-          <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5 leading-snug">
-            Add many students at once from an <b>Excel / CSV</b> file (read on your phone), a <b>PDF / photo</b> of a list (read by AI, needs internet), or a <b>JSON</b> file from Export for AI. You will see a preview before anything is saved.
-          </p>
-        </div>
-        <label className={`w-full min-h-12 px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors select-none bg-[#B91C1C] hover:bg-[#991B1B] text-white ${reading ? "opacity-60 pointer-events-none" : "cursor-pointer"}`}>
-          <FileSpreadsheet className="w-4 h-4 shrink-0" />
-          <span className="truncate">{reading ? "Reading file…" : "Choose file"}</span>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
-            onChange={handleImportFromFile}
-            className="hidden"
-          />
-        </label>
-        <p className="text-[10.5px] text-[#78716C] dark:text-[#A8A29E] leading-snug">
-          Tip: put headings like <b>Name, Father Name, Admission No, Phone</b> in the first row of your Excel file.
-        </p>
-      </div>
-
-      {/* Edit with AI */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div>
-          <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Edit with AI</h3>
-          <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5 leading-snug">
-            Export your students, let an AI fix names or add new students (for example from a PDF list), then import the file back. Only names, father names and admission numbers are shared.
-          </p>
-        </div>
-        <ActionGrid cols={2}>
-          <ActionButton variant="secondary" icon={Sparkles} onClick={handleExportForAi}>
-            Export for AI
-          </ActionButton>
-          <label className="w-full min-h-12 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors select-none cursor-pointer bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-800 border border-stone-200 dark:bg-stone-800/90 dark:hover:bg-stone-700/90 dark:text-stone-200 dark:border-stone-700">
-            <Upload className="w-4 h-4 shrink-0" />
-            <span className="truncate">Import from AI</span>
-            <input type="file" accept=".json,application/json" onChange={handleImportFromAi} className="hidden" />
-          </label>
-        </ActionGrid>
-      </div>
+      <AiAssistCard
+        title="AI assistant"
+        placeholder={STUDENTS_AI_PLACEHOLDER}
+        hint="Excel and CSV are read on your phone. PDF, photo, JSON and typed text use AI (needs internet). Typed instructions help the AI read PDFs and photos. You see a preview before anything is saved."
+        accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
+        onGo={handleAiGo}
+        onExport={handleExportForAi}
+        exportLabel="Export file for another AI"
+      />
 
       {/* Search Header */}
       <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">

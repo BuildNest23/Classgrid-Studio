@@ -1,5 +1,6 @@
 import { SyncInput } from '../SyncInput';
 import { ActionGrid, ActionButton } from '../ActionGrid';
+import { AiAssistCard } from '../AiAssistCard';
 import { HowItWorks } from '../HowItWorks';
 import { ResultCardModal } from '../ResultCardModal';
 import { WatermarkOptions } from '../WatermarkOptions';
@@ -21,18 +22,16 @@ import { exportFileBlob } from '../../utils/nativeFileExport';
 import { buildResultsAiFile, planResultsImport } from '../../utils/aiExchange';
 import {
   detectKind,
-  readRemarkRowsFromSheet,
-  readRemarkRowsWithAi,
-  generateRemarksWithAi,
-  readMarkRowsFromSheet,
-  readMarkRowsWithAi,
-  planMarksImport,
-  type MarkRow,
-  generatedRemarksToResultsFile,
+  readResultsSheet,
+  readResultsWithAi,
   remarkRowsToResultsFile,
+  generateRemarksWithAi,
+  generatedRemarksToResultsFile,
+  planMarksImport,
   aiReadingAvailable,
   hasAiConsent,
-  saveAiConsent
+  saveAiConsent,
+  type MarkRow
 } from '../../utils/fileImport';
 import {
   ResultPrintStyle,
@@ -65,6 +64,9 @@ import {
   saveResultsCollapse,
   ResultsCollapseState,
 } from '../../utils/resultsCollapse';
+
+const RESULTS_AI_PLACEHOLDER =
+  "Attach a file and tap Go, or tap Go with no file to write remarks from the marks.\n\nYou can add instructions, for example:\n• Write remarks in Urdu, short and kind\n• Be gentle with failed students\n• Mention weak subjects\n• In the file, marks are in the last 5 columns";
 
 export const ResultsView: React.FC = () => {
   const {
@@ -667,156 +669,66 @@ export const ResultsView: React.FC = () => {
     if (!ok) toast("Could not export the file.", "error");
   };
 
-  const handleImportFromAi = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    await reviewAndApplyRemarks(file, "Import from AI");
+  // ---- One AI assistant for Results ----
+  // Attach a file (Excel / CSV / PDF / photo / JSON) and/or type instructions, then tap Go:
+  //  - file with subject columns  -> marks are filled
+  //  - file with a Remarks column -> remarks are imported
+  //  - no file                    -> remarks are written from the marks already in the app
+
+  const ensureAiConsent = async (what: string): Promise<boolean> => {
+    if (hasAiConsent()) return true;
+    const ok = await uiConfirm(
+      `${what} will be sent to Google's AI service over the internet.\n\nNames are not sent when writing remarks from marks. Files you attach may contain names and marks. Continue?`,
+      { title: "Send to AI?", yesText: "Continue", icon: "warning" }
+    );
+    if (ok) saveAiConsent();
+    return ok;
   };
 
-  // Import remarks from file: Excel/CSV are read on the device, PDF/photos go to the AI reading service.
-  const [readingRemarks, setReadingRemarks] = useState(false);
-  const handleImportRemarksFromFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || readingRemarks) return;
-    const kind = detectKind(file);
-    if (kind === "unsupported") {
-      toast("Please choose an Excel, CSV, PDF, photo or JSON file.", "error");
-      return;
-    }
-    if (kind === "json") {
-      // A results file exported with "Export for AI" and filled in by an AI
-      await reviewAndApplyRemarks(file, "Import remarks from file");
-      return;
-    }
-    try {
-      setReadingRemarks(true);
-      let rows;
-      if (kind === "sheet") {
-        rows = await readRemarkRowsFromSheet(file);
-      } else {
-        if (!aiReadingAvailable()) {
-          toast("PDF and photo reading is not set up yet. Use an Excel or CSV file.", "error");
-          return;
-        }
-        if (!hasAiConsent()) {
-          const ok = await uiConfirm(
-            "To read this file, it will be sent to Google's AI service over the internet.\n\nIt may contain student names. Continue?",
-            { title: "Send file to AI?", yesText: "Continue", icon: "warning" }
-          );
-          if (!ok) return;
-          saveAiConsent();
-        }
-        toast("Reading file… this can take a few seconds.", "info");
-        rows = await readRemarkRowsWithAi(file);
-      }
-      setReadingRemarks(false);
-      await reviewAndApplyRemarks(
-        remarkRowsToResultsFile(rows, data.students, { id: activeAsmt.id, name: activeAsmt.name }),
-        "Import remarks from file"
-      );
-    } catch (err) {
-      toast((err as Error).message || "Could not read the file.", "error");
-    } finally {
-      setReadingRemarks(false);
-    }
-  };
-
-  // Import marks from file: Excel/CSV are read on the device, PDF/photos go to the AI reading service.
-  const [readingMarks, setReadingMarks] = useState(false);
-  const handleImportMarksFromFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || readingMarks) return;
+  // Marks from a file: preview, then save. Returns true when saved.
+  const applyMarksFromRows = async (rows: MarkRow[], ignored: string[]): Promise<boolean> => {
     if (isLocked) {
       toast("Grid is locked. Unlock it to import marks.", "info");
-      return;
+      return false;
     }
-    if (!activeAsmt.subjects.length) {
-      toast("Add subjects first.", "error");
-      return;
+    const plan = planMarksImport(rows, data.students, activeAsmt, data.assessmentResults[activeAsmt.id] || {});
+    if (plan.cells === 0) {
+      const why = plan.unknownStudents ? ` ${plan.unknownStudents} students were not found in your class.` : "";
+      toast(`No marks to update.${why}`, "info");
+      return false;
     }
-    const kind = detectKind(file);
-    if (kind !== "sheet" && kind !== "ai") {
-      toast("Please choose an Excel, CSV, PDF or photo file.", "error");
-      return;
-    }
-    try {
-      setReadingMarks(true);
-      let rows: MarkRow[];
-      let ignored: string[] = [];
-      if (kind === "sheet") {
-        const r = await readMarkRowsFromSheet(file, activeAsmt.subjects);
-        rows = r.rows;
-        ignored = r.ignoredColumns;
-      } else {
-        if (!aiReadingAvailable()) {
-          toast("PDF and photo reading is not set up yet. Use an Excel or CSV file.", "error");
-          return;
-        }
-        if (!hasAiConsent()) {
-          const ok = await uiConfirm(
-            "To read this file, it will be sent to Google's AI service over the internet.\n\nIt may contain student names and marks. Continue?",
-            { title: "Send file to AI?", yesText: "Continue", icon: "warning" }
-          );
-          if (!ok) return;
-          saveAiConsent();
-        }
-        toast("Reading file… this can take a few seconds.", "info");
-        rows = await readMarkRowsWithAi(file, activeAsmt.subjects);
-      }
-      setReadingMarks(false);
-
-      const plan = planMarksImport(rows, data.students, activeAsmt, data.assessmentResults[activeAsmt.id] || {});
-      if (plan.cells === 0) {
-        const why = plan.unknownStudents ? ` ${plan.unknownStudents} students were not found in your class.` : "";
-        toast(`Nothing to update.${why}`, "info");
-        return;
-      }
-      const notes: string[] = [];
-      if (plan.overwritten) notes.push(`${plan.overwritten} existing marks will be replaced`);
-      if (plan.unchanged) notes.push(`${plan.unchanged} already the same`);
-      if (plan.overMax) notes.push(`${plan.overMax} marks above the maximum were skipped`);
-      if (plan.invalid) notes.push(`${plan.invalid} unreadable marks were skipped`);
-      if (plan.unknownStudents) notes.push(`${plan.unknownStudents} students not found were skipped`);
-      if (ignored.length) notes.push(`Columns ignored: ${ignored.slice(0, 5).join(", ")}`);
-      const ok = await uiConfirm(
-        `${plan.cells} marks for ${plan.students} students will be saved in "${activeAsmt.name}".\n\n${plan.examples.join("\n")}` +
-          (notes.length ? `\n\n${notes.join("\n")}` : "") +
-          `\n\nMarks that are not in the file are not changed. You can Undo afterwards.`,
-        { title: "Import marks from file", yesText: "Import", icon: "warning" }
-      );
-      if (!ok) return;
-      const asmtId = activeAsmt.id;
-      saveData(prev => {
-        const cur = { ...(prev.assessmentResults[asmtId] || {}) };
-        Object.entries(plan.updates).forEach(([sid, patch]) => {
-          cur[sid] = { ...(cur[sid] || {}), ...patch };
-        });
-        return { ...prev, assessmentResults: { ...prev.assessmentResults, [asmtId]: cur } };
+    const notes: string[] = [];
+    if (plan.overwritten) notes.push(`${plan.overwritten} existing marks will be replaced`);
+    if (plan.unchanged) notes.push(`${plan.unchanged} already the same`);
+    if (plan.overMax) notes.push(`${plan.overMax} marks above the maximum were skipped`);
+    if (plan.invalid) notes.push(`${plan.invalid} unreadable marks were skipped`);
+    if (plan.unknownStudents) notes.push(`${plan.unknownStudents} students not found were skipped`);
+    if (ignored.length) notes.push(`Columns ignored: ${ignored.slice(0, 5).join(", ")}`);
+    const ok = await uiConfirm(
+      `${plan.cells} marks for ${plan.students} students will be saved in "${activeAsmt.name}".\n\n${plan.examples.join("\n")}` +
+        (notes.length ? `\n\n${notes.join("\n")}` : "") +
+        `\n\nMarks that are not in the file are not changed. You can Undo afterwards.`,
+      { title: "Import marks", yesText: "Import", icon: "warning" }
+    );
+    if (!ok) return false;
+    const asmtId = activeAsmt.id;
+    saveData(prev => {
+      const cur = { ...(prev.assessmentResults[asmtId] || {}) };
+      Object.entries(plan.updates).forEach(([sid, patch]) => {
+        cur[sid] = { ...(cur[sid] || {}), ...patch };
       });
-      toast(`${plan.cells} marks imported.`, "success");
-    } catch (err) {
-      toast((err as Error).message || "Could not read the file.", "error");
-    } finally {
-      setReadingMarks(false);
-    }
+      return { ...prev, assessmentResults: { ...prev.assessmentResults, [asmtId]: cur } };
+    });
+    toast(`${plan.cells} marks imported.`, "success");
+    return true;
   };
 
-  // Write remarks with AI: marks (no names) go to the AI service, remarks come back for review.
+  // Remarks from the marks already in the app. Only marks are sent (no names).
   // Only students with an empty remark are filled, so remarks you wrote yourself are never replaced.
-  const [writingRemarks, setWritingRemarks] = useState(false);
-  const [remarkLang, setRemarkLang] = useState<"English" | "Urdu" | "Hindi">("English");
-  const handleWriteRemarksWithAi = async () => {
-    if (writingRemarks) return;
-    if (!activeAsmt.subjects.length) {
-      toast("Add subjects and marks first.", "error");
-      return;
-    }
+  const writeRemarksFromMarks = async (instructions: string): Promise<boolean> => {
     if (!aiReadingAvailable()) {
       toast("AI is not set up yet.", "error");
-      return;
+      return false;
     }
     const file = buildResultsAiFile(data, activeAsmt, ranked);
     const todo = file.students
@@ -824,42 +736,75 @@ export const ResultsView: React.FC = () => {
       .map((s: any, i: number) => ({ n: i + 1, id: s.id as string, marks: s.marks, percentage: s.percentage, rank: s.rank, result: s.result }));
     if (!todo.length) {
       toast("Nothing to write. Students need marks and an empty remark.", "info");
-      return;
+      return false;
+    }
+    if (!(await ensureAiConsent("The marks (no names)"))) return false;
+    toast(`Writing ${todo.length} remarks… this can take a few seconds.`, "info");
+    const remarks = await generateRemarksWithAi(
+      todo.map(t => ({ n: t.n, marks: t.marks, percentage: t.percentage, rank: t.rank, result: t.result })),
+      activeAsmt.name,
+      instructions
+    );
+    return await reviewAndApplyRemarks(
+      generatedRemarksToResultsFile(todo.map(t => ({ n: t.n, id: t.id })), remarks, { id: activeAsmt.id, name: activeAsmt.name }),
+      "AI-written remarks"
+    );
+  };
+
+  const handleAiGo = async (file: File | null, text: string): Promise<boolean> => {
+    if (!activeAsmt.subjects.length) {
+      toast("Add subjects first.", "error");
+      return false;
     }
     try {
-      if (!hasAiConsent()) {
-        const ok = await uiConfirm(
-          "The marks of these students will be sent to Google's AI service to write remarks. Names are not sent.\n\nContinue?",
-          { title: "Send marks to AI?", yesText: "Continue", icon: "warning" }
-        );
-        if (!ok) return;
-        saveAiConsent();
+      if (!file) return await writeRemarksFromMarks(text);
+
+      const kind = detectKind(file);
+      if (kind === "unsupported") {
+        toast("Please choose an Excel, CSV, PDF, photo or JSON file.", "error");
+        return false;
       }
-      setWritingRemarks(true);
-      toast(`Writing ${todo.length} remarks… this can take a few seconds.`, "info");
-      const remarks = await generateRemarksWithAi(
-        todo.map(t => ({ n: t.n, marks: t.marks, percentage: t.percentage, rank: t.rank, result: t.result })),
-        activeAsmt.name,
-        remarkLang
-      );
-      setWritingRemarks(false);
-      await reviewAndApplyRemarks(
-        generatedRemarksToResultsFile(todo.map(t => ({ n: t.n, id: t.id })), remarks, { id: activeAsmt.id, name: activeAsmt.name }),
-        "AI-written remarks"
-      );
+      if (kind === "json") {
+        // A results file exported with "Export file" and filled in by an AI (remarks)
+        return await reviewAndApplyRemarks(file, "Import remarks from file");
+      }
+
+      let found;
+      if (kind === "sheet") {
+        found = await readResultsSheet(file, activeAsmt.subjects);
+      } else {
+        if (!aiReadingAvailable()) {
+          toast("PDF and photo reading is not set up yet. Use an Excel or CSV file.", "error");
+          return false;
+        }
+        if (!(await ensureAiConsent("This file"))) return false;
+        toast("Reading file… this can take a few seconds.", "info");
+        found = await readResultsWithAi(file, activeAsmt.subjects, text);
+      }
+
+      if (!found.marks.length && !found.remarks.length) {
+        toast("No marks or remarks found in this file.", "error");
+        return false;
+      }
+      let did = false;
+      if (found.marks.length) did = (await applyMarksFromRows(found.marks, found.ignoredColumns)) || did;
+      if (found.remarks.length) {
+        const rf = remarkRowsToResultsFile(found.remarks, data.students, { id: activeAsmt.id, name: activeAsmt.name });
+        did = (await reviewAndApplyRemarks(rf, "Import remarks from file")) || did;
+      }
+      return did;
     } catch (err) {
-      toast((err as Error).message || "Could not write remarks.", "error");
-    } finally {
-      setWritingRemarks(false);
+      toast((err as Error).message || "Could not finish. Please try again.", "error");
+      return false;
     }
   };
 
-  const reviewAndApplyRemarks = async (file: File, title: string) => {
+  const reviewAndApplyRemarks = async (file: File, title: string): Promise<boolean> => {
     try {
       const plan = await planResultsImport(file, data, activeAsmt);
       if (plan.changed === 0) {
         toast("Nothing to update. All remarks are already the same.", "info");
-        return;
+        return false;
       }
       const notes: string[] = [];
       if (plan.unchanged) notes.push(`${plan.unchanged} already the same`);
@@ -872,7 +817,7 @@ export const ResultsView: React.FC = () => {
           `\n\nMarks are not changed. You can Undo afterwards.`,
         { title, yesText: "Import", icon: "warning" }
       );
-      if (!ok) return;
+      if (!ok) return false;
       saveData(prev => ({
         ...prev,
         assessmentRemarks: {
@@ -881,8 +826,10 @@ export const ResultsView: React.FC = () => {
         },
       }));
       toast(`${plan.changed} remarks updated.`, "success");
+      return true;
     } catch (err) {
       toast((err as Error).message || "Could not read the file.", "error");
+      return false;
     }
   };
 
@@ -1523,99 +1470,15 @@ export const ResultsView: React.FC = () => {
         )}
       </div>
 
-      {/* Import marks from file */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div>
-          <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Import marks from file</h3>
-          <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5 leading-snug">
-            Fill the marks from an <b>Excel / CSV</b> file (read on your phone) or a <b>PDF / photo</b> of a marks sheet (read by AI, needs internet). The file needs <b>Roll No</b> or <b>Name</b> plus one column per subject, named like the subjects here. Write <b>A</b> for absent. You see a preview before anything is saved.
-          </p>
-        </div>
-        <label className={`w-full min-h-12 px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors select-none bg-[#B91C1C] hover:bg-[#991B1B] text-white ${readingMarks ? "opacity-60 pointer-events-none" : "cursor-pointer"}`}>
-          <Upload className="w-4 h-4 shrink-0" />
-          <span className="truncate">{readingMarks ? "Reading file…" : "Import marks from file"}</span>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf"
-            onChange={handleImportMarksFromFile}
-            className="hidden"
-          />
-        </label>
-      </div>
-
-      {/* Edit with AI */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div
-          onClick={() => toggleCollapse('aiEdit')}
-          className="flex justify-between items-center gap-2 cursor-pointer select-none"
-        >
-          <div>
-            <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Edit with AI</h3>
-            {collapse.aiEdit && (
-              <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5 leading-snug">
-                Export / import assessment JSON for remarks • Click to expand
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            className="text-xs font-bold text-[#78716C] dark:text-[#A8A29E] hover:text-[#1C1917] dark:hover:text-[#F5F5F4] flex items-center gap-1 cursor-pointer"
-            aria-expanded={!collapse.aiEdit}
-          >
-            <span>{collapse.aiEdit ? "Open" : "Collapse"}</span>
-            {collapse.aiEdit ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-
-        {!collapse.aiEdit && (
-          <>
-            <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] leading-snug">
-              Export this assessment, let an AI write the remarks, then import the file back. Only remarks are changed.
-            </p>
-            <div className="flex gap-2">
-              <ActionButton variant="primary" icon={Sparkles} onClick={handleWriteRemarksWithAi} disabled={writingRemarks} className="flex-1">
-                {writingRemarks ? "Writing remarks…" : "Write remarks with AI"}
-              </ActionButton>
-              <select
-                value={remarkLang}
-                onChange={e => setRemarkLang(e.target.value as "English" | "Urdu" | "Hindi")}
-                aria-label="Remark language"
-                className="min-h-12 px-2 text-xs font-bold rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
-              >
-                <option>English</option>
-                <option>Urdu</option>
-                <option>Hindi</option>
-              </select>
-            </div>
-            <p className="text-[10.5px] text-[#78716C] dark:text-[#A8A29E] leading-snug">
-              Writes a short remark for every student who has marks and an empty remark. Only marks are sent (no names). You see a preview before anything is saved.
-            </p>
-            <label className={`w-full min-h-12 px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors select-none bg-[#B91C1C] hover:bg-[#991B1B] text-white ${readingRemarks ? "opacity-60 pointer-events-none" : "cursor-pointer"}`}>
-              <Upload className="w-4 h-4 shrink-0" />
-              <span className="truncate">{readingRemarks ? "Reading file…" : "Import remarks from file"}</span>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
-                onChange={handleImportRemarksFromFile}
-                className="hidden"
-              />
-            </label>
-            <p className="text-[10.5px] text-[#78716C] dark:text-[#A8A29E] leading-snug">
-              Excel / CSV / PDF / photo with <b>Roll No</b> or <b>Name</b> and <b>Remarks</b> columns, or the <b>JSON</b> file from Export for AI after an AI has filled in the remarks. Students are matched by name first, then roll number. Marks are never changed.
-            </p>
-            <ActionGrid cols={2}>
-              <ActionButton variant="secondary" icon={Sparkles} onClick={handleExportForAi}>
-                Export for AI
-              </ActionButton>
-              <label className="w-full min-h-12 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors select-none cursor-pointer bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-800 border border-stone-200 dark:bg-stone-800/90 dark:hover:bg-stone-700/90 dark:text-stone-200 dark:border-stone-700">
-                <Upload className="w-4 h-4 shrink-0" />
-                <span className="truncate">Import from AI</span>
-                <input type="file" accept=".json,application/json" onChange={handleImportFromAi} className="hidden" />
-              </label>
-            </ActionGrid>
-          </>
-        )}
-      </div>
+      <AiAssistCard
+        title="AI assistant"
+        placeholder={RESULTS_AI_PLACEHOLDER}
+        hint="Attach Excel, CSV, PDF, photo or JSON. Marks are filled from subject columns, remarks from a Remarks column. With no file, remarks are written from the marks (names are not sent). You see a preview before anything is saved."
+        accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
+        onGo={handleAiGo}
+        onExport={handleExportForAi}
+        exportLabel="Export file for another AI"
+      />
 
       {/* Print Actions Section */}
       <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
