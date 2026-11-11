@@ -13,7 +13,7 @@ import {
   getSortedStudents,
   esc
 } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/printEngine';
+import { previewPrint } from '../../utils/printPreviewBus';
 import { downloadAbsenteeSlipPNG } from '../../utils/canvasExport';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -447,7 +447,7 @@ export const AttendanceView: React.FC = () => {
       ${statsHTML}
     </div>`;
 
-    const ok = await triggerPrint(fullPrintHTML, "portrait", data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -525,7 +525,7 @@ export const AttendanceView: React.FC = () => {
       </table>
     </div>`;
 
-    const ok = await triggerPrint(fullPrintHTML, "landscape", data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: fullPrintHTML, orientation: "landscape" }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

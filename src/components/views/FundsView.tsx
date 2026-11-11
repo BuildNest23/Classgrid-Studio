@@ -18,7 +18,7 @@ import {
   gridNavKeyDown,
   gridTabIndex,
 } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/printEngine';
+import { previewPrint } from '../../utils/printPreviewBus';
 import {
   Wallet,
   Plus,
@@ -411,7 +411,7 @@ export const FundsView: React.FC = () => {
       <div class="cg-nocap" style="margin-top:3mm;font-size:9.5pt;font-weight:700">${totalLine}</div>
     </div>`;
 
-    const ok = await triggerPrint(fullPrintHTML, "portrait", data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -466,7 +466,7 @@ export const FundsView: React.FC = () => {
       ${bodyHTML}
     </div>`;
 
-    const ok = await triggerPrint(fullPrintHTML, "portrait", data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

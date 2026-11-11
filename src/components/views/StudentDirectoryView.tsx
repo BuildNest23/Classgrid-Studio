@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { getSortedStudents, esc } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/printEngine';
+import { previewPrint } from '../../utils/printPreviewBus';
 import { downloadStudentListPNG } from '../../utils/canvasExport';
 import { ActionGrid, ActionButton } from '../ActionGrid';
 import { HowItWorks } from '../HowItWorks';
@@ -56,7 +56,7 @@ export const StudentDirectoryView: React.FC = () => {
       </table>
     </div>`;
 
-    const ok = await triggerPrint(fullPrintHTML, "portrait", data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

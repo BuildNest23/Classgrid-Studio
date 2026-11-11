@@ -17,6 +17,7 @@ import {
   gridNavKeyDown,
   gridTabIndex,
 } from '../../utils/helpers';
+import { previewPrint } from '../../utils/printPreviewBus';
 import { triggerPrint } from '../../utils/printEngine';
 import { exportFileBlob } from '../../utils/nativeFileExport';
 import { buildResultsAiFile, planResultsImport } from '../../utils/aiExchange';
@@ -625,7 +626,7 @@ export const ResultsView: React.FC = () => {
       data.printSize,
       data.forceOrientation
     );
-    const ok = await triggerPrint(buildClassResultHTML(printCtx(), layout), layout.orientation, data.printSize, data.forceOrientation, true);
+    const ok = await previewPrint({ html: buildClassResultHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -652,7 +653,7 @@ export const ResultsView: React.FC = () => {
       toast("Add subjects first.", "error");
       return;
     }
-    const ok = await triggerPrint(buildMeritListHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, true);
+    const ok = await previewPrint({ html: buildMeritListHTML(printCtx()), orientation: "portrait", pageNumbers: true }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

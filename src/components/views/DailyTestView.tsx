@@ -11,7 +11,7 @@ import {
   gridNavKeyDown,
   gridTabIndex,
 } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/printEngine';
+import { previewPrint } from '../../utils/printPreviewBus';
 import { generateDailyTestRegisterHTML, DailyTestHeaderOptions } from '../../utils/dailyTestPrint';
 import {
   Calendar,
@@ -303,7 +303,7 @@ export const DailyTestView: React.FC = () => {
       isBlank: false,
       header: headerOpts
     });
-    const ok = await triggerPrint(html, 'landscape', data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: html, orientation: 'landscape' }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -315,7 +315,7 @@ export const DailyTestView: React.FC = () => {
       blankWithNames: printOpts.blankWithNames && sortedStudents.length > 0,
       header: headerOpts
     });
-    const ok = await triggerPrint(html, 'landscape', data.printSize, data.forceOrientation);
+    const ok = await previewPrint({ html: html, orientation: 'landscape' }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

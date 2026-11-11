@@ -376,7 +376,7 @@ function dedupeDataImages(html: string): { html: string; css: string } {
 /**
  * Builds a standalone HTML page with embedded CSS styles for off-screen WebViews or native printers.
  */
-function buildStandalonePrintHTML(
+export function buildStandalonePrintHTML(
   contentHTML: string,
   mult: number,
   orientation: 'portrait' | 'landscape',

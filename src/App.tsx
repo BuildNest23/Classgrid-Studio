@@ -6,6 +6,7 @@ import { ToastContainer } from './components/ToastContainer';
 import { ConfirmModal, PromptModal } from './components/ConfirmModal';
 import { InfoModal, HelpModal } from './components/InfoModal';
 import { WelcomeSheet } from './components/WelcomeSheet';
+import { PrintPreviewModal } from './components/PrintPreviewModal';
 
 import { DashboardView } from './components/views/DashboardView';
 import { StudentsView } from './components/views/StudentsView';
@@ -98,6 +99,7 @@ const MainContent: React.FC = () => {
       <InfoModal />
       <HelpModal />
       <WelcomeSheet />
+      <PrintPreviewModal />
     </div>
   );
 };
