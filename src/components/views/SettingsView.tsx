@@ -228,7 +228,7 @@ export const SettingsView: React.FC = () => {
     // The backup also carries every class saved in the Classes tab.
     let classes: Awaited<ReturnType<typeof exportAllClasses>> = [];
     try {
-      classes = await exportAllClasses();
+      classes = await exportAllClasses(data);
     } catch (e) {
       const goOn = await uiConfirm("Could not read your saved classes, so this backup would only contain the open class. Export anyway?", {
         title: "Saved classes unavailable",

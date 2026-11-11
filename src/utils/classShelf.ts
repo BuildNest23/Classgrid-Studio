@@ -217,10 +217,18 @@ export function makeNewClassData(current: AppData, keepSchool: boolean): AppData
 }
 
 /** All saved classes with their ids, for the main backup file. */
-export async function exportAllClasses(): Promise<Array<{ id: string; name: string; data: AppData }>> {
+export async function exportAllClasses(current?: AppData): Promise<Array<{ id: string; name: string; data: AppData }>> {
   const index = await listShelf();
+  const activeId = getActiveShelfId();
   const out: Array<{ id: string; name: string; data: AppData }> = [];
   for (const e of index) {
+    // The open class is the live copy: its saved card may be older (edits made after the last "Save"),
+    // so the backup uses the live data for that card instead of the stale snapshot.
+    if (current && e.id === activeId) {
+      const { schoolLogo: _logo, ...withoutLogo } = current;
+      out.push({ id: e.id, name: e.name, data: withoutLogo as AppData });
+      continue;
+    }
     const data = await loadFromShelf(e.id);
     if (data) out.push({ id: e.id, name: e.name, data });
   }

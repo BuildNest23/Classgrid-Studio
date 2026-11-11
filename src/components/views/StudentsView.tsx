@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { Student } from '../../types';
 import { newId } from '../../utils/helpers';
@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   GraduationCap,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 const STUDENTS_AI_PLACEHOLDER =
@@ -63,7 +65,6 @@ export const StudentsView: React.FC = () => {
     setOccupation(s.occupation || "");
     setNotes(s.notes || "");
     if (s.phone || s.address || s.occupation || s.notes) setShowOptional(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
@@ -86,15 +87,9 @@ export const StudentsView: React.FC = () => {
     }));
   };
 
-  const handleSaveStudent = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Saves the open edit form into the student (roll-number move rule included).
+  const commitEdit = () => {
     const trimmedName = name.trim();
-    if (!trimmedName) {
-      toast("Please enter the student's name.", "error");
-      return;
-    }
-
-    if (editingId) {
       saveData(prev => {
         const original = prev.students.find(s => s.id === editingId);
         const newRoll = rollNo.trim() || (original?.rollNo || "");
@@ -138,6 +133,18 @@ export const StudentsView: React.FC = () => {
 
         return { ...prev, students: nextStudents };
       });
+  };
+
+  const handleSaveStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast("Please enter the student's name.", "error");
+      return;
+    }
+
+    if (editingId) {
+      commitEdit();
       toast("Student updated.", "success");
       handleCancelEdit();
     } else {
@@ -177,6 +184,7 @@ export const StudentsView: React.FC = () => {
       setFatherName("");
       setPhone("");
       setAddress("");
+      setOccupation("");
       setNotes("");
       setShowOptional(false);
     }
@@ -417,6 +425,43 @@ export const StudentsView: React.FC = () => {
     );
   });
 
+  // ---- Prev / Next while editing: saves the current student, then opens the neighbour ----
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null);
+  const scrollToEditedRef = useRef(false);
+
+  const editIdx = editingId ? filteredStudents.findIndex(x => x.id === editingId) : -1;
+  const hasPrev = editIdx > 0;
+  const hasNext = editIdx >= 0 && editIdx < filteredStudents.length - 1;
+
+  const goToNeighbour = (dir: -1 | 1) => {
+    if (editIdx < 0) return;
+    const target = filteredStudents[editIdx + dir];
+    if (!target) return;
+    if (!name.trim()) {
+      toast("Please enter the student's name.", "error");
+      return;
+    }
+    commitEdit();
+    scrollToEditedRef.current = true;
+    setPendingEditId(target.id); // opened once the save has landed (roll numbers may have changed)
+  };
+
+  useEffect(() => {
+    if (!pendingEditId) return;
+    const target = data.students.find(x => x.id === pendingEditId);
+    setPendingEditId(null);
+    if (target) handleEdit(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingEditId, data.students]);
+
+  // Keep the student being edited in view when moving with Prev / Next (not when tapping the pencil).
+  useEffect(() => {
+    if (!editingId || !scrollToEditedRef.current) return;
+    scrollToEditedRef.current = false;
+    document.getElementById(`stu-${editingId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [editingId]);
+
+
   return (
     <div className="space-y-3">
       <HowItWorks
@@ -446,6 +491,28 @@ export const StudentsView: React.FC = () => {
             {editingId ? <Edit2 className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
             {editingId ? "Edit Student" : "Add New Student"}
           </span>
+          {editingId && (
+            <span className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => goToNeighbour(-1)}
+                disabled={!hasPrev}
+                title="Save and go to previous student"
+                className="py-1 px-2 rounded-lg text-[11px] font-bold bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center gap-0.5"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => goToNeighbour(1)}
+                disabled={!hasNext}
+                title="Save and go to next student"
+                className="py-1 px-2 rounded-lg text-[11px] font-bold bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center gap-0.5"
+              >
+                Next<ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
         </h3>
 
         <form onSubmit={handleSaveStudent}>
@@ -620,7 +687,12 @@ export const StudentsView: React.FC = () => {
             return (
               <div
                 key={s.id}
-                className="flex flex-col p-2.5 rounded-xl border border-[#E7E5E4] dark:border-[#44403C] hover:border-[#D6D3D1] transition-colors gap-2"
+                id={`stu-${s.id}`}
+                className={`flex flex-col p-2.5 rounded-xl border transition-colors gap-2 scroll-mt-[260px] ${
+                  s.id === editingId
+                    ? "border-[#B91C1C] dark:border-[#F87171] ring-2 ring-[#B91C1C]/60 bg-[#FEF2F2] dark:bg-[#2A1514]"
+                    : "border-[#E7E5E4] dark:border-[#44403C] hover:border-[#D6D3D1]"
+                }`}
               >
                 {/* Name block: full width, wraps instead of being cut off */}
                 <div className="flex items-start gap-2.5 min-w-0">

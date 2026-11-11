@@ -9,7 +9,7 @@ export async function performBackup(
   toast: (msg: string, type?: 'success' | 'error' | 'info') => void
 ): Promise<boolean> {
   try {
-    const classes = await exportAllClasses();
+    const classes = await exportAllClasses(data);
     const payload = {
       app: "ClassroomManager",
       version: 6,
