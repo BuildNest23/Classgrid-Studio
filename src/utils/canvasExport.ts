@@ -2,6 +2,7 @@ import { AppData, Student } from '../types';
 import { getSortedStudents, loadImage, prettyDate } from './helpers';
 import { exportImageBlob } from './nativeFileExport';
 import { loadCapsPrint } from './capsPrint';
+import { ListColumns, DEFAULT_LIST_COLUMNS, OptionalCol } from './studentListColumns';
 
 function cap(text: string, enabled: boolean): string {
   if (!text) return '';
@@ -248,7 +249,7 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
   });
 }
 
-export async function downloadStudentListPNG(data: AppData): Promise<boolean> {
+export async function downloadStudentListPNG(data: AppData, cols: ListColumns = DEFAULT_LIST_COLUMNS): Promise<boolean> {
   const sorted = getSortedStudents(data.students);
   if (!sorted.length) return false;
 
@@ -267,7 +268,14 @@ export async function downloadStudentListPNG(data: AppData): Promise<boolean> {
   const headerH = (data.academicYear && data.className) ? 170 : (data.academicYear || data.className ? 155 : 140);
   const headRowH = 44;
   const rowH = 44;
-  const colWidths = [50, 110, 70, 200, 200, 120, 160, 130];
+  const optDefs: { key: OptionalCol; label: string; w: number }[] = [
+    { key: 'phone', label: 'Phone', w: 120 },
+    { key: 'address', label: 'Address', w: 160 },
+    { key: 'occupation', label: 'Occupation', w: 130 },
+    { key: 'notes', label: 'Notes', w: 130 },
+  ];
+  const optOn = optDefs.filter(o => cols[o.key]);
+  const colWidths = [50, 110, 70, 200, 200, ...optOn.map(o => o.w)];
   const tableW = colWidths.reduce((a, b) => a + b, 0);
   const totalW = pad * 2 + tableW;
   const totalH = pad * 2 + headerH + headRowH + sorted.length * rowH + 20;
@@ -326,7 +334,7 @@ export async function downloadStudentListPNG(data: AppData): Promise<boolean> {
   ctx.fillText("STUDENT LIST", centerX, y + 12);
   y = pad + headerH;
 
-  const headers = ["#", "Adm. No", "Roll", "Name", "Father Name", "Phone", "Address", "Notes"].map(h => cap(h, isCaps));
+  const headers = ["#", "Adm. No", "Roll", "Name", "Father Name", ...optOn.map(o => o.label)].map(h => cap(h, isCaps));
   ctx.fillStyle = "#F3F4F6";
   ctx.fillRect(pad, y, tableW, headRowH);
   ctx.strokeStyle = "#000000";
@@ -356,16 +364,18 @@ export async function downloadStudentListPNG(data: AppData): Promise<boolean> {
       s.rollNo || "—",
       cap(s.name || "—", isCaps),
       cap(s.fatherName || "—", isCaps),
-      s.phone || "—",
-      cap(s.address || "—", isCaps),
-      s.notes || "—"
+      ...optOn.map(o =>
+        o.key === 'phone' ? (s.phone || "—")
+        : o.key === 'address' ? cap(s.address || "—", isCaps)
+        : o.key === 'occupation' ? cap(s.occupation || "—", isCaps)
+        : (s.notes || "—"))
     ];
 
     cells.forEach((val, i) => {
       ctx.strokeRect(x, y, colWidths[i], rowH);
       if (i === 3 || i === 4) {
         drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 11.5, F, 2);
-      } else if (i === 6 || i === 7) {
+      } else if (i >= 5 && optOn[i - 5].key !== 'phone') {
         ctx.textAlign = "left";
         const maxW = colWidths[i] - 10;
         const words = String(val).split(/\s+/);

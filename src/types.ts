@@ -6,6 +6,7 @@ export interface Student {
   fatherName: string;
   phone: string;
   address: string;
+  occupation?: string;
   notes: string;
   createdAt: number;
 }

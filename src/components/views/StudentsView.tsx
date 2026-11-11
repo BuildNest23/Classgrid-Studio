@@ -47,6 +47,7 @@ export const StudentsView: React.FC = () => {
   const [fatherName, setFatherName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [occupation, setOccupation] = useState("");
   const [notes, setNotes] = useState("");
 
   const nextAutoRoll = String(data.students.length + 1).padStart(2, "0");
@@ -59,8 +60,9 @@ export const StudentsView: React.FC = () => {
     setFatherName(s.fatherName || "");
     setPhone(s.phone || "");
     setAddress(s.address || "");
+    setOccupation(s.occupation || "");
     setNotes(s.notes || "");
-    if (s.phone || s.address || s.notes) setShowOptional(true);
+    if (s.phone || s.address || s.occupation || s.notes) setShowOptional(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -72,6 +74,7 @@ export const StudentsView: React.FC = () => {
     setFatherName("");
     setPhone("");
     setAddress("");
+    setOccupation("");
     setNotes("");
     setShowOptional(false);
   };
@@ -107,6 +110,7 @@ export const StudentsView: React.FC = () => {
               fatherName: fatherName.trim(),
               phone: phone.trim(),
               address: address.trim(),
+              occupation: occupation.trim(),
               notes: notes.trim()
             };
           }
@@ -145,6 +149,7 @@ export const StudentsView: React.FC = () => {
         fatherName: fatherName.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        occupation: occupation.trim(),
         notes: notes.trim(),
         createdAt: Date.now()
       };
@@ -356,6 +361,7 @@ export const StudentsView: React.FC = () => {
         const what: string[] = [];
         if (plan.changedNames) what.push(`${plan.changedNames} names`);
         if (plan.changedFathers) what.push(`${plan.changedFathers} father names`);
+        if (plan.changedOccupations) what.push(`${plan.changedOccupations} occupations`);
         parts.push(`${plan.changedStudents} students will be updated (${what.join(", ")}).\n${plan.examples.join("\n")}`);
       }
       if (adds) {
@@ -385,6 +391,7 @@ export const StudentsView: React.FC = () => {
           fatherName: n.fatherName,
           phone: n.phone || "",
           address: "",
+          occupation: n.occupation || "",
           notes: "",
           createdAt: Date.now(),
         }));
@@ -500,7 +507,7 @@ export const StudentsView: React.FC = () => {
                 className="text-[11.5px] font-bold text-[#2E5A8A] dark:text-[#8AB4DC] hover:underline cursor-pointer flex items-center gap-1"
               >
                 {showOptional ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                <span>{showOptional ? "Hide Optional Details" : "Add Optional Details (Phone, Address, Notes)"}</span>
+                <span>{showOptional ? "Hide Optional Details" : "Add Optional Details (Phone, Address, Occupation, Notes)"}</span>
               </button>
             </div>
 
@@ -523,6 +530,16 @@ export const StudentsView: React.FC = () => {
                     value={address}
                     placeholder="Optional"
                     onChange={e => setAddress(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Occupation</label>
+                  <input
+                    type="text"
+                    value={occupation}
+                    placeholder="Optional (e.g. Teacher, Shopkeeper)"
+                    onChange={e => setOccupation(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
                   />
                 </div>

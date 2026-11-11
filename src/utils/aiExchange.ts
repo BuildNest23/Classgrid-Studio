@@ -134,7 +134,7 @@ export async function planResultsImport(file: File, data: AppData, asmt: Assessm
 }
 
 // ---------- Students Master tab ----------
-// Existing students: only name and father name can change. New students can be added (name, father name, adm. no).
+// Existing students: name, father name and occupation can change. New students can be added (name, father name, adm. no, occupation).
 // Roll numbers are always given by the app. Phone, address and notes are never sent or changed.
 
 const MAX_NAME_LEN = 80;
@@ -146,7 +146,8 @@ export function buildStudentsAiFile(data: AppData) {
     tab: 'students',
     instructions:
       'To fix a name, edit "name" or "fatherName". ' +
-      'To add a student, add an entry at the end with "name", "fatherName" and "admissionNo" (no "id"). ' +
+      'To set or fix an occupation (the parent/guardian\'s job, optional), edit "occupation". ' +
+      'To add a student, add an entry at the end with "name", "fatherName", "admissionNo" and optionally "occupation" (no "id"). ' +
       'Do not change anything else.',
     school: data.schoolName,
     students: data.students.map(s => ({
@@ -155,6 +156,7 @@ export function buildStudentsAiFile(data: AppData) {
       admissionNo: s.admissionNo,
       name: s.name,
       fatherName: s.fatherName,
+      occupation: s.occupation || '',
     })),
   };
 }
@@ -164,14 +166,16 @@ export interface NewStudentInput {
   fatherName: string;
   admissionNo: string;
   phone?: string;
+  occupation?: string;
 }
 
 export interface StudentsImportPlan {
-  updates: Record<string, { name?: string; fatherName?: string }>;
+  updates: Record<string, { name?: string; fatherName?: string; occupation?: string }>;
   additions: NewStudentInput[];
   changedStudents: number;
   changedNames: number;
   changedFathers: number;
+  changedOccupations: number;
   unchanged: number;
   skippedUnknown: number;
   skippedInvalid: number;
@@ -217,7 +221,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (k) byAdm.set(k, s);
   });
   const plan: StudentsImportPlan = {
-    updates: {}, additions: [], changedStudents: 0, changedNames: 0, changedFathers: 0,
+    updates: {}, additions: [], changedStudents: 0, changedNames: 0, changedFathers: 0, changedOccupations: 0,
     unchanged: 0, skippedUnknown: 0, skippedInvalid: 0, skippedDuplicate: 0, sameNameNotes: 0,
     examples: [], addedPreview: [],
   };
@@ -229,7 +233,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
       plan.skippedDuplicate++; // same student listed twice
       return;
     }
-    const patch: { name?: string; fatherName?: string } = {};
+    const patch: { name?: string; fatherName?: string; occupation?: string } = {};
     let invalid = false;
     if (entry.name !== undefined) {
       const n = cleanName(entry.name);
@@ -241,8 +245,13 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
       if (!f && cur.fatherName) invalid = true;
       else if (f !== (cur.fatherName || '')) patch.fatherName = f;
     }
+    if (entry.occupation !== undefined) {
+      const o = cleanName(entry.occupation);
+      if (!o && cur.occupation) invalid = true; // never blank out an existing occupation
+      else if (o !== (cur.occupation || '')) patch.occupation = o;
+    }
     if (invalid) plan.skippedInvalid++;
-    if (patch.name === undefined && patch.fatherName === undefined) {
+    if (patch.name === undefined && patch.fatherName === undefined && patch.occupation === undefined) {
       if (!invalid) plan.unchanged++;
       return;
     }
@@ -255,6 +264,10 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (patch.fatherName !== undefined) {
       plan.changedFathers++;
       if (plan.examples.length < 5) plan.examples.push(`s/o ${cur.fatherName || '—'} → ${patch.fatherName}`);
+    }
+    if (patch.occupation !== undefined) {
+      plan.changedOccupations++;
+      if (plan.examples.length < 5) plan.examples.push(`Occupation: ${cur.occupation || '—'} → ${patch.occupation}`);
     }
   };
 
@@ -299,7 +312,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (adm) seenNewAdm.add(adm);
     seenNewKey.add(key);
     if (sameInApp.length) plan.sameNameNotes++;
-    plan.additions.push({ name, fatherName: father, admissionNo: adm, phone: cleanPhone(entry.phone) });
+    plan.additions.push({ name, fatherName: father, admissionNo: adm, phone: cleanPhone(entry.phone), occupation: cleanName(entry.occupation) });
     if (plan.addedPreview.length < 6) plan.addedPreview.push(`${name}${adm ? ` (Adm. ${adm})` : ''}`);
   }
   return plan;

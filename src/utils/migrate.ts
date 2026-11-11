@@ -66,6 +66,7 @@ export function normalizeData(raw: unknown): AppData {
         fatherName: String(s.fatherName ?? ""),
         phone: String(s.phone ?? ""),
         address: String(s.address ?? ""),
+        occupation: String(s.occupation ?? ""),
         notes: String(s.notes ?? ""),
         createdAt: Number(s.createdAt) || 0 // 0 = unknown join date: counts for all past attendance
       };

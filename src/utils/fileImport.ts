@@ -14,6 +14,7 @@ export interface ImportedRow {
   admissionNo: string;
   rollNo: string;
   phone: string;
+  occupation?: string;
 }
 
 const PROXY_URL: string = (import.meta.env.VITE_AI_PROXY_URL as string | undefined) || '';
@@ -44,11 +45,12 @@ export const saveAiConsent = () => {
 
 const norm = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-type Field = 'name' | 'fatherName' | 'admissionNo' | 'rollNo' | 'phone';
+type Field = 'name' | 'fatherName' | 'admissionNo' | 'rollNo' | 'phone' | 'occupation';
 
 function fieldOf(header: unknown): Field | null {
   const h = norm(header);
   if (!h) return null;
+  if (/(occupation|profession|job|work)/.test(h)) return 'occupation';
   if (/^(father|guardian|parent|fname)/.test(h) || /^(so|sonof|wo|dso)$/.test(h)) return 'fatherName';
   if (/(admission|admno|admn|regno|registration|grno|scholar|enrol)/.test(h)) return 'admissionNo';
   if (/(phone|mobile|mob|contact|cell|whatsapp|tel)/.test(h)) return 'phone';
@@ -100,6 +102,7 @@ export async function readSheetRows(file: File): Promise<ImportedRow[]> {
       admissionNo: get(r, 'admissionNo'),
       rollNo: get(r, 'rollNo'),
       phone: get(r, 'phone'),
+      occupation: get(r, 'occupation'),
     });
   }
   if (!out.length) throw new Error('No students found under the Name column.');
@@ -199,6 +202,7 @@ export function rowsToStudentsFile(rows: ImportedRow[]): File {
       fatherName: r.fatherName,
       admissionNo: r.admissionNo,
       phone: r.phone,
+      occupation: r.occupation || '',
     })),
   };
   return new File([JSON.stringify(payload)], 'import.json', { type: 'application/json' });

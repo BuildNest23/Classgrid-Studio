@@ -7,13 +7,26 @@ import { ActionGrid, ActionButton } from '../ActionGrid';
 import { HowItWorks } from '../HowItWorks';
 import { Printer, Download, ArrowLeft } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { OPTIONAL_COLS, loadListColumns, saveListColumns, ListColumns, OptionalCol } from '../../utils/studentListColumns';
 
 export const StudentDirectoryView: React.FC = () => {
   const { data, setActiveTab, toast, buildPrintHeaderHTML } = useClassroom();
   const [downloading, setDownloading] = useState(false);
+  const [cols, setCols] = useState<ListColumns>(loadListColumns);
+  const toggleCol = (k: OptionalCol) => {
+    const next = { ...cols, [k]: !cols[k] };
+    setCols(next);
+    saveListColumns(next);
+  };
   const sortedStudents = getSortedStudents(data.students);
 
   const handlePrint = async () => {
+    const on = OPTIONAL_COLS.filter(c => cols[c.key]);
+    const optCell = (k: OptionalCol, s: typeof sortedStudents[number]) =>
+      k === 'phone' ? `<td class="center">${esc(s.phone || "—")}</td>`
+      : k === 'address' ? `<td>${esc(s.address || "—")}</td>`
+      : k === 'occupation' ? `<td>${esc(s.occupation || "—")}</td>`
+      : `<td class="cg-nocap">${esc(s.notes || "—")}</td>`;
     const rows = sortedStudents.map((s, i) => `
       <tr>
         <td class="center font-bold">${i + 1}</td>
@@ -21,11 +34,13 @@ export const StudentDirectoryView: React.FC = () => {
         <td class="center font-mono font-bold">${esc(s.rollNo || "—")}</td>
         <td><span class="cg-fit">${esc(s.name || "—")}</span></td>
         <td><span class="cg-fit">${esc(s.fatherName || "—")}</span></td>
-        <td class="center">${esc(s.phone || "—")}</td>
-        <td>${esc(s.address || "—")}</td>
-        <td class="cg-nocap">${esc(s.notes || "—")}</td>
+        ${on.map(c => optCell(c.key, s)).join("")}
       </tr>`).join("");
 
+    // Fixed columns share 64%; the chosen optional columns share the rest (name columns grow when fewer are shown).
+    const optW = on.length ? Math.floor(36 / on.length) : 0;
+    const fixedExtra = on.length ? 0 : 36;
+    const nameW = 20 + fixedExtra / 2;
     const fullPrintHTML = `<div class="print-sheet">
       ${buildPrintHeaderHTML("Student List")}
       <table>
@@ -34,14 +49,12 @@ export const StudentDirectoryView: React.FC = () => {
             <th style="width:5%">#</th>
             <th style="width:11%">Adm. No</th>
             <th style="width:8%">Roll</th>
-            <th style="width:20%">Name</th>
-            <th style="width:20%">Father Name</th>
-            <th style="width:12%">Phone</th>
-            <th style="width:14%">Address</th>
-            <th style="width:10%">Notes</th>
+            <th style="width:${nameW}%">Name</th>
+            <th style="width:${nameW}%">Father Name</th>
+            ${on.map(c => `<th style="width:${optW}%">${c.label}</th>`).join("")}
           </tr>
         </thead>
-        <tbody>${rows || '<tr><td colspan="8" class="center">No students</td></tr>'}</tbody>
+        <tbody>${rows || `<tr><td colspan="${5 + on.length}" class="center">No students</td></tr>`}</tbody>
       </table>
     </div>`;
 
@@ -56,7 +69,7 @@ export const StudentDirectoryView: React.FC = () => {
     }
     setDownloading(true);
     try {
-      const ok = await downloadStudentListPNG(data);
+      const ok = await downloadStudentListPNG(data, cols);
       if (ok) {
         toast(Capacitor.isNativePlatform() ? "Student list ready in Android share sheet." : "Student list image downloaded.", "success");
       } else {
@@ -101,6 +114,25 @@ export const StudentDirectoryView: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Dashboard</span>
           </button>
+        </div>
+
+        <div className="rounded-xl border border-[#E7E5E4] dark:border-[#44403C] p-3">
+          <div className="text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-2">
+            Include in print / image
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {OPTIONAL_COLS.map(c => (
+              <label key={c.key} className="flex items-center gap-1.5 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cols[c.key]}
+                  onChange={() => toggleCol(c.key)}
+                  className="w-4 h-4 accent-[#B91C1C]"
+                />
+                {c.label}
+              </label>
+            ))}
+          </div>
         </div>
 
         <ActionGrid cols={2}>
@@ -163,9 +195,10 @@ export const StudentDirectoryView: React.FC = () => {
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-14">Roll</th>
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Name</th>
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Father Name</th>
-                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-24">Phone</th>
-                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Address</th>
-                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Notes</th>
+                  {cols.phone && <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-24">Phone</th>}
+                  {cols.address && <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Address</th>}
+                  {cols.occupation && <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Occupation</th>}
+                  {cols.notes && <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Notes</th>}
                 </tr>
               </thead>
               <tbody>
@@ -176,9 +209,10 @@ export const StudentDirectoryView: React.FC = () => {
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold">{s.rollNo || "—"}</td>
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold">{s.name || "—"}</td>
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.fatherName || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.phone || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.address || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.notes || "—"}</td>
+                    {cols.phone && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.phone || "—"}</td>}
+                    {cols.address && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.address || "—"}</td>}
+                    {cols.occupation && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.occupation || "—"}</td>}
+                    {cols.notes && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.notes || "—"}</td>}
                   </tr>
                 ))}
               </tbody>

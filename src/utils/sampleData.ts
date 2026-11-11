@@ -67,6 +67,7 @@ export function generateSampleClassData(): AppData {
       fatherName: s.father,
       phone: `030${(idx % 9) + 1}-${1234000 + num}`,
       address: `Street ${((idx % 12) + 1)}, Block ${(idx % 5) + 1}, Model Town, Lahore`,
+      occupation: ["Teacher","Shopkeeper","Engineer","Farmer","Driver","Doctor"][idx % 6],
       notes: idx % 7 === 0 ? "Scholarship student" : idx % 11 === 0 ? "Bus transport user" : "",
       createdAt: now - (50 - idx) * 86400000
     };
