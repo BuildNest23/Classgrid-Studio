@@ -27,11 +27,10 @@ export const StudentDirectoryView: React.FC = () => {
       : k === 'address' ? `<td>${esc(s.address || "—")}</td>`
       : k === 'occupation' ? `<td>${esc(s.occupation || "—")}</td>`
       : `<td class="cg-nocap">${esc(s.notes || "—")}</td>`;
-    const rows = sortedStudents.map((s, i) => `
+    const rows = sortedStudents.map(s => `
       <tr>
-        <td class="center font-bold">${i + 1}</td>
-        <td class="center font-mono">${esc(s.admissionNo || "—")}</td>
         <td class="center font-mono font-bold">${esc(s.rollNo || "—")}</td>
+        <td class="center font-mono">${esc(s.admissionNo || "—")}</td>
         <td><span class="cg-fit">${esc(s.name || "—")}</span></td>
         <td><span class="cg-fit">${esc(s.fatherName || "—")}</span></td>
         ${on.map(c => optCell(c.key, s)).join("")}
@@ -40,21 +39,20 @@ export const StudentDirectoryView: React.FC = () => {
     // Fixed columns share 64%; the chosen optional columns share the rest (name columns grow when fewer are shown).
     const optW = on.length ? Math.floor(36 / on.length) : 0;
     const fixedExtra = on.length ? 0 : 36;
-    const nameW = 20 + fixedExtra / 2;
+    const nameW = 22.5 + fixedExtra / 2;
     const fullPrintHTML = `<div class="print-sheet">
       ${buildPrintHeaderHTML("Student List")}
       <table>
         <thead>
           <tr>
-            <th style="width:5%">#</th>
+            <th style="width:8%">Roll #</th>
             <th style="width:11%">Adm. No</th>
-            <th style="width:8%">Roll</th>
             <th style="width:${nameW}%">Name</th>
             <th style="width:${nameW}%">Father Name</th>
             ${on.map(c => `<th style="width:${optW}%">${c.label}</th>`).join("")}
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="${5 + on.length}" class="center">No students</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="${4 + on.length}" class="center">No students</td></tr>`}</tbody>
       </table>
     </div>`;
 
@@ -190,9 +188,8 @@ export const StudentDirectoryView: React.FC = () => {
             <table className="w-full text-xs text-center border-collapse">
               <thead>
                 <tr className="bg-[#FAFAF9] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]">
-                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-10">#</th>
+                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-16">Roll #</th>
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-20">Adm. No</th>
-                  <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-14">Roll</th>
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Name</th>
                   <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left">Father Name</th>
                   {cols.phone && <th className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] w-24">Phone</th>}
@@ -202,11 +199,10 @@ export const StudentDirectoryView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {sortedStudents.map((s, idx) => (
+                {sortedStudents.map(s => (
                   <tr key={s.id} className="even:bg-[#FAFAF9] dark:even:bg-[#0C0A09]">
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-bold">{idx + 1}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.admissionNo || "—"}</td>
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold">{s.rollNo || "—"}</td>
+                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.admissionNo || "—"}</td>
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold">{s.name || "—"}</td>
                     <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.fatherName || "—"}</td>
                     {cols.phone && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.phone || "—"}</td>}

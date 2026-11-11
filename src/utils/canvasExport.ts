@@ -275,7 +275,7 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
     { key: 'notes', label: 'Notes', w: 130 },
   ];
   const optOn = optDefs.filter(o => cols[o.key]);
-  const colWidths = [50, 110, 70, 200, 200, ...optOn.map(o => o.w)];
+  const colWidths = [80, 110, 200, 200, ...optOn.map(o => o.w)];
   const tableW = colWidths.reduce((a, b) => a + b, 0);
   const totalW = pad * 2 + tableW;
   const totalH = pad * 2 + headerH + headRowH + sorted.length * rowH + 20;
@@ -334,7 +334,7 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
   ctx.fillText("STUDENT LIST", centerX, y + 12);
   y = pad + headerH;
 
-  const headers = ["#", "Adm. No", "Roll", "Name", "Father Name", ...optOn.map(o => o.label)].map(h => cap(h, isCaps));
+  const headers = ["Roll #", "Adm. No", "Name", "Father Name", ...optOn.map(o => o.label)].map(h => cap(h, isCaps));
   ctx.fillStyle = "#F3F4F6";
   ctx.fillRect(pad, y, tableW, headRowH);
   ctx.strokeStyle = "#000000";
@@ -359,9 +359,8 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
     ctx.font = `600 11.5px ${F}`;
 
     const cells = [
-      String(idx + 1),
-      s.admissionNo || "—",
       s.rollNo || "—",
+      s.admissionNo || "—",
       cap(s.name || "—", isCaps),
       cap(s.fatherName || "—", isCaps),
       ...optOn.map(o =>
@@ -373,9 +372,9 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
 
     cells.forEach((val, i) => {
       ctx.strokeRect(x, y, colWidths[i], rowH);
-      if (i === 3 || i === 4) {
+      if (i === 2 || i === 3) {
         drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 11.5, F, 2);
-      } else if (i >= 5 && optOn[i - 5].key !== 'phone') {
+      } else if (i >= 4 && optOn[i - 4].key !== 'phone') {
         ctx.textAlign = "left";
         const maxW = colWidths[i] - 10;
         const words = String(val).split(/\s+/);
