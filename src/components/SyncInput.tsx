@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { PlainTextInput } from './PlainTextInput';
 
 type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'defaultValue' | 'onChange'> & {
   /** Current value from the app data (source of truth). */
@@ -24,8 +25,11 @@ export const SyncInput: React.FC<Props> = ({ value, onCommit, onLive, onFocus, o
     if (!focused.current) setText(str);
   }, [str, tick]);
 
+  const textLike = !rest.type || rest.type === 'text' || rest.type === 'tel' || rest.type === 'search';
+  const Field: any = textLike ? PlainTextInput : 'input';
+
   return (
-    <input
+    <Field
       {...rest}
       value={text}
       onFocus={e => {

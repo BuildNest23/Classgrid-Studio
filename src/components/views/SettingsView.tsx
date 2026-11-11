@@ -29,6 +29,7 @@ import { NewClassDialog, shelveOpenClass } from './ClassesView';
 import { setActiveShelfId, getActiveShelfId, exportAllClasses, restoreClasses } from '../../utils/classShelf';
 import { MyToolsCard } from '../MyToolsCard';
 import { useClassgridPrefs, savePrefs } from '../../utils/prefs';
+import { PlainTextInput } from '../PlainTextInput';
 
 const LAST_BACKUP_KEY = 'classgrid_last_backup';
 const STORAGE_LIMIT_CHARS = 5 * 1024 * 1024; // browsers allow roughly 5 MB of local storage
@@ -410,9 +411,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 Class Name *
               </label>
-              <input
-                type="text"
-                value={className}
+              <PlainTextInput
+                                value={className}
                 placeholder="e.g. 6th Jinnah"
                 onChange={e => setClassName(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -422,9 +422,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 Incharge / Teacher Name
               </label>
-              <input
-                type="text"
-                value={inchargeName}
+              <PlainTextInput
+                                value={inchargeName}
                 placeholder="e.g. Mr. Waqas"
                 onChange={e => setInchargeName(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -434,9 +433,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 School Name
               </label>
-              <input
-                type="text"
-                value={schoolName}
+              <PlainTextInput
+                                value={schoolName}
                 placeholder="School Name"
                 onChange={e => setSchoolName(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -446,9 +444,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 Academic Year / Session
               </label>
-              <input
-                type="text"
-                value={academicYear}
+              <PlainTextInput
+                                value={academicYear}
                 placeholder="e.g. 2026-27"
                 onChange={e => setAcademicYear(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -458,9 +455,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 EMIS Code (Optional)
               </label>
-              <input
-                type="text"
-                value={emisCode}
+              <PlainTextInput
+                                value={emisCode}
                 placeholder="e.g. 35210123"
                 onChange={e => setEmisCode(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -470,9 +466,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 Section (Optional)
               </label>
-              <input
-                type="text"
-                value={section}
+              <PlainTextInput
+                                value={section}
                 placeholder="e.g. A"
                 onChange={e => setSection(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
@@ -482,9 +477,8 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
                 Additional Print Line (Optional)
               </label>
-              <input
-                type="text"
-                value={printNote}
+              <PlainTextInput
+                                value={printNote}
                 placeholder="e.g. Principal: Mr. XYZ"
                 onChange={e => setPrintNote(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"

@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { PlainTextInput } from '../PlainTextInput';
 
 const STUDENTS_AI_PLACEHOLDER =
   "Attach a file and tap Go, or type / paste names here.\n\nYou can add instructions, for example:\n• Only take the Class 5 students\n• Names are in the second column\n• Ali Khan s/o Ahmed 0300-1234567";
@@ -545,9 +546,8 @@ export const StudentsView: React.FC = () => {
               <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                 Roll No *
               </label>
-              <input
-                type="text"
-                value={rollNo}
+              <PlainTextInput
+                                value={rollNo}
                 placeholder={editingId ? "Roll" : nextAutoRoll}
                 onChange={e => setRollNo(e.target.value)}
                 className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
@@ -557,9 +557,8 @@ export const StudentsView: React.FC = () => {
               <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                 Admission No
               </label>
-              <input
-                type="text"
-                value={admNo}
+              <PlainTextInput
+                                value={admNo}
                 placeholder="Optional"
                 onChange={e => setAdmNo(e.target.value)}
                 className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
@@ -570,9 +569,8 @@ export const StudentsView: React.FC = () => {
               <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                 Student Name *
               </label>
-              <input
-                type="text"
-                value={name}
+              <PlainTextInput
+                                value={name}
                 placeholder="Student Name"
                 onChange={e => setName(e.target.value)}
                 className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
@@ -582,9 +580,8 @@ export const StudentsView: React.FC = () => {
               <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                 Father Name
               </label>
-              <input
-                type="text"
-                value={fatherName}
+              <PlainTextInput
+                                value={fatherName}
                 placeholder="Father Name"
                 onChange={e => setFatherName(e.target.value)}
                 className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
@@ -606,7 +603,7 @@ export const StudentsView: React.FC = () => {
               <>
                 <div>
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Phone</label>
-                  <input
+                  <PlainTextInput
                     type="tel"
                     value={phone}
                     placeholder="Optional"
@@ -616,9 +613,8 @@ export const StudentsView: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={address}
+                  <PlainTextInput
+                                        value={address}
                     placeholder="Optional"
                     onChange={e => setAddress(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
@@ -626,9 +622,8 @@ export const StudentsView: React.FC = () => {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Occupation</label>
-                  <input
-                    type="text"
-                    value={occupation}
+                  <PlainTextInput
+                                        value={occupation}
                     placeholder="Optional (e.g. Teacher, Shopkeeper)"
                     onChange={e => setOccupation(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
@@ -636,9 +631,8 @@ export const StudentsView: React.FC = () => {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Notes</label>
-                  <input
-                    type="text"
-                    value={notes}
+                  <PlainTextInput
+                                        value={notes}
                     placeholder="Optional"
                     onChange={e => setNotes(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit"
@@ -684,9 +678,8 @@ export const StudentsView: React.FC = () => {
         <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] mb-2">
           Students ({filteredStudents.length})
         </h2>
-        <input
-          type="search"
-          value={search}
+        <PlainTextInput
+                    value={search}
           placeholder="Search by name, father, admission, roll..."
           onChange={e => setSearch(e.target.value)}
           className="w-full p-2.5 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"

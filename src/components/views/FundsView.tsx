@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Printer
 } from 'lucide-react';
+import { PlainTextInput } from '../PlainTextInput';
 
 export const FundsView: React.FC = () => {
   const {
@@ -127,9 +128,8 @@ export const FundsView: React.FC = () => {
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                     Fund Name *
                   </label>
-                  <input
-                    type="text"
-                    value={newFundName}
+                  <PlainTextInput
+                                        value={newFundName}
                     placeholder="e.g. Monthly Fee — Sep 2026"
                     onChange={e => setNewFundName(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"

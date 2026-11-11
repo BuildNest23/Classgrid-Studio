@@ -15,6 +15,7 @@ import {
 } from '../utils/feeReceipt';
 import { AppData } from '../types';
 import { PRINT_SIZES, fmtMoney } from '../utils/helpers';
+import { PlainTextInput } from './PlainTextInput';
 
 interface Props {
   data: AppData;
@@ -116,10 +117,9 @@ export const FundCardModal: React.FC<Props> = ({ data, students, studentId, onCh
             <label className={lbl} htmlFor="receipt-thanks">
               Thank-you line (leave empty to hide)
             </label>
-            <input
+            <PlainTextInput
               id="receipt-thanks"
-              type="text"
-              className={field}
+                            className={field}
               value={thanks}
               maxLength={90}
               onChange={e => changeThanks(e.target.value)}

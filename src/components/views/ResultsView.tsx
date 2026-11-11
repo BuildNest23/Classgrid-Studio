@@ -65,6 +65,7 @@ import {
   saveResultsCollapse,
   ResultsCollapseState,
 } from '../../utils/resultsCollapse';
+import { PlainTextInput } from '../PlainTextInput';
 
 const RESULTS_AI_PLACEHOLDER =
   "Attach a file and tap Go, or tap Go with no file to write remarks from the marks.\n\nYou can add instructions, for example:\n• Write remarks in Urdu, short and kind\n• Be gentle with failed students\n• Mention weak subjects\n• In the file, marks are in the last 5 columns";
@@ -196,9 +197,8 @@ export const ResultsView: React.FC = () => {
                   <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
                     Assessment Name *
                   </label>
-                  <input
-                    type="text"
-                    value={newAsmtName}
+                  <PlainTextInput
+                                        value={newAsmtName}
                     placeholder="e.g. First Term / Monthly Test 1 / Final Exam"
                     onChange={e => setNewAsmtName(e.target.value)}
                     className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
@@ -1050,9 +1050,8 @@ export const ResultsView: React.FC = () => {
 
             <form onSubmit={handleAddSubject} className="space-y-2.5 pt-2 border-t border-[#E7E5E4] dark:border-[#44403C]">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={newSubName}
+                <PlainTextInput
+                                    value={newSubName}
                   placeholder="Subject name"
                   disabled={isLocked}
                   onChange={e => setNewSubName(e.target.value)}
@@ -1538,9 +1537,8 @@ export const ResultsView: React.FC = () => {
               })}
             </div>
             <WatermarkOptions kind="result" hasLogo={!!data.schoolLogo} />
-            <input
-              type="text"
-              value={printFooter}
+            <PlainTextInput
+                            value={printFooter}
               onChange={e => changePrintFooter(e.target.value)}
               maxLength={80}
               placeholder="Footer text for prints (optional)"
@@ -1727,7 +1725,7 @@ const MarkBox: React.FC<{
   max: number;
   onText: (t: string) => void;
   onEnter: () => void;
-  inputRef: (el: HTMLInputElement | null) => void;
+  inputRef: (el: HTMLTextAreaElement | null) => void;
   autoFocus?: boolean;
   hideMsg?: boolean;
 }> = ({ text, max, onText, onEnter, inputRef, autoFocus, hideMsg }) => {
@@ -1735,10 +1733,9 @@ const MarkBox: React.FC<{
   const absent = /^a$/i.test(text.trim());
   return (
     <div className="flex items-center gap-2">
-      <input
+      <PlainTextInput
         ref={inputRef}
-        type="text"
-        inputMode="decimal"
+                inputMode="decimal"
         autoComplete="off"
         autoFocus={autoFocus}
         enterKeyHint="next"
@@ -1810,7 +1807,7 @@ const StudentEntryModal: React.FC<{
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(subjects.map(s => [s.id, markToText(initial[s.id])]))
   );
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const saveRef = useRef<HTMLButtonElement | null>(null);
   const guard = useEntryGuard();
 
@@ -1883,7 +1880,7 @@ const SubjectEntryModal: React.FC<{
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(students.map(s => [s.id, markToText(s.value)]))
   );
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const saveRef = useRef<HTMLButtonElement | null>(null);
   const guard = useEntryGuard();
   const filled = students.filter(s => (draft[s.id] ?? "").trim() !== "").length;

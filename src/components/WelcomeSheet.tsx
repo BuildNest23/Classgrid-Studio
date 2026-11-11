@@ -21,6 +21,7 @@ import { ClassTools } from '../types';
 
 import { getPrefs, savePrefs } from '../utils/prefs';
 import { listShelf } from '../utils/classShelf';
+import { PlainTextInput } from './PlainTextInput';
 
 export const WelcomeSheet: React.FC = () => {
   const { data, saveData, replaceAllData, uiConfirm, toast, setActiveTab } = useClassroom();
@@ -237,9 +238,8 @@ export const WelcomeSheet: React.FC = () => {
                 <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   School Name (optional)
                 </label>
-                <input
-                  type="text"
-                  value={schoolName}
+                <PlainTextInput
+                                    value={schoolName}
                   onChange={e => setSchoolName(e.target.value)}
                   placeholder="e.g. Govt High School"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-inherit focus:outline-none focus:ring-1 focus:ring-[#991B1B]"
@@ -250,9 +250,8 @@ export const WelcomeSheet: React.FC = () => {
                 <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   Class Name (optional)
                 </label>
-                <input
-                  type="text"
-                  value={className}
+                <PlainTextInput
+                                    value={className}
                   onChange={e => setClassName(e.target.value)}
                   placeholder="e.g. Class 10th - A"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-inherit focus:outline-none focus:ring-1 focus:ring-[#991B1B]"
@@ -263,9 +262,8 @@ export const WelcomeSheet: React.FC = () => {
                 <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
                   Teacher / Incharge Name (optional)
                 </label>
-                <input
-                  type="text"
-                  value={inchargeName}
+                <PlainTextInput
+                                    value={inchargeName}
                   onChange={e => setInchargeName(e.target.value)}
                   placeholder="e.g. Mr. Ahmad"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-inherit focus:outline-none focus:ring-1 focus:ring-[#991B1B]"

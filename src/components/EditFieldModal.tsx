@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { PlainTextInput } from './PlainTextInput';
 
 export interface EditFieldModalProps {
   /** e.g. "Father Name" */
@@ -74,10 +75,9 @@ export const EditFieldModal: React.FC<EditFieldModalProps> = ({
             className={fieldCls}
           />
         ) : (
-          <input
+          <PlainTextInput
             ref={ref}
-            type="text"
-            inputMode={inputMode}
+                        inputMode={inputMode}
             value={text}
             onChange={e => { setText(e.target.value); setError(''); }}
             onKeyDown={onKey}

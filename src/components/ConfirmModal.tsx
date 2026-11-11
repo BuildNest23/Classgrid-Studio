@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import { AlertTriangle, CheckCircle, HelpCircle, Info, Edit3 } from 'lucide-react';
+import { PlainTextInput } from './PlainTextInput';
 
 export const ConfirmModal: React.FC = () => {
   const { confirmState, closeConfirm } = useClassroom();
@@ -92,7 +93,7 @@ export const ConfirmModal: React.FC = () => {
 export const PromptModal: React.FC = () => {
   const { promptState, closePrompt } = useClassroom();
   const [val, setVal] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (promptState.isOpen) {
@@ -141,10 +142,9 @@ export const PromptModal: React.FC = () => {
           {message}
         </p>
         <div className="mb-5">
-          <input
+          <PlainTextInput
             ref={inputRef}
-            type="text"
-            value={val}
+                        value={val}
             onChange={e => setVal(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') handleOk();
