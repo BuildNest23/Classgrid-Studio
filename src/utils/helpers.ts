@@ -135,9 +135,13 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 export function getSortedStudents(students: Student[]): Student[] {
-  return students.slice().sort((a, b) =>
-    String(a.rollNo || "").localeCompare(String(b.rollNo || ""), undefined, { numeric: true })
-  );
+  // Blank roll numbers go last (an empty string would otherwise sort first).
+  return students.slice().sort((a, b) => {
+    const ab = !String(a.rollNo || "").trim();
+    const bb = !String(b.rollNo || "").trim();
+    if (ab || bb) return ab === bb ? 0 : ab ? 1 : -1;
+    return String(a.rollNo).localeCompare(String(b.rollNo), undefined, { numeric: true });
+  });
 }
 
 export const PRINT_SIZES: Record<PrintSizeKey, { mult: number; label: string }> = {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { Student } from '../../types';
-import { newId } from '../../utils/helpers';
+import { newId, getSortedStudents } from '../../utils/helpers';
+import { RollConflictModal } from '../RollConflictModal';
+import { RollMode, changeRoll, findRollOwner, formatRoll, nextRollNumber, renumberAll, isBlankRoll } from '../../utils/rollNumbers';
 import { HowItWorks } from '../HowItWorks';
 import { AiAssistCard } from '../AiAssistCard';
 import { exportFileBlob } from '../../utils/nativeFileExport';
@@ -52,7 +54,13 @@ export const StudentsView: React.FC = () => {
   const [occupation, setOccupation] = useState("");
   const [notes, setNotes] = useState("");
 
-  const nextAutoRoll = String(data.students.length + 1).padStart(2, "0");
+  const nextAutoRoll = nextRollNumber(data.students);
+
+  // Asked when the wanted roll number already belongs to someone else
+  const [rollConflict, setRollConflict] = useState<null | {
+    roll: string; ownerName: string; studentName: string; oldRoll: string; canSwap: boolean;
+    apply: (mode: RollMode) => void;
+  }>(null);
 
   const handleEdit = (s: Student) => {
     setEditingId(s.id);
@@ -80,26 +88,19 @@ export const StudentsView: React.FC = () => {
     setShowOptional(false);
   };
 
-  const syncRollNumbers = (list: Student[]): Student[] => {
-    return list.map((s, idx) => ({
-      ...s,
-      rollNo: String(idx + 1).padStart(2, "0")
-    }));
-  };
-
-  // Saves the open edit form into the student (roll-number move rule included).
-  const commitEdit = () => {
+  // Saves the open edit form into the student. Other students' roll numbers are never changed
+  // unless the chosen conflict mode says so (swap / blank / insert).
+  const commitEdit = (mode: RollMode = 'plain') => {
     const trimmedName = name.trim();
-      saveData(prev => {
-        const original = prev.students.find(s => s.id === editingId);
-        const newRoll = rollNo.trim() || (original?.rollNo || "");
-        const rollChanged = !!original && newRoll !== (original.rollNo || "");
+    saveData(prev => {
+      const original = prev.students.find(x => x.id === editingId);
+      if (!original) return prev;
+      const newRoll = formatRoll(rollNo) || (original.rollNo || "");
 
-        const nextStudents = prev.students.map(s => {
-          if (s.id === editingId) {
-            return {
-              ...s,
-              rollNo: newRoll,
+      let list = prev.students.map(x =>
+        x.id === editingId
+          ? {
+              ...x,
               admissionNo: admNo.trim(),
               name: trimmedName,
               fatherName: fatherName.trim(),
@@ -107,32 +108,34 @@ export const StudentsView: React.FC = () => {
               address: address.trim(),
               occupation: occupation.trim(),
               notes: notes.trim()
-            };
-          }
-          return s;
-        });
+            }
+          : x
+      );
+      if (newRoll !== (original.rollNo || "")) list = changeRoll(list, original.id, newRoll, mode);
+      return { ...prev, students: list };
+    });
+  };
 
-        // If the roll number was changed, move the student to that position
-        // (ascending order). Then renumber everyone 01, 02, 03...
-        const target = parseInt(newRoll, 10);
-        if (rollChanged && !isNaN(target)) {
-          const edited = nextStudents.find(s => s.id === editingId)!;
-          const others = nextStudents.filter(s => s.id !== editingId);
-          const oldRoll = parseInt(original!.rollNo, 10);
-          const movingDown = !isNaN(oldRoll) && target > oldRoll;
-          // Moving up: go before anyone with the same/higher roll.
-          // Moving down: go after anyone with the same/lower roll.
-          let insertAt = others.findIndex(s => {
-            const r = parseInt(s.rollNo, 10);
-            return !isNaN(r) && (movingDown ? r > target : r >= target);
-          });
-          if (insertAt === -1) insertAt = others.length;
-          const reordered = [...others.slice(0, insertAt), edited, ...others.slice(insertAt)];
-          return { ...prev, students: syncRollNumbers(reordered) };
-        }
-
-        return { ...prev, students: nextStudents };
-      });
+  // Runs the save; if the roll number is taken, asks what to do first. `after` runs once saved.
+  const attemptEdit = (after: () => void) => {
+    const original = data.students.find(x => x.id === editingId);
+    const wanted = formatRoll(rollNo);
+    const owner = original && wanted && wanted !== (original.rollNo || "")
+      ? findRollOwner(data.students, original.id, wanted)
+      : undefined;
+    if (!owner) {
+      commitEdit('plain');
+      after();
+      return;
+    }
+    setRollConflict({
+      roll: wanted,
+      ownerName: owner.name,
+      studentName: name.trim(),
+      oldRoll: original?.rollNo || "",
+      canSwap: true,
+      apply: mode => { commitEdit(mode); after(); },
+    });
   };
 
   const handleSaveStudent = (e: React.FormEvent) => {
@@ -144,14 +147,16 @@ export const StudentsView: React.FC = () => {
     }
 
     if (editingId) {
-      commitEdit();
-      toast("Student updated.", "success");
-      handleCancelEdit();
+      attemptEdit(() => {
+        toast("Student updated.", "success");
+        handleCancelEdit();
+      });
     } else {
+      const wantedRoll = formatRoll(rollNo);
       const newStudent: Student = {
         id: newId(),
         admissionNo: admNo.trim(),
-        rollNo: rollNo.trim() || nextAutoRoll,
+        rollNo: wantedRoll || nextAutoRoll,
         name: trimmedName,
         fatherName: fatherName.trim(),
         phone: phone.trim(),
@@ -161,22 +166,32 @@ export const StudentsView: React.FC = () => {
         createdAt: Date.now()
       };
 
-      saveData(prev => {
-        // A custom roll number places the student at that position and renumbers the class
-        // (same rule as editing a roll number); otherwise the student is appended with the next roll.
-        const target = parseInt(rollNo.trim(), 10);
-        if (rollNo.trim() && !isNaN(target)) {
-          let insertAt = prev.students.findIndex(s => {
-            const r = parseInt(s.rollNo, 10);
-            return !isNaN(r) && r >= target;
-          });
-          if (insertAt === -1) insertAt = prev.students.length;
-          const reordered = [...prev.students.slice(0, insertAt), newStudent, ...prev.students.slice(insertAt)];
-          return { ...prev, students: syncRollNumbers(reordered) };
-        }
-        return { ...prev, students: [...prev.students, newStudent] };
-      });
+      const addIt = (mode: RollMode) => {
+        saveData(prev => {
+          // Added with a blank roll first, then given its number the same way an edit would
+          const base = [...prev.students, { ...newStudent, rollNo: "" }];
+          return { ...prev, students: changeRoll(base, newStudent.id, newStudent.rollNo, mode) };
+        });
+        finishAdd();
+      };
 
+      const owner = findRollOwner(data.students, null, newStudent.rollNo);
+      if (owner) {
+        setRollConflict({
+          roll: newStudent.rollNo,
+          ownerName: owner.name,
+          studentName: trimmedName,
+          oldRoll: "",
+          canSwap: false,
+          apply: addIt,
+        });
+        return;
+      }
+      addIt('plain');
+    }
+  };
+
+  const finishAdd = () => {
       toast("Student added.", "success");
       setRollNo("");
       setAdmNo("");
@@ -187,24 +202,32 @@ export const StudentsView: React.FC = () => {
       setOccupation("");
       setNotes("");
       setShowOptional(false);
-    }
   };
 
+  // Move Up / Down swaps roll numbers with the neighbour in roll order.
   const handleMove = (id: string, dir: -1 | 1) => {
-    const idx = data.students.findIndex(s => s.id === id);
-    if (idx < 0) return;
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= data.students.length) return;
+    const sorted = getSortedStudents(data.students);
+    const idx = sorted.findIndex(x => x.id === id);
+    const other = sorted[idx + dir];
+    if (idx < 0 || !other) return;
 
-    saveData(prev => {
-      const nextList = [...prev.students];
-      const temp = nextList[idx];
-      nextList[idx] = nextList[newIdx];
-      nextList[newIdx] = temp;
-      const synced = syncRollNumbers(nextList);
-      return { ...prev, students: synced };
-    });
-    toast("Student moved.", "info");
+    saveData(prev => ({
+      ...prev,
+      students: prev.students.map(x =>
+        x.id === id ? { ...x, rollNo: other.rollNo } : x.id === other.id ? { ...x, rollNo: sorted[idx].rollNo } : x
+      ),
+    }));
+    toast("Roll numbers swapped.", "info");
+  };
+
+  const handleRenumber = async () => {
+    const ok = await uiConfirm(
+      "Give everyone new roll numbers 01, 02, 03… in the current order?\n\nStudents with a blank roll number go last. You can Undo afterwards.",
+      { title: "Renumber class", yesText: "Renumber", icon: "warning" }
+    );
+    if (!ok) return;
+    saveData(prev => ({ ...prev, students: renumberAll(prev.students) }));
+    toast("Roll numbers renumbered.", "success");
   };
 
   const handleDelete = async (s: Student) => {
@@ -222,7 +245,7 @@ export const StudentsView: React.FC = () => {
 
     saveData(prev => {
       const nextStudents = prev.students.filter(x => x.id !== s.id);
-      const synced = syncRollNumbers(nextStudents);
+      const synced = nextStudents; // roll numbers are left as they are (use "Renumber" to close gaps)
 
       const nextAtt = { ...prev.attendance };
       Object.keys(nextAtt).forEach(k => {
@@ -394,7 +417,7 @@ export const StudentsView: React.FC = () => {
         const added: Student[] = plan.additions.map((n, i) => ({
           id: newId(),
           admissionNo: n.admissionNo,
-          rollNo: String(updated.length + i + 1).padStart(2, "0"),
+          rollNo: String(parseInt(nextRollNumber(updated), 10) + i).padStart(2, "0"),
           name: n.name,
           fatherName: n.fatherName,
           phone: n.phone || "",
@@ -413,7 +436,7 @@ export const StudentsView: React.FC = () => {
     }
   };
 
-  const filteredStudents = data.students.filter(s => {
+  const filteredStudents = getSortedStudents(data.students).filter(s => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -441,9 +464,10 @@ export const StudentsView: React.FC = () => {
       toast("Please enter the student's name.", "error");
       return;
     }
-    commitEdit();
-    scrollToEditedRef.current = true;
-    setPendingEditId(target.id); // opened once the save has landed (roll numbers may have changed)
+    attemptEdit(() => {
+      scrollToEditedRef.current = true;
+      setPendingEditId(target.id); // opened once the save has landed
+    });
   };
 
   useEffect(() => {
@@ -667,6 +691,15 @@ export const StudentsView: React.FC = () => {
           onChange={e => setSearch(e.target.value)}
           className="w-full p-2.5 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
         />
+        {data.students.length > 1 && (
+          <button
+            type="button"
+            onClick={handleRenumber}
+            className="text-[11px] font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+          >
+            Renumber class 01, 02, 03…
+          </button>
+        )}
       </div>
 
       {/* Student List */}
@@ -696,8 +729,8 @@ export const StudentsView: React.FC = () => {
               >
                 {/* Name block: full width, wraps instead of being cut off */}
                 <div className="flex items-start gap-2.5 min-w-0">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold font-mono bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] shrink-0 mt-0.5">
-                    Roll {s.rollNo || "—"}
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold font-mono shrink-0 mt-0.5 ${isBlankRoll(s.rollNo) ? "bg-[#FEE2E2] dark:bg-[#450A0A] text-[#B91C1C] dark:text-[#FCA5A5]" : "bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]"}`}>
+                    Roll {s.rollNo || "— (blank)"}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-sm text-[#1C1917] dark:text-[#F5F5F4] break-words leading-snug">
@@ -751,6 +784,17 @@ export const StudentsView: React.FC = () => {
           })
         )}
       </div>
+      {rollConflict && (
+        <RollConflictModal
+          roll={rollConflict.roll}
+          ownerName={rollConflict.ownerName}
+          studentName={rollConflict.studentName}
+          oldRoll={rollConflict.oldRoll}
+          canSwap={rollConflict.canSwap}
+          onChoose={mode => { const c = rollConflict; setRollConflict(null); c.apply(mode); }}
+          onCancel={() => setRollConflict(null)}
+        />
+      )}
     </div>
   );
 };

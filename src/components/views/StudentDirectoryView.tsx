@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EditFieldModal } from '../EditFieldModal';
-import { Student } from '../../types';
+import { RollConflictModal } from '../RollConflictModal';
+import { RollMode, changeRoll, findRollOwner, formatRoll, isBlankRoll } from '../../utils/rollNumbers';
 import { useClassroom } from '../../context/ClassroomContext';
 import { getSortedStudents, esc } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
@@ -25,7 +26,7 @@ export const StudentDirectoryView: React.FC = () => {
   // ---- Tap a cell to correct it ----
   type FieldKey = 'rollNo' | 'admissionNo' | 'name' | 'fatherName' | 'phone' | 'address' | 'occupation' | 'notes';
   const FIELDS: Record<FieldKey, { label: string; multiline?: boolean; inputMode?: 'text' | 'numeric' | 'tel'; required?: boolean; note?: string }> = {
-    rollNo: { label: 'Roll #', inputMode: 'numeric', note: 'Changing the roll # moves the student to that position and renumbers the class.' },
+    rollNo: { label: 'Roll #', inputMode: 'numeric', note: 'Other students are not renumbered. If the number is taken, you will be asked what to do.' },
     admissionNo: { label: 'Adm. No' },
     name: { label: 'Name', required: true },
     fatherName: { label: 'Father Name' },
@@ -37,32 +38,36 @@ export const StudentDirectoryView: React.FC = () => {
   const [editing, setEditing] = useState<{ id: string; field: FieldKey } | null>(null);
   const editStudent = editing ? data.students.find(s => s.id === editing.id) : undefined;
 
+  // Asked when the wanted roll number already belongs to someone else
+  const [rollConflict, setRollConflict] = useState<null | {
+    roll: string; ownerName: string; studentName: string; oldRoll: string; id: string;
+  }>(null);
+
+  const applyRoll = (id: string, roll: string, mode: RollMode) => {
+    saveData(prev => ({ ...prev, students: changeRoll(prev.students, id, roll, mode) }));
+    setEditing(null);
+    toast('Saved.', 'success');
+  };
+
   const saveField = (value: string) => {
     if (!editing) return;
     const { id, field } = editing;
+
+    if (field === 'rollNo') {
+      const original = data.students.find(x => x.id === id);
+      const wanted = formatRoll(value) || (original?.rollNo || '');
+      if (!original || wanted === (original.rollNo || '')) { setEditing(null); return; }
+      const owner = findRollOwner(data.students, id, wanted);
+      if (owner) {
+        setRollConflict({ roll: wanted, ownerName: owner.name, studentName: original.name, oldRoll: original.rollNo || '', id });
+        return;
+      }
+      applyRoll(id, wanted, 'plain');
+      return;
+    }
     saveData(prev => {
       const original = prev.students.find(s => s.id === id);
       if (!original) return prev;
-
-      if (field === 'rollNo') {
-        // Same rule as the Students tab: move to that position, then renumber 01, 02, 03...
-        const newRoll = value || original.rollNo || '';
-        const target = parseInt(newRoll, 10);
-        if (newRoll === (original.rollNo || '') || isNaN(target)) {
-          return { ...prev, students: prev.students.map(s => (s.id === id ? { ...s, rollNo: newRoll } : s)) };
-        }
-        const edited: Student = { ...original, rollNo: newRoll };
-        const others = prev.students.filter(s => s.id !== id);
-        const oldRoll = parseInt(original.rollNo, 10);
-        const movingDown = !isNaN(oldRoll) && target > oldRoll;
-        let insertAt = others.findIndex(s => {
-          const r = parseInt(s.rollNo, 10);
-          return !isNaN(r) && (movingDown ? r > target : r >= target);
-        });
-        if (insertAt === -1) insertAt = others.length;
-        const reordered = [...others.slice(0, insertAt), edited, ...others.slice(insertAt)];
-        return { ...prev, students: reordered.map((s, i) => ({ ...s, rollNo: String(i + 1).padStart(2, '0') })) };
-      }
 
       return { ...prev, students: prev.students.map(s => (s.id === id ? { ...s, [field]: value } : s)) };
     });
@@ -257,7 +262,7 @@ export const StudentDirectoryView: React.FC = () => {
               <tbody>
                 {sortedStudents.map(s => (
                   <tr key={s.id} className="even:bg-[#FAFAF9] dark:even:bg-[#0C0A09]">
-                    <td {...cellProps(s.id, 'rollNo')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold" + editable}>{s.rollNo || "—"}</td>
+                    <td {...cellProps(s.id, 'rollNo')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold" + (isBlankRoll(s.rollNo) ? " text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEE2E2] dark:bg-[#450A0A]" : "") + editable}>{s.rollNo || "—"}</td>
                     <td {...cellProps(s.id, 'admissionNo')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono" + editable}>{s.admissionNo || "—"}</td>
                     <td {...cellProps(s.id, 'name')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold" + editable}>{s.name || "—"}</td>
                     <td {...cellProps(s.id, 'fatherName')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]" + editable}>{s.fatherName || "—"}</td>
@@ -284,6 +289,18 @@ export const StudentDirectoryView: React.FC = () => {
           note={FIELDS[editing.field].note}
           onSave={saveField}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {rollConflict && (
+        <RollConflictModal
+          roll={rollConflict.roll}
+          ownerName={rollConflict.ownerName}
+          studentName={rollConflict.studentName}
+          oldRoll={rollConflict.oldRoll}
+          canSwap={true}
+          onChoose={mode => { const c = rollConflict; setRollConflict(null); applyRoll(c.id, c.roll, mode); }}
+          onCancel={() => setRollConflict(null)}
         />
       )}
     </div>
