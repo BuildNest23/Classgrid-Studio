@@ -1,6 +1,6 @@
 import { AppData } from '../types';
 import { exportFileBlob } from './nativeFileExport';
-import { exportAllClasses, restoreClasses, setActiveShelfId } from './classShelf';
+import { exportAllClasses, restoreClasses, setActiveShelfId, getActiveShelfId } from './classShelf';
 import { Capacitor } from '@capacitor/core';
 import { savePrefs } from './prefs';
 
@@ -14,6 +14,7 @@ export async function performBackup(
       app: "ClassroomManager",
       version: 6,
       exportedAt: new Date().toISOString(),
+      ...(getActiveShelfId() ? { classId: getActiveShelfId() } : {}),
       data: data,
       ...(classes.length > 0 ? { classes } : {})
     };

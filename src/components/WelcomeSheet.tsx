@@ -88,11 +88,15 @@ export const WelcomeSheet: React.FC = () => {
   const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
+    // Hide this sheet while the restore confirmation is showing (it would otherwise cover it).
+    setIsOpen(false);
     const ok = await performRestore(file, replaceAllData, uiConfirm, toast);
     if (ok) {
       dismissForever();
+    } else {
+      setIsOpen(true); // cancelled or failed: bring the choices back
     }
-    e.target.value = '';
   };
 
   const handleSaveClassInfoAndNext = () => {

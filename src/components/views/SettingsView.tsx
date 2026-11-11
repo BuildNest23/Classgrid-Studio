@@ -26,7 +26,7 @@ import { getStorage } from '../../storage';
 import { getLastAutoBackupTimestamp } from '../../storage/autoBackup';
 import { useCapsPrint, saveCapsPrint } from '../../utils/capsPrint';
 import { NewClassDialog, shelveOpenClass } from './ClassesView';
-import { setActiveShelfId, exportAllClasses, restoreClasses } from '../../utils/classShelf';
+import { setActiveShelfId, getActiveShelfId, exportAllClasses, restoreClasses } from '../../utils/classShelf';
 import { MyToolsCard } from '../MyToolsCard';
 import { useClassgridPrefs, savePrefs } from '../../utils/prefs';
 
@@ -242,6 +242,7 @@ export const SettingsView: React.FC = () => {
       app: "ClassroomManager",
       version: 6,
       exportedAt: new Date().toISOString(),
+      ...(getActiveShelfId() ? { classId: getActiveShelfId() } : {}),
       data: data,
       ...(classes.length > 0 ? { classes } : {})
     };

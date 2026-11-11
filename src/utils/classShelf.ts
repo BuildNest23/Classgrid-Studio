@@ -163,27 +163,36 @@ export async function restoreShelfRaw(entry: ShelfEntry, data: AppData): Promise
  * Adds classes from a file the user picked: a single class backup (what Export Backup makes)
  * or a "back up all classes" file. Returns how many cards were added.
  */
-export async function importIntoShelf(parsed: unknown): Promise<number> {
+export async function importIntoShelf(parsed: unknown): Promise<{ added: number; updated: number }> {
   const p = parsed as any;
-  const added: Array<{ name?: string; data: unknown }> = [];
+  const found: Array<{ id?: string; name?: string; data: unknown }> = [];
+  const idOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
 
   if (p && p.app === 'ClassGridShelf' && Array.isArray(p.classes)) {
-    for (const c of p.classes) if (c && c.data) added.push({ name: c.name, data: c.data });
+    for (const c of p.classes) if (c && c.data) found.push({ id: idOf(c.id), name: c.name, data: c.data });
   } else if (p && p.data && typeof p.data === 'object') {
-    added.push({ data: p.data }); // regular Export Backup file (the open class)
+    // regular Export Backup file (the open class); classId ties it to its card so re-importing updates it
+    found.push({ id: idOf(p.classId), data: p.data });
     if (Array.isArray(p.classes)) {
-      for (const c of p.classes) if (c && c.data) added.push({ name: c.name, data: c.data });
+      for (const c of p.classes) if (c && c.data) found.push({ id: idOf(c.id), name: c.name, data: c.data });
     }
   } else if (p && typeof p === 'object' && Array.isArray(p.students)) {
-    added.push({ data: p }); // bare data
+    found.push({ data: p }); // bare data
   }
-  if (added.length === 0) throw new Error('This file is not a ClassGrid backup.');
+  if (found.length === 0) throw new Error('This file is not a ClassGrid backup.');
 
-  for (const c of added) {
+  // A class whose id is already on the shelf is updated in place instead of added again.
+  const existingIds = new Set((await readIndex()).map(e => e.id));
+  let added = 0;
+  let updated = 0;
+  for (const c of found) {
     const data = normalizeData(c.data);
-    await saveToShelf(data, { name: c.name });
+    if (c.id && existingIds.has(c.id)) updated++;
+    else added++;
+    const entry = await saveToShelf(data, { id: c.id, name: c.name });
+    existingIds.add(entry.id);
   }
-  return added.length;
+  return { added, updated };
 }
 
 /** Builds the "back up all classes" payload. */

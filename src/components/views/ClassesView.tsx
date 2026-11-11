@@ -270,7 +270,7 @@ export const ClassesView: React.FC = () => {
       toast('This saved class could not be read.', 'error');
       return;
     }
-    const payload = { app: 'ClassroomManager', version: 6, exportedAt: new Date().toISOString(), data: d };
+    const payload = { app: 'ClassroomManager', version: 6, exportedAt: new Date().toISOString(), classId: entry.id, data: d };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const ok = await exportFileBlob(blob, `classgrid-${safeFile(entry.name)}.json`, {
       title: `ClassGrid: ${entry.name}`,
@@ -335,8 +335,11 @@ export const ClassesView: React.FC = () => {
       } catch {
         throw new Error('This file could not be read as a backup.');
       }
-      const n = await importIntoShelf(parsed);
-      toast(`Added ${n} class${n === 1 ? '' : 'es'} to Classes.`, 'success');
+      const { added, updated } = await importIntoShelf(parsed);
+      const parts: string[] = [];
+      if (updated) parts.push(`Updated ${updated} existing class${updated === 1 ? '' : 'es'}`);
+      if (added) parts.push(`Added ${added} new class${added === 1 ? '' : 'es'}`);
+      toast(`${parts.join(' · ')}.`, 'success');
     });
   };
 
