@@ -41,7 +41,7 @@ export const Navigation: React.FC = () => {
     ...(tools.results ? [{ id: 'results' as ActiveTab, label: 'Results', icon: BarChart3 }] : []),
     ...(tools.funds ? [{ id: 'funds' as ActiveTab, label: 'Funds', icon: Wallet }] : []),
     { id: 'students' as ActiveTab, label: 'Students', icon: Users },
-    { id: 'view' as ActiveTab, label: 'Student list (print)', icon: FileText },
+    { id: 'view' as ActiveTab, label: 'Student list (Print)', icon: FileText },
     ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Classes', icon: Archive }] : []),
     { id: 'settings' as ActiveTab, label: 'Class details & backup', icon: Settings },
   ];
@@ -76,9 +76,9 @@ export const Navigation: React.FC = () => {
     }] : []),
     {
       id: 'view' as ActiveTab,
-      label: 'Student list (print)',
+      label: 'Student list (Print)',
       icon: FileText,
-      desc: 'Read-only directory · print or save as HD image'
+      desc: 'Tap any box to correct it · print or save as HD image'
     },
     ...(prefs.showAdvanced ? [{
       id: 'classes' as ActiveTab,

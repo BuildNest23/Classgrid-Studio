@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { EditFieldModal } from '../EditFieldModal';
+import { Student } from '../../types';
 import { useClassroom } from '../../context/ClassroomContext';
 import { getSortedStudents, esc } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
@@ -10,7 +12,7 @@ import { Capacitor } from '@capacitor/core';
 import { OPTIONAL_COLS, loadListColumns, saveListColumns, ListColumns, OptionalCol } from '../../utils/studentListColumns';
 
 export const StudentDirectoryView: React.FC = () => {
-  const { data, setActiveTab, toast, buildPrintHeaderHTML } = useClassroom();
+  const { data, setActiveTab, toast, buildPrintHeaderHTML, saveData } = useClassroom();
   const [downloading, setDownloading] = useState(false);
   const [cols, setCols] = useState<ListColumns>(loadListColumns);
   const toggleCol = (k: OptionalCol) => {
@@ -19,6 +21,60 @@ export const StudentDirectoryView: React.FC = () => {
     saveListColumns(next);
   };
   const sortedStudents = getSortedStudents(data.students);
+
+  // ---- Tap a cell to correct it ----
+  type FieldKey = 'rollNo' | 'admissionNo' | 'name' | 'fatherName' | 'phone' | 'address' | 'occupation' | 'notes';
+  const FIELDS: Record<FieldKey, { label: string; multiline?: boolean; inputMode?: 'text' | 'numeric' | 'tel'; required?: boolean; note?: string }> = {
+    rollNo: { label: 'Roll #', inputMode: 'numeric', note: 'Changing the roll # moves the student to that position and renumbers the class.' },
+    admissionNo: { label: 'Adm. No' },
+    name: { label: 'Name', required: true },
+    fatherName: { label: 'Father Name' },
+    phone: { label: 'Phone', inputMode: 'tel' },
+    address: { label: 'Address', multiline: true },
+    occupation: { label: 'Occupation' },
+    notes: { label: 'Notes', multiline: true },
+  };
+  const [editing, setEditing] = useState<{ id: string; field: FieldKey } | null>(null);
+  const editStudent = editing ? data.students.find(s => s.id === editing.id) : undefined;
+
+  const saveField = (value: string) => {
+    if (!editing) return;
+    const { id, field } = editing;
+    saveData(prev => {
+      const original = prev.students.find(s => s.id === id);
+      if (!original) return prev;
+
+      if (field === 'rollNo') {
+        // Same rule as the Students tab: move to that position, then renumber 01, 02, 03...
+        const newRoll = value || original.rollNo || '';
+        const target = parseInt(newRoll, 10);
+        if (newRoll === (original.rollNo || '') || isNaN(target)) {
+          return { ...prev, students: prev.students.map(s => (s.id === id ? { ...s, rollNo: newRoll } : s)) };
+        }
+        const edited: Student = { ...original, rollNo: newRoll };
+        const others = prev.students.filter(s => s.id !== id);
+        const oldRoll = parseInt(original.rollNo, 10);
+        const movingDown = !isNaN(oldRoll) && target > oldRoll;
+        let insertAt = others.findIndex(s => {
+          const r = parseInt(s.rollNo, 10);
+          return !isNaN(r) && (movingDown ? r > target : r >= target);
+        });
+        if (insertAt === -1) insertAt = others.length;
+        const reordered = [...others.slice(0, insertAt), edited, ...others.slice(insertAt)];
+        return { ...prev, students: reordered.map((s, i) => ({ ...s, rollNo: String(i + 1).padStart(2, '0') })) };
+      }
+
+      return { ...prev, students: prev.students.map(s => (s.id === id ? { ...s, [field]: value } : s)) };
+    });
+    setEditing(null);
+    toast('Saved.', 'success');
+  };
+
+  const cellProps = (id: string, field: FieldKey) => ({
+    onClick: () => setEditing({ id, field }),
+    title: 'Tap to correct',
+  });
+  const editable = ' cursor-pointer hover:bg-[#FEF2F2] dark:hover:bg-[#2A1514] active:bg-[#FEE2E2] transition-colors';
 
   const handlePrint = async () => {
     const on = OPTIONAL_COLS.filter(c => cols[c.key]);
@@ -88,7 +144,7 @@ export const StudentDirectoryView: React.FC = () => {
         id="directory"
         title="About this list"
         steps={[
-          <>This page only <b>shows</b> your class list. To add, edit or remove students, go to the <b>Students</b> tab.</>,
+          <>Tap any box in the list to correct it quickly. To add or remove students, go to the <b>Students</b> tab.</>,
           <>Tap <b>Print View</b> for a paper copy, or <b>Save as Image</b> to share it, for example on WhatsApp.</>
         ]}
       />
@@ -201,14 +257,14 @@ export const StudentDirectoryView: React.FC = () => {
               <tbody>
                 {sortedStudents.map(s => (
                   <tr key={s.id} className="even:bg-[#FAFAF9] dark:even:bg-[#0C0A09]">
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold">{s.rollNo || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.admissionNo || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold">{s.name || "—"}</td>
-                    <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.fatherName || "—"}</td>
-                    {cols.phone && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono">{s.phone || "—"}</td>}
-                    {cols.address && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.address || "—"}</td>}
-                    {cols.occupation && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.occupation || "—"}</td>}
-                    {cols.notes && <td className="p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]">{s.notes || "—"}</td>}
+                    <td {...cellProps(s.id, 'rollNo')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold" + editable}>{s.rollNo || "—"}</td>
+                    <td {...cellProps(s.id, 'admissionNo')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono" + editable}>{s.admissionNo || "—"}</td>
+                    <td {...cellProps(s.id, 'name')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold" + editable}>{s.name || "—"}</td>
+                    <td {...cellProps(s.id, 'fatherName')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]" + editable}>{s.fatherName || "—"}</td>
+                    {cols.phone && <td {...cellProps(s.id, 'phone')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] font-mono" + editable}>{s.phone || "—"}</td>}
+                    {cols.address && <td {...cellProps(s.id, 'address')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]" + editable}>{s.address || "—"}</td>}
+                    {cols.occupation && <td {...cellProps(s.id, 'occupation')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]" + editable}>{s.occupation || "—"}</td>}
+                    {cols.notes && <td {...cellProps(s.id, 'notes')} className={"p-2.5 border border-[#E7E5E4] dark:border-[#44403C] text-left text-[#78716C] dark:text-[#A8A29E]" + editable}>{s.notes || "—"}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -216,6 +272,20 @@ export const StudentDirectoryView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {editing && editStudent && (
+        <EditFieldModal
+          label={FIELDS[editing.field].label}
+          subject={editStudent.name}
+          value={String(editStudent[editing.field] ?? '')}
+          multiline={FIELDS[editing.field].multiline}
+          inputMode={FIELDS[editing.field].inputMode}
+          required={FIELDS[editing.field].required}
+          note={FIELDS[editing.field].note}
+          onSave={saveField}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 };

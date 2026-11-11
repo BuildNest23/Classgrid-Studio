@@ -26,7 +26,7 @@ const TAB_TITLES: Record<string, string> = {
   results: 'Results & Examinations',
   funds: 'Funds & Fees',
   students: 'Students',
-  view: 'Student list (print)',
+  view: 'Student list (Print)',
   settings: 'Class details & backup',
   classes: 'Classes'
 };
