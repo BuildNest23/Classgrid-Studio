@@ -568,7 +568,17 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Import a backup: normalizes old formats, keeps it undoable, clears stale open records.
   const replaceAllData = useCallback((raw: unknown) => {
-    const next = normalizeData(raw);
+    const incoming = normalizeData(raw);
+    // School name and logo belong to the school, not to a class: once set they stay the same
+    // when another class is opened, restored, imported or started. (A fresh install with no
+    // name/logo yet takes them from the file.)
+    const cur = dataRef.current;
+    const hasName = !!cur.schoolName && cur.schoolName !== "Your School Name";
+    const next = {
+      ...incoming,
+      schoolName: hasName ? cur.schoolName : incoming.schoolName,
+      schoolLogo: cur.schoolLogo || incoming.schoolLogo,
+    };
     saveData(next);
     flushPendingToStorage();
     setActiveAssessmentId(null);

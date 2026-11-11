@@ -111,7 +111,7 @@ export const NewClassDialog: React.FC<{ onClose: () => void; onDone?: () => void
           />
           <span className="text-xs leading-snug text-stone-700 dark:text-stone-300">
             <b className="block text-sm text-stone-900 dark:text-stone-100">Keep school details</b>
-            School name, EMIS code, year, logo and print settings stay. Students, attendance, results and funds start empty.
+            EMIS code, year and print settings stay (the school name and logo always stay). Students, attendance, results and funds start empty.
           </span>
         </label>
 
