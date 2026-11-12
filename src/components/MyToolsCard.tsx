@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Lock,
-  Download,
   Upload,
   PlusCircle,
   ClipboardCheck,
@@ -16,7 +15,7 @@ import {
   Users,
   SlidersHorizontal
 } from 'lucide-react';
-import { performBackup, performRestore } from '../utils/backupActions';
+import { performRestore } from '../utils/backupActions';
 import { NewClassDialog } from './views/ClassesView';
 import { useClassgridPrefs } from '../utils/prefs';
 
@@ -289,16 +288,7 @@ export const MyToolsCard: React.FC<MyToolsCardProps> = ({ className = '', defaul
 
         {/* Permanent Actions: Backup to file, Restore from file, Start new class (ALWAYS VISIBLE, 44px min tap targets) */}
         <div className="pt-3 mt-3 border-t border-[#E7E5E4] dark:border-[#44403C]">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => performBackup(data, toast)}
-              className="w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-800 border border-stone-200 dark:bg-stone-800/90 dark:hover:bg-stone-700/90 dark:text-stone-200 dark:border-stone-700 cursor-pointer transition-colors"
-            >
-              <Download className="w-4 h-4 text-stone-600 dark:text-stone-300" />
-              <span>Backup to file</span>
-            </button>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

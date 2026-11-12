@@ -45,7 +45,7 @@ export const Navigation: React.FC = () => {
     { id: 'view' as ActiveTab, label: 'Student list (Print)', icon: FileText },
     { id: 'collect' as ActiveTab, label: 'Send & Receive', icon: Send },
     ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Classes', icon: Archive }] : []),
-    { id: 'settings' as ActiveTab, label: 'Class details & backup', icon: Settings },
+    { id: 'settings' as ActiveTab, label: 'Class Detail and Backup', icon: Settings },
   ];
 
   // Mobile main bottom bar tabs
@@ -96,7 +96,7 @@ export const Navigation: React.FC = () => {
     }] : []),
     {
       id: 'settings' as ActiveTab,
-      label: 'Class details & backup',
+      label: 'Class Detail and Backup',
       icon: Settings,
       desc: 'Class info, school logo, backup & restore'
     },

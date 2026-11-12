@@ -224,11 +224,13 @@ export const SettingsView: React.FC = () => {
     toast("Print settings reset to default.", "success");
   };
 
-  // Export JSON Backup
-  const handleExportBackup = async () => {
-    // The backup also carries every class saved in the Classes tab.
+  const [backupChoice, setBackupChoice] = useState(false);
+
+  // Export JSON Backup. `full` = every saved class too; otherwise only the open class.
+  const handleExportBackup = async (full: boolean) => {
+    setBackupChoice(false);
     let classes: Awaited<ReturnType<typeof exportAllClasses>> = [];
-    try {
+    if (full) try {
       classes = await exportAllClasses(data);
     } catch (e) {
       const goOn = await uiConfirm("Could not read your saved classes, so this backup would only contain the open class. Export anyway?", {
@@ -250,7 +252,7 @@ export const SettingsView: React.FC = () => {
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const stamp = new Date().toISOString().slice(0, 10);
-    const filename = `classroom-backup-${stamp}.json`;
+    const filename = full ? `classroom-backup-${stamp}.json` : `classroom-backup-${(data.className || 'class').replace(/[^A-Za-z0-9_-]+/g, '-')}-${stamp}.json`;
     const title = `ClassGrid Backup (${stamp})`;
 
     const exported = await exportFileBlob(blob, filename, {
@@ -398,6 +400,26 @@ export const SettingsView: React.FC = () => {
 
       {/* My Tools Configuration Card */}
       <MyToolsCard />
+
+      {backupChoice && (
+        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setBackupChoice(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">What do you want to back up?</div>
+            <button type="button" onClick={() => handleExportBackup(true)}
+              className="w-full text-left p-3 rounded-xl bg-[#B91C1C] text-white cursor-pointer">
+              <div className="text-sm font-bold">Full backup</div>
+              <div className="text-[11px] opacity-90">The open class and all classes saved in the Classes tab.</div>
+            </button>
+            <button type="button" onClick={() => handleExportBackup(false)}
+              className="w-full text-left p-3 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 cursor-pointer">
+              <div className="text-sm font-bold">This class only</div>
+              <div className="text-[11px] opacity-80">Only the class that is open now{data.className ? ` (${data.className})` : ''}.</div>
+            </button>
+            <button type="button" onClick={() => setBackupChoice(false)}
+              className="w-full py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Classroom Setup Form */}
       <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs">
@@ -739,7 +761,7 @@ export const SettingsView: React.FC = () => {
           <ActionButton
             variant="primary"
             icon={Capacitor.isNativePlatform() ? Share2 : Download}
-            onClick={handleExportBackup}
+            onClick={() => setBackupChoice(true)}
           >
             Backup to file
           </ActionButton>
