@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student list</title>
+<style>
+:root{--bg:#f5f5f4;--card:#fff;--ink:#1c1917;--mute:#78716c;--line:#e7e5e4;--head:#fafaf9;--red:#b91c1c;--redbg:#fef2f2;--redline:#fca5a5;--chg:#fef9c3;--ok:#15803d;--okbg:#f0fdf4;--shadow:0 1px 2px rgba(0,0,0,.06)}
+@media (prefers-color-scheme:dark){:root{--bg:#0c0a09;--card:#1c1917;--ink:#f5f5f4;--mute:#a8a29e;--line:#44403c;--head:#292524;--red:#ef4444;--redbg:#2a1514;--redline:#7f1d1d;--chg:#3b3510;--ok:#4ade80;--okbg:#0f2a17;--shadow:none}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+#printArea{display:none}
+.wrap{max-width:640px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.head{padding:12px 14px;display:flex;gap:12px;align-items:center}
+.head img{width:52px;height:52px;object-fit:contain;flex:none}
+.head h1{margin:0;font-size:17px;line-height:1.2}
+.head .sub{color:var(--mute);font-size:12px;margin-top:2px}
+.head .title{margin-top:5px;color:var(--red);font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:12px}
+.msg{margin:0 14px 12px}.msg summary{cursor:pointer;font-size:13px;color:var(--mute);padding:4px 0;list-style-position:inside;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block}.msg summary span{color:var(--red);font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:12px}.msg[open] summary{white-space:normal}.note{margin:6px 0 0;padding:10px 12px;border-radius:12px;background:var(--redbg);border:1px solid var(--redline);white-space:pre-wrap}
+.sec{margin-top:10px}
+.lbl{font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;display:block;margin:0 0 4px}
+textarea.f{width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:16px;resize:none;display:block;overflow-x:auto;overflow-y:hidden;white-space:nowrap;height:48px}
+textarea.f.tall{height:84px;white-space:pre-wrap;overflow-y:auto}
+textarea.f:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 3px rgba(185,28,28,.18)}
+textarea.f.chg{background:var(--chg)}
+textarea.f.bad{border-color:var(--red);background:var(--redbg);color:var(--red);font-weight:700}
+.err{color:var(--red);font-size:12px;font-weight:700;margin-top:4px;min-height:0}
+.err:empty{display:none}
+.tabs{display:flex;gap:8px}
+.tab{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 8px;border-radius:12px;font:inherit;font-weight:800;cursor:pointer}
+.tab.on{background:var(--red);border-color:var(--red);color:#fff}
+.pbar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.pbar>i{display:block;height:100%;background:var(--ok);width:0;transition:width .2s}
+.prog{display:flex;justify-content:space-between;font-size:12px;color:var(--mute);margin-top:5px}
+.prog b{color:var(--ink)}
+.issues{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--redbg);border:1px solid var(--redline);color:var(--red);font-weight:700;font-size:13px}
+.issues:empty{display:none}
+/* one by one */
+.pos{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mute);font-weight:700}
+.badge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:800}
+.badge.ok{background:var(--okbg);color:var(--ok)}
+.badge.need{background:var(--redbg);color:var(--red)}
+.who{padding:14px 14px 4px}
+.who .roll{display:inline-block;background:var(--head);border:1px solid var(--line);border-radius:99px;padding:2px 12px;font-weight:800;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+.who .nm{font-size:22px;font-weight:800;line-height:1.2;margin-top:6px;word-break:break-word}
+.who .ro{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;color:var(--mute);font-size:13px}
+.who .ro b{color:var(--ink);font-weight:600}
+.fields{padding:8px 14px 14px;display:grid;gap:14px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;border-radius:12px;padding:14px 8px;font:inherit;font-weight:800;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.main{background:var(--red);border-color:var(--red);color:#fff}
+.btn:disabled{opacity:.4}
+.link{display:block;margin:10px auto 0;background:none;border:0;color:var(--red);font:inherit;font-weight:800;cursor:pointer;padding:8px}
+/* list */
+.row{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:8px;font:inherit;color:var(--ink);cursor:pointer}
+.row .r{min-width:40px;text-align:center;font-weight:800;font-family:ui-monospace,Menlo,monospace;background:var(--head);border-radius:8px;padding:4px 0}
+.row.bad .r{background:var(--redbg);color:var(--red)}
+.row .m{min-width:0;flex:1}
+.row .n{font-weight:700;word-break:break-word}
+.row .s{font-size:12px;color:var(--mute)}
+.row .c{font-size:12px;margin-top:2px}
+.row .c span{display:inline-block;background:var(--redbg);color:var(--red);border-radius:99px;padding:1px 8px;margin:2px 4px 0 0;font-weight:700}
+.row .c em{font-style:normal;color:var(--ok);font-weight:800}
+.row .d{width:9px;height:9px;border-radius:99px;background:#eab308;flex:none}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 13px;border-radius:999px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.chip.on{background:var(--red);border-color:var(--red);color:#fff}
+.empty{padding:26px;text-align:center;color:var(--mute)}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));z-index:10}
+.foot .in{max-width:640px;margin:0 auto;display:flex;gap:8px}
+.foot .btn{padding:12px 8px}
+.btn.sm{flex:none;padding:9px 12px;font-size:12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:#1c1917;color:#fff;padding:10px 14px;border-radius:12px;font-weight:600;max-width:90%;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.more{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+@media print{
+  body{background:#fff;color:#000;padding:0}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="printArea"></div>
+<script id="cg-config" type="application/json">{}</script>
+<script id="cg-work" type="application/json">{}</script>
+<script>
+(function(){
+'use strict';
+// Clean copy of this file as received (used by "Save my copy"). Taken before anything is drawn.
+var SRC='<!doctype html>\n'+document.documentElement.outerHTML;
+
+function readJSON(id){try{return JSON.parse(document.getElementById(id).textContent||'{}')||{}}catch(e){return {}}}
+var CFG=readJSON('cg-config');
+var WORK=readJSON('cg-work');
+var app=document.getElementById('app');
+if(!CFG||CFG.app!=='classgrid-collect'||!CFG.students){app.innerHTML='<div class="wrap"><div class="card empty">This file has no student data. Ask for a new file.</div></div>';return;}
+
+var FIELDS=[
+ {k:'rollNo',l:'Roll #',mode:'numeric',w:64},
+ {k:'name',l:'Name',w:170},
+ {k:'fatherName',l:'Father Name',w:160},
+ {k:'admissionNo',l:'Adm. No',w:100},
+ {k:'phone',l:'Phone',mode:'tel',w:130},
+ {k:'address',l:'Address',w:200},
+ {k:'occupation',l:'Occupation',w:150},
+ {k:'notes',l:'Notes',w:180}
+];
+var COLS=FIELDS.filter(function(f){return CFG.fields&&CFG.fields[f.k]});
+var STU=CFG.students;
+var byId={};STU.forEach(function(s){byId[s.id]=s});
+var editCols=COLS.filter(function(f){return CFG.fields[f.k]==='edit'});
+var hasRoll=!!(CFG.fields&&CFG.fields.rollNo);
+
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function one(v){return String(v==null?'':v).replace(/\s*[\r\n]+\s*/g,' ')}
+
+/* ---------- state ---------- */
+var LSKEY='cgc:'+CFG.requestId;
+var edits={}, from='', revision=0, savedAt=0;
+(function load(){
+  var a=WORK&&WORK.edits?WORK:null, b=null;
+  try{b=JSON.parse(localStorage.getItem(LSKEY)||'null')}catch(e){}
+  var pick=a;
+  if(b&&b.edits&&(!a||(b.savedAt||0)>(a.savedAt||0)))pick=b;
+  if(pick){edits=pick.edits||{};from=pick.from||'';revision=pick.revision||0;savedAt=pick.savedAt||0}
+})();
+function cur(s,k){var e=edits[s.id];return (e&&Object.prototype.hasOwnProperty.call(e,k))?e[k]:(s[k]==null?'':s[k])}
+function setVal(s,k,v){
+  v=one(v);
+  var orig=s[k]==null?'':String(s[k]);
+  if(v===orig){if(edits[s.id]){delete edits[s.id][k];if(!Object.keys(edits[s.id]).length)delete edits[s.id]}}
+  else{(edits[s.id]=edits[s.id]||{})[k]=v}
+}
+var saveT=null;
+function persist(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){try{localStorage.setItem(LSKEY,JSON.stringify({edits:edits,from:from,revision:revision,savedAt:Date.now()}))}catch(e){}},300);
+}
+function changeCount(){var n=0;Object.keys(edits).forEach(function(id){n+=Object.keys(edits[id]).length});return n}
+
+/* ---------- helpers ---------- */
+function rollKey(r){r=String(r||'').trim();return /^\d+$/.test(r)?String(parseInt(r,10)):r.toLowerCase()}
+function sorted(){
+  return STU.slice().sort(function(a,b){
+    var x=String(cur(a,'rollNo')||'').trim(),y=String(cur(b,'rollNo')||'').trim();
+    if(!x||!y)return x===y?0:(!x?1:-1);
+    return x.localeCompare(y,undefined,{numeric:true});
+  });
+}
+function toast(m){
+  var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);
+  setTimeout(function(){t.remove()},2800);
+}
+function safeName(s){return String(s||'file').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')||'file'}
+var BASE=safeName((CFG.className||'class')+'_students_'+CFG.requestId);
+
+/* ---------- screen ---------- */
+var editable=editCols.length>0;
+var ORDER=sorted();               // fixed order for this session (rows do not jump while roll numbers are edited)
+var cursor=0, view=editable?'one':'list', filter='all', query='';
+var LABEL={};FIELDS.forEach(function(f){LABEL[f.k]=f.l});
+
+var top='<div class="card"><div class="head">'
+ +(CFG.logo?'<img alt="" src="'+esc(CFG.logo)+'">':'')
+ +'<div style="min-width:0"><h1>'+esc(CFG.schoolName||'School')+'</h1>'
+ +'<div class="sub">'+esc([CFG.className?'Class: '+CFG.className:'',CFG.inchargeName?'Incharge: '+CFG.inchargeName:'',CFG.academicYear||''].filter(Boolean).join(' • '))+'</div>'
+ +'<div class="title">'+esc(CFG.title||'Student list')+'</div></div></div>'
+ +(CFG.note?'<details class="msg"><summary><span>Message:</span> '+esc(CFG.note.replace(/\s+/g,' ').slice(0,70)+(CFG.note.length>70?'…':''))+'</summary><div class="note">'+esc(CFG.note)+'</div></details>':'')
+ +'</div>';
+app.innerHTML='<div class="wrap">'+top
+ +'<div class="sec">'+(editable?'<div class="tabs"><button class="tab" id="tOne" type="button">One by one</button><button class="tab" id="tList" type="button">All students</button></div>':'')+'</div>'
+ +'<div class="sec" id="progWrap"></div>'
+ +'<div class="issues" id="issues"></div>'
+ +'<div id="main"></div>'
+ +(editable?'<div class="card sec" style="padding:12px 14px"><span class="lbl">Your name (optional, sent with your entries)</span><textarea class="f" id="from" rows="1" wrap="off" autocomplete="off" placeholder="e.g. Sir Ahmed"></textarea></div>':'')
+ +'<div class="more" id="more"></div></div>'
+ +'<div class="foot"><div class="in">'
+ +'<button class="btn" id="bPrint" type="button">Print</button>'
+ +(editable?'<button class="btn" id="bSave" type="button">Save copy</button><button class="btn main" id="bSend" type="button">Send</button>':'')
+ +'</div></div>';
+var mainEl=document.getElementById('main');
+
+/* ----- status helpers ----- */
+function emptyKeys(s){return editCols.filter(function(f){return !String(cur(s,f.k)||'').trim()}).map(function(f){return f.k})}
+function isChanged(s){return !!(edits[s.id]&&Object.keys(edits[s.id]).length)}
+var CURISSUES=0, DUP={}, BLANK={};
+function computeIssues(){
+  DUP={};BLANK={};
+  var seen={},issues=[];
+  if(hasRoll)STU.forEach(function(s){var r=String(cur(s,'rollNo')||'').trim();if(!r)return;var k=rollKey(r);(seen[k]=seen[k]||[]).push(s)});
+  Object.keys(seen).forEach(function(k){
+    if(seen[k].length>1){
+      seen[k].forEach(function(s){DUP[s.id]=seen[k]});
+      issues.push('Roll '+esc(String(cur(seen[k][0],'rollNo')).trim())+' is used by '+seen[k].map(function(s){return esc(cur(s,'name')||'(no name)')}).join(' and ')+'.');
+    }
+  });
+  if(CFG.fields.name==='edit')STU.forEach(function(s){if(!String(cur(s,'name')||'').trim()){BLANK[s.id]=1}});
+  if(Object.keys(BLANK).length)issues.push('A name is empty. Names cannot be left blank.');
+  CURISSUES=issues.length;
+  document.getElementById('issues').innerHTML=issues.join('<br>');
+}
+function updateProgress(){
+  var filled=0,total=0,done=0;
+  STU.forEach(function(s){var e=emptyKeys(s);total+=editCols.length;filled+=editCols.length-e.length;if(!e.length)done++});
+  var w=document.getElementById('progWrap');
+  if(editable){
+    var pct=total?Math.round(filled*100/total):100;
+    w.innerHTML='<div class="pbar"><i style="width:'+pct+'%"></i></div><div class="prog"><span><b>'+done+'</b> of '+STU.length+' students complete</span><span><b>'+changeCount()+'</b> changed</span></div>';
+  }else w.innerHTML='<div class="prog"><span><b>'+STU.length+'</b> students</span></div>';
+}
+
+/* ----- one by one ----- */
+function nameOf(s){return String(cur(s,'name')||'').trim()||'(no name)'}
+function drawOne(){
+  var s=ORDER[cursor];if(!s){mainEl.innerHTML='<div class="card empty">No students in this file.</div>';return}
+  var h='<div class="card"><div class="pos"><span>Student '+(cursor+1)+' of '+ORDER.length+'</span><span class="badge" id="badge"></span></div>';
+  h+='<div class="who">'+(hasRoll?'<span class="roll" id="whoRoll"></span>':'')+'<div class="nm" id="whoName"></div><div class="ro" id="whoRo"></div></div>';
+  h+='<div class="fields">';
+  editCols.forEach(function(f){
+    var tall=(f.k==='address'||f.k==='notes');
+    h+='<div><label class="lbl" for="e_'+f.k+'">'+esc(f.l)+'</label>'
+     +'<textarea class="f'+(tall?' tall':'')+'" id="e_'+f.k+'" data-k="'+f.k+'" rows="'+(tall?2:1)+'" '+(tall?'':'wrap="off" ')+'autocomplete="off" autocorrect="off"'+(f.mode?' inputmode="'+f.mode+'"':'')+'></textarea>'
+     +'<div class="err" id="x_'+f.k+'"></div></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="nav"><button class="btn" id="bPrev" type="button">◀ Previous</button><button class="btn main" id="bNext" type="button">Next ▶</button></div>';
+  h+='<button class="link" id="bEmpty" type="button">Jump to the next student with an empty box</button>';
+  mainEl.innerHTML=h;
+  editCols.forEach(function(f){document.getElementById('e_'+f.k).value=String(cur(s,f.k)||'')});
+  document.getElementById('bPrev').disabled=cursor===0;
+  document.getElementById('bNext').disabled=cursor>=ORDER.length-1;
+  refreshOne();
+}
+function refreshOne(){
+  var s=ORDER[cursor];if(!s)return;
+  var r=document.getElementById('whoRoll');if(r)r.textContent='Roll '+(String(cur(s,'rollNo')||'').trim()||'—');
+  document.getElementById('whoName').textContent=nameOf(s);
+  var ro='';
+  COLS.forEach(function(f){
+    if(CFG.fields[f.k]!=='show'||f.k==='name'||f.k==='rollNo')return;
+    var v=String(cur(s,f.k)||'').trim();if(v)ro+='<span>'+esc(f.l)+': <b>'+esc(v)+'</b></span>';
+  });
+  document.getElementById('whoRo').innerHTML=ro;
+  var e=emptyKeys(s),b=document.getElementById('badge');
+  b.className='badge '+(e.length?'need':'ok');
+  b.textContent=e.length?(e.length+' empty'):'Complete ✓';
+  editCols.forEach(function(f){
+    var t=document.getElementById('e_'+f.k),x=document.getElementById('x_'+f.k);
+    var changed=String(cur(s,f.k))!==String(s[f.k]==null?'':s[f.k]);
+    t.classList.toggle('chg',changed);
+    var msg='';
+    if(f.k==='rollNo'&&DUP[s.id]){msg='Also used by '+DUP[s.id].filter(function(o){return o!==s}).map(nameOf).join(', ')+'. Each roll number must be different.'}
+    if(f.k==='name'&&BLANK[s.id])msg='Name cannot be empty.';
+    t.classList.toggle('bad',!!msg);x.textContent=msg;
+  });
+}
+function go(i,focusFirst){
+  if(i<0||i>=ORDER.length)return;
+  cursor=i;drawOne();window.scrollTo(0,0);
+  if(focusFirst){var e=emptyKeys(ORDER[cursor])[0]||(editCols[0]&&editCols[0].k);var t=e&&document.getElementById('e_'+e);if(t)t.focus()}
+}
+function nextEmpty(){
+  for(var d=1;d<=ORDER.length;d++){var i=(cursor+d)%ORDER.length;if(emptyKeys(ORDER[i]).length){go(i,true);return}}
+  toast('Every student is complete.');
+}
+
+/* ----- all students ----- */
+function drawList(){
+  var h='<div class="sec"><textarea class="f" id="q" rows="1" wrap="off" autocomplete="off" placeholder="Search name or roll #"></textarea></div>';
+  if(editable)h+='<div class="chips"><button class="chip" data-flt="all" type="button">All</button><button class="chip" data-flt="need" type="button">Needs info</button><button class="chip" data-flt="chg" type="button">Changed</button></div>';
+  h+='<div id="rows"></div>';
+  mainEl.innerHTML=h;
+  document.getElementById('q').value=query;
+  drawRows();
+}
+function drawRows(){
+  Array.prototype.forEach.call(mainEl.querySelectorAll('[data-flt]'),function(b){b.classList.toggle('on',b.getAttribute('data-flt')===filter)});
+  var h='',n=0;
+  ORDER.forEach(function(s,i){
+    var e=emptyKeys(s);
+    if(query){var hay=(nameOf(s)+' '+String(cur(s,'rollNo'))+' '+String(cur(s,'fatherName'))).toLowerCase();if(hay.indexOf(query)<0)return}
+    if(filter==='need'&&!e.length)return;
+    if(filter==='chg'&&!isChanged(s))return;
+    n++;
+    var sub=COLS.filter(function(f){return f.k!=='name'&&f.k!=='rollNo'&&CFG.fields[f.k]==='show'}).map(function(f){var v=String(cur(s,f.k)||'').trim();return v?esc(f.l)+': '+esc(v):''}).filter(Boolean).join(' · ');
+    h+='<button class="row'+((DUP[s.id]||BLANK[s.id])?' bad':'')+'" data-i="'+i+'" type="button"><span class="r">'+esc(String(cur(s,'rollNo')||'').trim()||(hasRoll?'—':(i+1)))+'</span><span class="m"><div class="n">'+esc(nameOf(s))+'</div>'
+      +(sub?'<div class="s">'+sub+'</div>':'')
+      +(editable?'<div class="c">'+(e.length?e.map(function(k){return '<span>'+esc(LABEL[k])+' empty</span>'}).join(''):'<em>✓ Complete</em>')+'</div>':'')
+      +'</span>'+(isChanged(s)?'<i class="d" title="Changed"></i>':'')+'</button>';
+  });
+  document.getElementById('rows').innerHTML=h||'<div class="card empty">No student matches.</div>';
+}
+
+function setView(v){
+  view=v;
+  var a=document.getElementById('tOne'),b=document.getElementById('tList');
+  if(a){a.classList.toggle('on',v==='one');b.classList.toggle('on',v==='list')}
+  if(v==='one')drawOne();else drawList();
+}
+function refreshAll(){computeIssues();updateProgress();if(view==='one')refreshOne();else drawRows()}
+
+/* ----- events ----- */
+app.addEventListener('input',function(e){
+  var t=e.target;
+  if(t.id==='q'){var v=one(t.value);if(v!==t.value)t.value=v;query=v.trim().toLowerCase();drawRows();return}
+  if(t.id==='from'){from=one(t.value);if(t.value!==from)t.value=from;persist();return}
+  if(t.getAttribute('data-k')&&view==='one'){
+    var s=ORDER[cursor],v2=t.getAttribute('data-k')==='address'||t.getAttribute('data-k')==='notes'?String(t.value).replace(/\s*[\r\n]+\s*/g,' '):one(t.value);
+    if(v2!==t.value)t.value=v2;
+    setVal(s,t.getAttribute('data-k'),v2);persist();computeIssues();updateProgress();refreshOne();
+  }
+});
+app.addEventListener('keydown',function(e){
+  var t=e.target;
+  if(t.tagName!=='TEXTAREA'||e.key!=='Enter')return;
+  e.preventDefault();
+  var k=t.getAttribute('data-k');
+  if(!k){t.blur();return}
+  var i=editCols.map(function(f){return f.k}).indexOf(k);
+  if(i<editCols.length-1){var n=document.getElementById('e_'+editCols[i+1].k);n.focus();n.select&&n.select()}
+  else if(cursor<ORDER.length-1)go(cursor+1,true);
+  else t.blur();
+});
+app.addEventListener('focusin',function(e){
+  var t=e.target;
+  if(t.tagName==='TEXTAREA'){setTimeout(function(){try{t.scrollIntoView({block:'center'})}catch(x){}},300)}
+});
+app.addEventListener('click',function(e){
+  var c=e.target.closest&&e.target.closest('button');if(!c)return;
+  if(c.id==='tOne')setView('one');
+  else if(c.id==='tList')setView('list');
+  else if(c.id==='bPrev')go(cursor-1);
+  else if(c.id==='bNext')go(cursor+1);
+  else if(c.id==='bEmpty')nextEmpty();
+  else if(c.hasAttribute('data-flt')){filter=c.getAttribute('data-flt');drawRows()}
+  else if(c.hasAttribute('data-i')){cursor=parseInt(c.getAttribute('data-i'),10);if(editable){setView('one');window.scrollTo(0,0)}}
+});
+var fromEl=document.getElementById('from');if(fromEl)fromEl.value=from;
+
+/* ---------- print ---------- */
+function printNow(){
+  var P=CFG.print;
+  if(!P||!P.header){toast('Print is not available in this file.');return}
+  var ORD=['rollNo','admissionNo','name','fatherName'],PC=COLS.slice().sort(function(a,b){var x=ORD.indexOf(a.k),y=ORD.indexOf(b.k);return (x<0?9:x)-(y<0?9:y)});
+  var W={rollNo:8,admissionNo:11,name:22.5,fatherName:22.5},opt=[],tot=0;
+  PC.forEach(function(f){if(!W[f.k])opt.push(f)});
+  var optW=opt.length?36/opt.length:0;
+  PC.forEach(function(f){tot+=W[f.k]||optW});
+  function w(f){return ((W[f.k]||optW)*100/tot).toFixed(2)}
+  function cell(s,f){
+    var v=cur(s,f.k),t=esc(v&&String(v).trim()?v:'\u2014');
+    if(f.k==='rollNo')return '<td class="center font-mono font-bold">'+t+'</td>';
+    if(f.k==='admissionNo')return '<td class="center font-mono">'+t+'</td>';
+    if(f.k==='name'||f.k==='fatherName')return '<td><span class="cg-fit">'+t+'</span></td>';
+    if(f.k==='phone')return '<td class="center">'+t+'</td>';
+    if(f.k==='notes')return '<td class="cg-nocap">'+t+'</td>';
+    return '<td>'+t+'</td>';
+  }
+  var rows=sorted().map(function(s){return '<tr>'+PC.map(function(f){return cell(s,f)}).join('')+'</tr>'}).join('');
+  var html='<div class="print-sheet">'+P.header+'<table><thead><tr>'
+   +PC.map(function(f){return '<th style="width:'+w(f)+'%">'+esc(f.l)+'</th>'}).join('')
+   +'</tr></thead><tbody>'+(rows||'<tr><td colspan="'+PC.length+'" class="center">No students</td></tr>')+'</tbody></table></div>';
+  var pa=document.getElementById('printArea');
+  pa.className=P.caps?'caps-on':'';
+  pa.style.setProperty('--mult',P.mult||1);
+  pa.innerHTML=html;
+  var st=document.getElementById('pgstyle');if(st)st.remove();
+  st=document.createElement('style');st.id='pgstyle';st.media='print';
+  st.textContent=P.css+'\n@page{size:A4 portrait;margin:12mm}';
+  document.head.appendChild(st);
+  setTimeout(function(){window.print()},50);
+}
+document.getElementById('bPrint').addEventListener('click',printNow);
+
+/* ---------- save my copy / send ---------- */
+function download(blob,name){
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},4000);
+}
+function workBlock(){
+  return JSON.stringify({revision:revision,savedAt:savedAt,from:from,edits:edits}).replace(/</g,'\\u003c');
+}
+function saveCopy(){
+  revision++;savedAt=Date.now();persist();
+  var html=SRC.replace(/(<script id="cg-work" type="application\/json">)[\s\S]*?(<\/script>)/,function(m,a,b){return a+workBlock()+b});
+  download(new Blob([html],{type:'text/html'}),BASE+'.html');
+  toast('Copy saved. Open it later to continue.');
+}
+function returnObj(){
+  var ch={},n=0;
+  Object.keys(edits).forEach(function(id){
+    var s=byId[id];if(!s)return;
+    var o={};
+    Object.keys(edits[id]).forEach(function(k){
+      if(CFG.fields[k]!=='edit')return;
+      o[k]={from:s[k]==null?'':String(s[k]),to:edits[id][k]};n++;
+    });
+    if(Object.keys(o).length)ch[id]=o;
+  });
+  return {app:'classgrid-collect-return',v:1,kind:CFG.kind||'students',requestId:CFG.requestId,revision:revision+1,savedAt:Date.now(),
+    from:from,className:CFG.className||'',fields:CFG.fields,count:n,changes:ch};
+}
+function guard(){
+  computeIssues();
+  if(CURISSUES){toast('Please fix the red items first.');return false}
+  return true;
+}
+async function send(){
+  if(!guard())return;
+  var obj=returnObj();
+  if(!obj.count&&!confirm('You have not changed anything. Send anyway?'))return;
+  revision=obj.revision;savedAt=obj.savedAt;persist();
+  var txt=JSON.stringify(obj);
+  var base=BASE+'_rev'+obj.revision;
+  try{
+    var f1=new File([txt],base+'.json',{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f1]})){await navigator.share({files:[f1],title:'Student list from '+(from||'teacher')});return}
+    var f2=new File([txt],base+'.txt',{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[f2]})){await navigator.share({files:[f2],title:'Student list from '+(from||'teacher')});return}
+  }catch(e){if(e&&e.name==='AbortError')return}
+  download(new Blob([txt],{type:'application/json'}),base+'.json');
+  toast('File saved to Downloads. Send it from there.');
+}
+var bs=document.getElementById('bSave');if(bs)bs.addEventListener('click',saveCopy);
+var bd=document.getElementById('bSend');if(bd)bd.addEventListener('click',send);
+
+// Small helper buttons under the list
+if(editable){
+  var more=document.getElementById('more');
+  more.innerHTML='<button class="btn sm" id="bCopy" type="button">Copy as text</button><button class="btn sm" id="bReset" type="button">Undo all my changes</button>';
+  document.getElementById('bCopy').addEventListener('click',function(){
+    if(!guard())return;
+    var txt=JSON.stringify(returnObj());
+    (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){toast('Copied. Paste it in a message.')},function(){
+      var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied. Paste it in a message.')}catch(e){toast('Could not copy.')}ta.remove();
+    });
+  });
+  document.getElementById('bReset').addEventListener('click',function(){
+    if(!changeCount()||!confirm('Undo all your changes in this file?'))return;
+    edits={};persist();computeIssues();updateProgress();setView(view);
+  });
+}
+computeIssues();updateProgress();setView(view);
+})();
+</script>
+</body>
+</html>

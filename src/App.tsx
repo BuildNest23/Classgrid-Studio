@@ -17,6 +17,7 @@ import { StudentDirectoryView } from './components/views/StudentDirectoryView';
 import { SettingsView } from './components/views/SettingsView';
 import { DailyTestView } from './components/views/DailyTestView';
 import { ClassesView } from './components/views/ClassesView';
+import { CollectView } from './components/views/CollectView';
 import { cleanupPrintArea } from './utils/printEngine';
 
 const TAB_TITLES: Record<string, string> = {
@@ -28,7 +29,8 @@ const TAB_TITLES: Record<string, string> = {
   students: 'Students',
   view: 'Student list (Print)',
   settings: 'Class details & backup',
-  classes: 'Classes'
+  classes: 'Classes',
+  collect: 'Send & Receive'
 };
 
 const MainContent: React.FC = () => {
@@ -86,6 +88,7 @@ const MainContent: React.FC = () => {
           {activeTab === 'view' && <StudentDirectoryView />}
           {activeTab === 'settings' && <SettingsView />}
           {activeTab === 'classes' && <ClassesView />}
+          {activeTab === 'collect' && <CollectView />}
         </div>
       </main>
 

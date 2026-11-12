@@ -373,6 +373,11 @@ function dedupeDataImages(html: string): { html: string; css: string } {
   return { html: out, css };
 }
 
+/** The app's own print CSS + caps setting, for files that print outside the app (teacher form). */
+export function getPrintStyleBundle(): { css: string; caps: boolean } {
+  return { css: `${BASE_PRINT_CSS}\n${getDynamicPrintCss()}`, caps: loadCapsPrint() };
+}
+
 /**
  * Builds a standalone HTML page with embedded CSS styles for off-screen WebViews or native printers.
  */

@@ -14,6 +14,7 @@ import {
   HelpCircle,
   PenTool,
   Archive,
+  Send,
   SlidersHorizontal
 } from 'lucide-react';
 import { useClassgridPrefs } from '../utils/prefs';
@@ -42,6 +43,7 @@ export const Navigation: React.FC = () => {
     ...(tools.funds ? [{ id: 'funds' as ActiveTab, label: 'Funds', icon: Wallet }] : []),
     { id: 'students' as ActiveTab, label: 'Students', icon: Users },
     { id: 'view' as ActiveTab, label: 'Student list (Print)', icon: FileText },
+    { id: 'collect' as ActiveTab, label: 'Send & Receive', icon: Send },
     ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Classes', icon: Archive }] : []),
     { id: 'settings' as ActiveTab, label: 'Class details & backup', icon: Settings },
   ];
@@ -79,6 +81,12 @@ export const Navigation: React.FC = () => {
       label: 'Student list (Print)',
       icon: FileText,
       desc: 'Tap any box to correct it · print or save as HD image'
+    },
+    {
+      id: 'collect' as ActiveTab,
+      label: 'Send & Receive',
+      icon: Send,
+      desc: 'Send a form to a teacher · receive their entries'
     },
     ...(prefs.showAdvanced ? [{
       id: 'classes' as ActiveTab,

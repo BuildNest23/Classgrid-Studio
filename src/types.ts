@@ -82,7 +82,7 @@ export interface AppData {
   tools?: ClassTools;
 }
 
-export type ActiveTab = 'dashboard' | 'students' | 'attendance' | 'dailytest' | 'results' | 'funds' | 'view' | 'settings' | 'classes';
+export type ActiveTab = 'dashboard' | 'students' | 'attendance' | 'dailytest' | 'results' | 'funds' | 'view' | 'settings' | 'classes' | 'collect';
 
 export interface ToastItem {
   id: string;
