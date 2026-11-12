@@ -100,6 +100,7 @@ export interface ReturnFile {
   /** marks files only */
   assessmentId?: string;
   assessmentName?: string;
+  mode?: string;
   subjects?: { id: string; name: string; max: number }[];
 }
 
@@ -130,7 +131,7 @@ export function parseReturn(text: string): ReturnFile {
       app: 'classgrid-collect-return', v: 1, kind: cfg.kind || 'students', requestId: cfg.requestId,
       revision: work.revision || 0, savedAt: work.savedAt || 0, from: work.from || '',
       className: cfg.className || '', fields: cfg.fields || {}, count, changes,
-      assessmentId: cfg.assessmentId, assessmentName: cfg.assessmentName, subjects: cfg.subjects,
+      assessmentId: cfg.assessmentId, assessmentName: cfg.assessmentName, mode: cfg.mode, subjects: cfg.subjects,
     };
   }
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
@@ -165,7 +166,7 @@ export interface ReturnPlan {
 }
 
 export function planReturn(data: AppData, ret: ReturnFile): ReturnPlan {
-  if (ret.kind === 'marks') return { changes: [], missing: 0, alreadySame: 0 };
+  if (ret.kind === 'marks' || ret.kind === 'daily') return { changes: [], missing: 0, alreadySame: 0 };
   const byId = new Map(data.students.map(s => [s.id, s]));
   const plan: ReturnPlan = { changes: [], missing: 0, alreadySame: 0 };
   const labels = new Set(FIELD_DEFS.map(f => f.key as string));

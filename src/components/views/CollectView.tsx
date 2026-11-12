@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { getPrintStyleBundle } from '../../utils/printEngine';
-import { PRINT_SIZES } from '../../utils/helpers';
+import { PRINT_SIZES, todayKey } from '../../utils/helpers';
 import { HowItWorks } from '../HowItWorks';
 import { exportFileBlob } from '../../utils/nativeFileExport';
 import {
@@ -10,16 +10,21 @@ import {
   loadLog, logSent, logReturn, ReturnFile, ReturnPlan, PlannedChange, SentRecord,
 } from '../../collect/collect';
 import { buildMarksFile, studentsForMarks, planMarksReturn, applyMarks, MarksPlan, PlannedMark } from '../../collect/marks';
+import { buildViewFile, VIEW_STUDENT_COLS, ViewStudentCol } from '../../collect/view';
+import { buildDailyFile, planDailyReturn, applyDaily, DailyMode, DAILY_TEST_MAX } from '../../collect/daily';
 import { Send, Inbox, ListChecks } from 'lucide-react';
 
 type Tab = 'send' | 'receive' | 'requests';
+
+const showDaily = (mode: 'attendance' | 'test' | undefined, v: string) =>
+  mode === 'attendance' ? ({ P: 'Present', A: 'Absent', L: 'Leave' } as Record<string, string>)[v] || v : mode === 'test' && v === 'A' ? 'Absent' : v;
 
 interface Loaded { id: string; fileName: string; ret: ReturnFile; plan: ReturnPlan; marks?: MarksPlan; picked: Set<string>; applied: boolean }
 
 const MODE_LABEL: Record<FieldMode, string> = { off: 'Leave out', show: 'Show only', edit: 'Teacher fills in' };
 
 export const CollectView: React.FC = () => {
-  const { data, saveData, toast, buildPrintHeaderHTML } = useClassroom();
+  const { data, saveData, toast, buildPrintHeaderHTML, computeAssessmentRanking } = useClassroom();
   const [tab, setTab] = useState<Tab>('send');
 
   // ---- Send ----
@@ -27,23 +32,80 @@ export const CollectView: React.FC = () => {
   const [note, setNote] = useState('');
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [what, setWhat] = useState<'students' | 'marks'>('students');
+  const [what, setWhat] = useState<'students' | 'marks' | 'view' | 'daily'>('students');
   const [asmtId, setAsmtId] = useState('');
   const [subIds, setSubIds] = useState<string[]>([]);
   const [showFather, setShowFather] = useState(false);
+  const [remarks, setRemarks] = useState(false);
+  const [vCols, setVCols] = useState<ViewStudentCol[]>(['phone']);
+  const [vAsm, setVAsm] = useState<string[]>([]);
+  const [vAtt, setVAtt] = useState(false);
+  const [dMode, setDMode] = useState<DailyMode>('attendance');
+  const [dDates, setDDates] = useState<string[]>([todayKey()]);
+  const [dFather, setDFather] = useState(false);
+
   const asmt = data.assessments.find(a => a.id === asmtId) || null;
   const pickAsmt = (id: string) => {
     setAsmtId(id);
     const a = data.assessments.find(x => x.id === id);
     setSubIds(a ? a.subjects.map(x => x.id) : []);
   };
-  const marksOpts = { assessmentId: asmtId, subjectIds: subIds, showFather, note, onlyMissing };
+  const marksOpts = { assessmentId: asmtId, subjectIds: subIds, showFather, remarks, note, onlyMissing };
   const marksCount = asmt ? studentsForMarks(data, marksOpts).length : 0;
   const opts = { choices, note, onlyMissing };
   const count = studentsForFile(data, opts).length;
   const editNames = FIELD_DEFS.filter(f => choices[f.key] === 'edit').map(f => f.label);
 
   const setMode = (k: FieldKey, m: FieldMode) => setChoices(c => ({ ...c, [k]: m }));
+
+  const sendDaily = async () => {
+    if (!data.students.length) { toast('Add students first.', 'error'); return; }
+    const dates = dDates.filter(Boolean);
+    if (!dates.length) { toast('Pick at least one date.', 'error'); return; }
+    setBusy(true);
+    try {
+      const { css, caps } = getPrintStyleBundle();
+      const mult = (PRINT_SIZES[data.printSize] || PRINT_SIZES.m).mult;
+      const built = buildDailyFile(data, { mode: dMode, dates, showFather: dFather, note }, undefined,
+        { header: buildPrintHeaderHTML('Student List'), css, caps, mult });
+      const label = dMode === 'attendance' ? 'attendance' : 'daily_test';
+      const ok = await exportFileBlob(new Blob([built.html], { type: 'text/html' }), `${data.className || 'Class'}_${label}_${built.requestId}.html`, {
+        title: `${data.className || 'Class'} ${label.replace('_', ' ')}`,
+        dialogTitle: 'Send the form',
+      });
+      if (ok) {
+        logSent({ requestId: built.requestId, createdAt: Date.now(), className: data.className || '', count: built.count, fields: built.fields, what: `${dMode === 'attendance' ? 'Attendance' : 'Daily test'}: ${built.dates.join(', ')}` });
+        toast('File ready. Send it to the teacher.', 'success');
+      }
+    } catch (e: any) {
+      toast(e?.message || 'Could not create the file.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendView = async () => {
+    if (!data.students.length) { toast('Add students first.', 'error'); return; }
+    setBusy(true);
+    try {
+      const { css, caps } = getPrintStyleBundle();
+      const mult = (PRINT_SIZES[data.printSize] || PRINT_SIZES.m).mult;
+      const built = buildViewFile(
+        data, { studentCols: vCols, assessmentIds: vAsm, attendance: vAtt, note },
+        computeAssessmentRanking, { header: buildPrintHeaderHTML('Student List'), css, caps, mult },
+      );
+      const name = `${data.className || 'Class'}_class_copy_${built.requestId}.html`;
+      const ok = await exportFileBlob(new Blob([built.html], { type: 'text/html' }), name, {
+        title: `${data.className || 'Class'} class copy`,
+        dialogTitle: 'Send the class copy',
+      });
+      if (ok) toast('File ready. Send it to the teacher.', 'success');
+    } catch (e: any) {
+      toast(e?.message || 'Could not create the file.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const sendMarks = async () => {
     if (!data.students.length) { toast('Add students first.', 'error'); return; }
@@ -61,7 +123,7 @@ export const CollectView: React.FC = () => {
         dialogTitle: 'Send the marks form',
       });
       if (ok) {
-        logSent({ requestId: built.requestId, createdAt: Date.now(), className: data.className || '', count: built.count, fields: built.fields, what: `${asmt.name}: ${built.subjectNames.join(', ')}` });
+        logSent({ requestId: built.requestId, createdAt: Date.now(), className: data.className || '', count: built.count, fields: built.fields, what: `${asmt.name}: ${built.subjectNames.join(', ')}${remarks ? ' + remarks' : ''}` });
         toast('File ready. Send it to the teacher.', 'success');
       }
     } catch (e: any) {
@@ -103,7 +165,7 @@ export const CollectView: React.FC = () => {
   const addText = (text: string, fileName: string) => {
     const ret = parseReturn(text);
     const plan = planReturn(data, ret);
-    const marks = ret.kind === 'marks' ? planMarksReturn(data, ret) : undefined;
+    const marks = ret.kind === 'marks' ? planMarksReturn(data, ret) : ret.kind === 'daily' ? planDailyReturn(data, ret) : undefined;
     const picked = new Set((marks ? marks.changes : plan.changes).filter(c => !c.conflict && !c.invalid).map(c => c.key));
     setLoaded(prev => {
       // same request sent again: keep only the newest version
@@ -142,6 +204,17 @@ export const CollectView: React.FC = () => {
 
   const apply = (li: number) => {
     const l = loaded[li];
+    if (l.marks && l.marks.daily) {
+      const chosenD = l.marks.changes.filter(c => l.picked.has(c.key) && !c.invalid);
+      if (!chosenD.length) { toast('Nothing ticked.', 'info'); return; }
+      const dm = l.marks.daily;
+      saveData(prev => applyDaily(prev, dm, chosenD));
+      logReturn(l.ret.requestId, l.ret, chosenD.length, { className: l.ret.className });
+      setLoaded(ls => ls.map((x, i) => i === li ? { ...x, applied: true } : x));
+      setLog(loadLog());
+      toast(`${chosenD.length} entr${chosenD.length === 1 ? 'y' : 'ies'} applied. You can Undo.`, 'success');
+      return;
+    }
     if (l.marks && l.marks.assessment) {
       const chosenM = l.marks.changes.filter(c => l.picked.has(c.key) && !c.invalid);
       if (!chosenM.length) { toast('Nothing ticked.', 'info'); return; }
@@ -202,10 +275,10 @@ export const CollectView: React.FC = () => {
 
       {tab === 'send' && (
         <div className="flex rounded-xl overflow-hidden border border-[#D6D3D1] dark:border-[#44403C]">
-          {(['students', 'marks'] as const).map(w => (
+          {(['students', 'marks', 'daily', 'view'] as const).map(w => (
             <button key={w} type="button" onClick={() => { setWhat(w); setOnlyMissing(false); }}
               className={`flex-1 py-2 text-xs font-bold cursor-pointer ${what === w ? 'bg-[#1C1917] text-white dark:bg-[#F5F5F4] dark:text-[#1C1917]' : 'bg-white dark:bg-[#0C0A09] text-[#1C1917] dark:text-[#F5F5F4]'}`}>
-              {w === 'students' ? 'Student list' : 'Marks'}
+              {w === 'students' ? 'Students' : w === 'marks' ? 'Marks' : w === 'daily' ? 'Daily' : 'Copy'}
             </button>
           ))}
         </div>
@@ -244,6 +317,10 @@ export const CollectView: React.FC = () => {
               )}
               {asmt?.locked && <div className="text-[11px] text-[#92400E] dark:text-[#FCD34D]">This assessment is locked. You will need to unlock it before applying returned marks.</div>}
               <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+                <input type="checkbox" checked={remarks} onChange={e => setRemarks(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+                Teacher also writes a remark for each student
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
                 <input type="checkbox" checked={showFather} onChange={e => setShowFather(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
                 Also show Father Name
               </label>
@@ -265,6 +342,100 @@ export const CollectView: React.FC = () => {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {tab === 'send' && what === 'daily' && (
+        <div className={`${card} space-y-3`}>
+          <div>
+            <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">Attendance or daily test for a teacher</h2>
+            <div className="text-xs text-[#78716C] dark:text-[#A8A29E]">The teacher sees Roll # and name only. Attendance uses P / A / L buttons; a daily test is marked out of {DAILY_TEST_MAX}.</div>
+          </div>
+          <div className="flex rounded-xl overflow-hidden border border-[#D6D3D1] dark:border-[#44403C]">
+            {(['attendance', 'test'] as const).map(m => (
+              <button key={m} type="button" onClick={() => setDMode(m)}
+                className={`flex-1 py-2 text-xs font-bold cursor-pointer ${dMode === m ? 'bg-[#B91C1C] text-white' : 'bg-white dark:bg-[#0C0A09] text-[#1C1917] dark:text-[#F5F5F4]'}`}>
+                {m === 'attendance' ? 'Attendance' : 'Daily test'}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <div className="text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide">Dates (up to 7)</div>
+            {dDates.map((dt, i) => (
+              <div key={i} className="flex gap-2">
+                <input type="date" value={dt} onChange={e => setDDates(ds => ds.map((x, j) => j === i ? e.target.value : x))}
+                  className="flex-1 p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit" />
+                {dDates.length > 1 && (
+                  <button type="button" onClick={() => setDDates(ds => ds.filter((_, j) => j !== i))}
+                    className="px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">Remove</button>
+                )}
+              </div>
+            ))}
+            {dDates.length < 7 && (
+              <button type="button" onClick={() => setDDates(ds => [...ds, todayKey()])}
+                className="py-2 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">+ Add another date</button>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+            <input type="checkbox" checked={dFather} onChange={e => setDFather(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+            Also show Father Name
+          </label>
+          <div>
+            <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Message for the teacher (optional)</label>
+            <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Please send by 10 am."
+              className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit" />
+          </div>
+          <button type="button" disabled={busy} onClick={sendDaily}
+            className="w-full py-2.5 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5">
+            <Send className="w-4 h-4" /> Share / Save the file
+          </button>
+        </div>
+      )}
+
+      {tab === 'send' && what === 'view' && (
+        <div className={`${card} space-y-3`}>
+          <div>
+            <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">Read-only copy of the class</h2>
+            <div className="text-xs text-[#78716C] dark:text-[#A8A29E]">The teacher can look at it and print it, but cannot change anything. It is a snapshot from today.</div>
+          </div>
+          <div className="rounded-xl border border-[#E7E5E4] dark:border-[#44403C] p-2.5 space-y-2">
+            <div className="text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide">Students (Roll #, Adm. No, Name, Father Name always shown)</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {VIEW_STUDENT_COLS.map(c => (
+                <label key={c.key} className="flex items-center gap-1.5 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-[#B91C1C]" checked={vCols.includes(c.key)}
+                    onChange={() => setVCols(v => v.includes(c.key) ? v.filter(x => x !== c.key) : [...v, c.key])} />
+                  {c.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {data.assessments.length > 0 && (
+            <div className="rounded-xl border border-[#E7E5E4] dark:border-[#44403C] p-2.5 space-y-2">
+              <div className="text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide">Results to include</div>
+              {data.assessments.map(a => (
+                <label key={a.id} className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 accent-[#B91C1C]" checked={vAsm.includes(a.id)}
+                    onChange={() => setVAsm(v => v.includes(a.id) ? v.filter(x => x !== a.id) : [...v, a.id])} />
+                  {a.name}
+                </label>
+              ))}
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+            <input type="checkbox" checked={vAtt} onChange={e => setVAtt(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+            Include attendance summary (Present / Absent / Leave per month)
+          </label>
+          <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">Funds and daily tests are never included.</div>
+          <div>
+            <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">Message (optional)</label>
+            <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Copy for your records."
+              className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit" />
+          </div>
+          <button type="button" disabled={busy} onClick={sendView}
+            className="w-full py-2.5 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5">
+            <Send className="w-4 h-4" /> Share / Save the file
+          </button>
         </div>
       )}
 
@@ -373,10 +544,10 @@ export const CollectView: React.FC = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-                        Marks from {l.ret.from || 'a teacher'} {l.applied && <span className="text-[#15803D] dark:text-[#4ADE80]">· applied</span>}
+                        {m.daily ? (m.daily === 'attendance' ? 'Attendance' : 'Daily test') : 'Marks'} from {l.ret.from || 'a teacher'} {l.applied && <span className="text-[#15803D] dark:text-[#4ADE80]">· applied</span>}
                       </div>
                       <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">
-                        {l.ret.assessmentName || 'Assessment'} · {l.ret.className || 'Class'} · request {l.ret.requestId} · version {l.ret.revision} · {l.fileName}
+                        {m.daily ? '' : (l.ret.assessmentName || 'Assessment') + ' · '}{l.ret.className || 'Class'} · request {l.ret.requestId} · version {l.ret.revision} · {l.fileName}
                       </div>
                     </div>
                     <button type="button" onClick={() => setLoaded(ls => ls.filter((_, i) => i !== li))} className="text-[11px] font-bold text-[#78716C] hover:underline cursor-pointer">Remove</button>
@@ -394,10 +565,10 @@ export const CollectView: React.FC = () => {
                       <input type="checkbox" disabled={!!c.invalid || l.applied} checked={l.picked.has(c.key)} onChange={() => toggle(li, c.key)} className="w-4 h-4 mt-0.5 accent-[#B91C1C] shrink-0" />
                       <span className="min-w-0">
                         <span className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">{c.studentName}</span>
-                        <span className="text-[#78716C] dark:text-[#A8A29E]"> · Roll {c.roll || '—'} · {c.subName} (/{c.max})</span>
+                        <span className="text-[#78716C] dark:text-[#A8A29E]"> · Roll {c.roll || '—'} · {c.subName}{c.max ? ` (/${c.max})` : ''}</span>
                         <span className="block">
-                          <span className="text-[#78716C] dark:text-[#A8A29E] line-through">{c.current || '—'}</span>{' → '}
-                          <b className="text-[#B91C1C] dark:text-[#FCA5A5]">{c.to === '' ? 'clear' : c.to === 'A' ? 'Absent' : c.to}</b>
+                          <span className="text-[#78716C] dark:text-[#A8A29E] line-through">{showDaily(m.daily, c.current) || '—'}</span>{' → '}
+                          <b className="text-[#B91C1C] dark:text-[#FCA5A5]">{c.to === '' ? 'clear' : c.subId === '_remark' ? c.to : m.daily === 'attendance' ? showDaily('attendance', c.to) : c.to === 'A' ? 'Absent' : c.to}</b>
                         </span>
                         {c.conflict && <span className="block text-[11px] text-[#92400E] dark:text-[#FCD34D]">You changed this after sending (it was "{c.from || '—'}"). Ticked only if you want theirs.</span>}
                         {c.invalid && <span className="block text-[11px] text-red-700 dark:text-red-400">{c.invalid}</span>}

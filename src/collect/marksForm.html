@@ -91,6 +91,7 @@ textarea.f.bad{border-color:var(--red);background:var(--redbg);color:var(--red);
 .mrow textarea.f{width:84px;flex:none;text-align:center;font-weight:800;font-size:18px;padding:10px 6px;height:46px}
 .mrow .ab{flex:none;width:42px;height:46px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--mute);font:inherit;font-weight:800;cursor:pointer}
 .mrow .ab.on{background:var(--red);border-color:var(--red);color:#fff}
+.mrow.t{flex-wrap:wrap}.mrow.t textarea.f.rem{width:100%;text-align:left;font-size:15px;font-weight:600;height:46px;margin-top:2px}
 .subs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:10px}
 .subs .chip{white-space:nowrap;flex:none}
 .subs .chip small{opacity:.75;font-weight:600;margin-left:4px}
@@ -111,7 +112,9 @@ var CFG=readJSON('cg-config'),WORK=readJSON('cg-work');
 var app=document.getElementById('app');
 if(!CFG||CFG.app!=='classgrid-collect'||CFG.kind!=='marks'||!CFG.students||!CFG.subjects||!CFG.subjects.length){app.innerHTML='<div class="wrap"><div class="card empty">This file has no marks data. Ask for a new file.</div></div>';return;}
 var STU=CFG.students,SUBS=CFG.subjects,byId={};STU.forEach(function(s){byId[s.id]=s});
-var subById={};SUBS.forEach(function(x){subById[x.id]=x});
+var REM=!!CFG.remarks,ALL=SUBS.slice();
+if(REM)ALL.push({id:'_remark',name:'Remarks',max:0,text:true});
+var subById={};ALL.forEach(function(x){subById[x.id]=x});
 var showFather=!!CFG.showFather;
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function one(v){return String(v==null?'':v).replace(/\s*[\r\n]+\s*/g,' ')}
@@ -139,6 +142,7 @@ function norm(v){v=one(v).trim().replace(/,/g,'.');if(/^(a|abs|absent)$/i.test(v
 function fin(v){return /^\d+\.$/.test(v)?v.slice(0,-1):v}
 function check(v,max){
   if(v===''||v==='A')return '';
+  if(max===0)return '';
   if(!/^\d+\.?\d*$/.test(v))return 'Numbers only, or A for absent.';
   if(parseFloat(v)>max)return 'Maximum is '+max+'.';
   return '';
@@ -174,17 +178,17 @@ app.innerHTML='<div class="wrap">'+top
 var BAD={};
 function computeIssues(){
   BAD={};var n=0;
-  STU.forEach(function(s){SUBS.forEach(function(x){var m=check(cur(s,x.id),x.max);if(m){BAD[s.id+':'+x.id]=m;n++}})});
+  STU.forEach(function(s){SUBS.forEach(function(x){if(x.text)return;var m=check(cur(s,x.id),x.max);if(m){BAD[s.id+':'+x.id]=m;n++}})});
   document.getElementById('issues').innerHTML=n?(n+' mark'+(n===1?' is':'s are')+' not valid. Fix the red boxes before sending.'):'';
   return n;
 }
 function filled(x){var n=0;STU.forEach(function(s){if(String(cur(s,x.id)).trim()!=='')n++});return n}
 function drawSubs(){
   var h='';
-  if(SUBS.length>1)SUBS.forEach(function(x){h+='<button class="chip'+(x.id===sub?' on':'')+'" data-sub="'+esc(x.id)+'" type="button">'+esc(x.name)+'<small>'+filled(x)+'/'+STU.length+'</small></button>'});
+  if(ALL.length>1)ALL.forEach(function(x){h+='<button class="chip'+(x.id===sub?' on':'')+'" data-sub="'+esc(x.id)+'" type="button">'+esc(x.name)+'<small>'+filled(x)+'/'+STU.length+'</small></button>'});
   document.getElementById('subs').innerHTML=h;
   var x=subById[sub];
-  document.getElementById('smax').innerHTML='<b>'+esc(x.name)+'</b> • out of <b>'+x.max+'</b> • type <b>A</b> or tap A for absent';
+  document.getElementById('smax').innerHTML=x.text?'<b>Remarks</b> • a short comment for each student (optional)':'<b>'+esc(x.name)+'</b> • out of <b>'+x.max+'</b> • type <b>A</b> or tap A for absent';
 }
 function updateProgress(){
   var x=subById[sub],f=filled(x),pct=STU.length?Math.round(f*100/STU.length):100;
@@ -199,10 +203,10 @@ function drawRows(){
     if(query){var hay=(String(s.name)+' '+String(s.rollNo)+' '+String(s.fatherName||'')).toLowerCase();if(hay.indexOf(query)<0)return}
     if(filter==='need'&&String(orig(s,x.id)).trim()!==''&&!has(edits[s.id]||{},x.id))if(String(v).trim()!=='')return;
     n++;
-    h+='<div class="mrow" data-id="'+esc(s.id)+'"><span class="r">'+esc(String(s.rollNo||'').trim()||'—')+'</span>'
+    h+='<div class="mrow'+(x.text?' t':'')+'" data-id="'+esc(s.id)+'"><span class="r">'+esc(String(s.rollNo||'').trim()||'—')+'</span>'
      +'<span class="m"><div class="n">'+esc(s.name||'(no name)')+'</div>'+(showFather&&s.fatherName?'<div class="s">'+esc(s.fatherName)+'</div>':'')+'<div class="e"></div></span>'
-     +'<textarea class="f" rows="1" wrap="off" autocomplete="off" autocorrect="off" inputmode="decimal" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea>'
-     +'<button class="ab" type="button" data-ab="'+esc(s.id)+'">A</button></div>';
+     +'<textarea class="f'+(x.text?' rem':'')+'" rows="1" wrap="off" autocomplete="off" autocorrect="off" inputmode="'+(x.text?'text':'decimal')+'" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea>'
+     +(x.text?'':'<button class="ab" type="button" data-ab="'+esc(s.id)+'">A</button>')+'</div>';
   });
   var rows=document.getElementById('rows');
   rows.innerHTML=h||'<div class="card empty">No student matches.</div>';
@@ -214,7 +218,7 @@ function styleRow(row){
   var msg=BAD[s.id+':'+x.id]||'';
   row.classList.toggle('bad',!!msg);row.querySelector('.e').textContent=msg;
   t.classList.toggle('chg',v!==orig(s,x.id));
-  ab.classList.toggle('on',v==='A');
+  if(ab)ab.classList.toggle('on',v==='A');
 }
 function refresh(){computeIssues();updateProgress()}
 
@@ -224,13 +228,13 @@ app.addEventListener('input',function(e){
   if(t.id==='from'){from=one(t.value);if(t.value!==from)t.value=from;persist();return}
   var sid=t.getAttribute('data-s');
   if(sid){
-    var v2=one(t.value).replace(/,/g,'.');if(v2!==t.value)t.value=v2;
-    setVal(byId[sid],sub,norm(v2));persist();refresh();styleRow(t.closest('.mrow'));
+    var tx=!!subById[sub].text,v2=tx?one(t.value):one(t.value).replace(/,/g,'.');if(v2!==t.value)t.value=v2;
+    setVal(byId[sid],sub,tx?v2:norm(v2));persist();refresh();styleRow(t.closest('.mrow'));
   }
 });
 app.addEventListener('focusout',function(e){
   var t=e.target,sid=t.getAttribute&&t.getAttribute('data-s');
-  if(!sid)return;
+  if(!sid||subById[sub].text)return;
   var v=fin(norm(t.value));
   if(v!==t.value.trim()||/^a/i.test(t.value)){t.value=v;setVal(byId[sid],sub,v);persist();refresh();styleRow(t.closest('.mrow'))}
 });
@@ -256,13 +260,15 @@ document.getElementById('from').value=from;
 function printNow(){
   var P=CFG.print;
   if(!P||!P.header){toast('Print is not available in this file.');return}
-  var nSub=SUBS.length,land=nSub+2+(showFather?1:0)>8;
+  var nSub=SUBS.length,land=nSub+2+(showFather?1:0)+(REM?2:0)>8;
   var head='<th style="width:8%">Roll #</th><th>Name</th>'+(showFather?'<th>Father Name</th>':'');
   var sw=Math.max(7,Math.min(14,Math.floor(48/nSub)));
   SUBS.forEach(function(x){head+='<th style="width:'+sw+'%">'+esc(x.name)+'<br>('+x.max+')</th>'});
+  if(REM)head+='<th style="width:22%">Remarks</th>';
   var rows=ORDER.map(function(s){
     var r='<tr><td class="center font-mono font-bold">'+esc(String(s.rollNo||'').trim()||'—')+'</td><td><span class="cg-fit">'+esc(s.name||'—')+'</span></td>'+(showFather?'<td><span class="cg-fit">'+esc(s.fatherName||'—')+'</span></td>':'');
     SUBS.forEach(function(x){r+='<td class="center">'+esc(cur(s,x.id))+'</td>'});
+    if(REM)r+='<td class="cg-nocap">'+esc(cur(s,'_remark'))+'</td>';
     return r+'</tr>';
   }).join('');
   var pa=document.getElementById('printArea');
@@ -287,10 +293,10 @@ function saveCopy(){
 }
 function returnObj(){
   var ch={},n=0,fields={};
-  SUBS.forEach(function(x){fields[x.id]='edit'});
+  ALL.forEach(function(x){fields[x.id]='edit'});
   Object.keys(edits).forEach(function(id){
     var s=byId[id];if(!s)return;var o={};
-    Object.keys(edits[id]).forEach(function(k){if(!subById[k])return;o[k]={from:orig(s,k),to:fin(edits[id][k])};n++});
+    Object.keys(edits[id]).forEach(function(k){if(!subById[k])return;o[k]={from:orig(s,k),to:subById[k].text?edits[id][k]:fin(edits[id][k])};n++});
     if(Object.keys(o).length)ch[id]=o;
   });
   return {app:'classgrid-collect-return',v:1,kind:'marks',requestId:CFG.requestId,revision:revision+1,savedAt:Date.now(),from:from,className:CFG.className||'',

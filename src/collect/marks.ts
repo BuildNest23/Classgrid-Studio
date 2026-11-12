@@ -8,10 +8,14 @@ export interface MarksOptions {
   assessmentId: string;
   subjectIds: string[];
   showFather: boolean;
+  /** teacher can also write a short remark for each student */
+  remarks?: boolean;
   note: string;
   /** only students who have no mark yet in at least one chosen subject */
   onlyMissing: boolean;
 }
+
+const remarkStr = (data: AppData, asmtId: string, sid: string): string => String((data.assessmentRemarks?.[asmtId] || {})[sid] ?? '');
 
 const markStr = (data: AppData, asmtId: string, sid: string, subId: string): string => {
   const v = ((data.assessmentResults[asmtId] || {})[sid] || {})[subId];
@@ -21,7 +25,7 @@ const markStr = (data: AppData, asmtId: string, sid: string, subId: string): str
 export function studentsForMarks(data: AppData, opts: MarksOptions) {
   const list = getSortedStudents(data.students);
   if (!opts.onlyMissing) return list;
-  return list.filter(s => opts.subjectIds.some(sub => !markStr(data, opts.assessmentId, s.id, sub).trim()));
+  return list.filter(s => (opts.remarks && !remarkStr(data, opts.assessmentId, s.id).trim()) || opts.subjectIds.some(sub => !markStr(data, opts.assessmentId, s.id, sub).trim()));
 }
 
 export function buildMarksFile(data: AppData, opts: MarksOptions, requestId = newRequestId(), print?: PrintBundle) {
@@ -34,16 +38,18 @@ export function buildMarksFile(data: AppData, opts: MarksOptions, requestId = ne
     const o: Record<string, string> = { id: s.id, rollNo: s.rollNo || '', name: s.name || '' };
     if (opts.showFather) o.fatherName = s.fatherName || '';
     subjects.forEach(sub => { o[sub.id] = markStr(data, asmt.id, s.id, sub.id); });
+    if (opts.remarks) o._remark = remarkStr(data, asmt.id, s.id);
     return o;
   });
   const fields: Record<string, string> = {};
   subjects.forEach(s => { fields[s.id] = 'edit'; });
+  if (opts.remarks) fields._remark = 'edit';
 
   const cfg = {
     app: 'classgrid-collect', v: 1, kind: 'marks', requestId, createdAt: Date.now(),
     schoolName: data.schoolName || '', className: data.className || '', inchargeName: data.inchargeName || '',
     academicYear: data.academicYear || '', logo: data.schoolLogo || '',
-    assessmentId: asmt.id, assessmentName: asmt.name, subjects, showFather: opts.showFather,
+    assessmentId: asmt.id, assessmentName: asmt.name, subjects, showFather: opts.showFather, remarks: !!opts.remarks,
     note: opts.note.trim(), fields, print: print || null, students,
   };
   const json = JSON.stringify(cfg).replace(/</g, '\\u003c');
@@ -76,6 +82,8 @@ export interface MarksPlan {
   alreadySame: number;
   /** whole file cannot be used */
   problem?: string;
+  /** set for attendance / daily-test returns */
+  daily?: 'attendance' | 'test';
 }
 
 export const isMarksReturn = (r: ReturnFile) => r.kind === 'marks';
@@ -94,6 +102,18 @@ export function planMarksReturn(data: AppData, ret: ReturnFile): MarksPlan {
     const rows = ret.changes[id] || {};
     if (!s) { plan.missing += Object.keys(rows).length; return; }
     Object.keys(rows).forEach(subId => {
+      if (subId === '_remark') {
+        const to = String(rows[subId].to ?? '').trim();
+        const from = String(rows[subId].from ?? '');
+        const current = remarkStr(data, asmt.id, id);
+        if (current === to) { plan.alreadySame++; return; }
+        plan.changes.push({
+          key: id + ':_remark', studentId: id, studentName: s.name || '(no name)', roll: s.rollNo || '',
+          subId, subName: 'Remarks', max: 0, to, current, from, conflict: current !== from,
+          invalid: asmt.locked ? 'This assessment is locked. Unlock it in Results first.' : undefined,
+        });
+        return;
+      }
       const sub = subs.get(subId);
       if (!sub) { plan.missing++; return; }
       let to = String(rows[subId].to ?? '').trim().replace(',', '.');
@@ -123,11 +143,22 @@ export function planMarksReturn(data: AppData, ret: ReturnFile): MarksPlan {
 
 export function applyMarks(data: AppData, asmtId: string, chosen: PlannedMark[]): AppData {
   const cur: Record<string, Record<string, number | 'A'>> = { ...(data.assessmentResults[asmtId] || {}) };
+  const rem: Record<string, string> = { ...(data.assessmentRemarks?.[asmtId] || {}) };
+  let remTouched = false;
   chosen.forEach(c => {
+    if (c.subId === '_remark') {
+      remTouched = true;
+      if (c.to === '') delete rem[c.studentId]; else rem[c.studentId] = c.to;
+      return;
+    }
     const row = { ...(cur[c.studentId] || {}) };
     if (c.to === '') delete row[c.subId];
     else row[c.subId] = c.to === 'A' ? 'A' : Number(c.to);
     cur[c.studentId] = row;
   });
-  return { ...data, assessmentResults: { ...data.assessmentResults, [asmtId]: cur } };
+  return {
+    ...data,
+    assessmentResults: { ...data.assessmentResults, [asmtId]: cur },
+    ...(remTouched ? { assessmentRemarks: { ...(data.assessmentRemarks || {}), [asmtId]: rem } } : {}),
+  };
 }
