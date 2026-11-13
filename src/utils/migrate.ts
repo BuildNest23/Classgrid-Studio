@@ -102,7 +102,8 @@ export function normalizeData(raw: unknown): AppData {
         .map((x: Record<string, any>) => ({
           id: x.id ? String(x.id) : uid("asub"),
           name: String(x.name || "Subject"),
-          max: Number(x.max) || 100
+          // 0 means "max marks not set yet" and must stay 0; only a missing or broken value gets the old default
+          max: x.max !== undefined && x.max !== null && x.max !== '' && Number.isFinite(Number(x.max)) && Number(x.max) >= 0 ? Number(x.max) : 100
         })),
       createdAt: Number(a.createdAt) || Date.now(),
       // Keep the "Lock Grid" state (it was previously dropped on every load / undo / redo / import)
