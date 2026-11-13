@@ -434,18 +434,27 @@ export function buildStandalonePrintHTML(
  * The Android system print dialog ignores `@page { size }`, so previews show Letter portrait
  * even for landscape documents. `@capgo/capacitor-printer`'s `printHtml` has no paper-size option.
  */
+/** Shrinks a whole sheet evenly (text, rows and lines) so it fits on fewer pages. Layout stays the same, only smaller. */
+export function wrapZoom(contentHTML: string, zoom: number): string {
+  if (!(zoom > 0) || zoom >= 0.999) return contentHTML;
+  const z = Math.round(zoom * 1000) / 1000;
+  return `<div style="zoom:${z};width:calc(100% / ${z});">${contentHTML}</div>`;
+}
+
 export async function triggerPrint(
   contentHTML: string,
   orientation: 'portrait' | 'landscape' = 'portrait',
   printSize: PrintSizeKey = 'm',
   forceOrientation: string = '',
-  pageNumbers: boolean = false
+  pageNumbers: boolean = false,
+  fitZoom: number = 1
 ): Promise<boolean> {
   const mult = (PRINT_SIZES[printSize] || PRINT_SIZES.m).mult;
   const finalOrientation = (forceOrientation || orientation || 'portrait') as 'portrait' | 'landscape';
 
   // Run long names auto-fit measurement pre-pass so names shrink instead of overflowing columns
   contentHTML = await fitLongNames(contentHTML);
+  contentHTML = wrapZoom(contentHTML, fitZoom);
 
   const docTitle = extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();

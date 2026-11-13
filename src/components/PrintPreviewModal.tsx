@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { PRINT_SIZES } from '../utils/helpers';
-import { triggerPrint, buildStandalonePrintHTML } from '../utils/printEngine';
+import { triggerPrint, buildStandalonePrintHTML, wrapZoom } from '../utils/printEngine';
 import { fitLongNames } from '../utils/fitText';
 import { registerPrintPreview, PrintRequest } from '../utils/printPreviewBus';
 import { FitMeasurer, autoFit, pageGeometry, SIZE_ORDER, Orientation } from '../utils/printFit';
@@ -21,6 +21,13 @@ export const PrintPreviewModal: React.FC = () => {
   const [orientation, setOrientation] = useState<Orientation>('portrait');
   const [size, setSize] = useState<PrintSizeKey>('m');
   const [pageNumbers, setPageNumbers] = useState(false);
+  const [onePage, setOnePage] = useState<boolean>(() => {
+    try { return localStorage.getItem('classgridFitOnePage') === '1'; } catch { return false; }
+  });
+  const saveOnePage = (v: boolean) => {
+    setOnePage(v);
+    try { localStorage.setItem('classgridFitOnePage', v ? '1' : '0'); } catch { /* ignore */ }
+  };
   const [pages, setPages] = useState<number | null>(null);
   const [heightPx, setHeightPx] = useState(1000);
   const [busy, setBusy] = useState(false);
@@ -124,22 +131,31 @@ export const PrintPreviewModal: React.FC = () => {
   if (!req) return null;
 
   const g = pageGeometry(orientation);
+  // "Fit on 1 page": shrink the whole sheet evenly when it is longer than one page (never below 30%)
+  const MIN_ZOOM = 0.3;
+  const tooLong = onePage && pages !== null && pages > 1 && heightPx * MIN_ZOOM > g.printH;
+  const fitZoom = onePage && pages !== null && pages > 1 && !tooLong
+    ? Math.min(1, Math.floor((g.printH * 0.97 / heightPx) * 1000) / 1000)
+    : 1;
+  const stillTooLong = tooLong;
   const scale = Math.min(1, (boxW - 2) / g.pageW);
   const mult = (PRINT_SIZES[size] || PRINT_SIZES.m).mult;
   // Full-page sheets use a 100vh min-height; in the preview that must mean one page, not the whole preview.
   const srcDoc = content
-    ? buildStandalonePrintHTML(content, mult, orientation, false, 'Preview').replace(
+    ? buildStandalonePrintHTML(wrapZoom(content, fitZoom), mult, orientation, false, 'Preview').replace(
         '</head>',
         `<style>.print-sheet.ps2-port,.print-sheet.ps2-land{min-height:${Math.round(g.printH - 8)}px !important;}</style></head>`
       )
     : '';
-  const paperH = heightPx + 2 * g.margin;
-  const breaks = pages && pages > 1 ? Array.from({ length: pages - 1 }, (_, i) => g.margin + (i + 1) * g.printH) : [];
+  const shownH = Math.round(heightPx * fitZoom);
+  const shownPages = fitZoom < 1 && !stillTooLong ? 1 : pages;
+  const paperH = shownH + 2 * g.margin;
+  const breaks = shownPages && shownPages > 1 ? Array.from({ length: shownPages - 1 }, (_, i) => g.margin + (i + 1) * g.printH) : [];
 
   const handlePrint = async () => {
     const html = content || req.html;
     close();
-    const ok = await triggerPrint(html, orientation, size, orientation, pageNumbers);
+    const ok = await triggerPrint(html, orientation, size, orientation, pageNumbers, fitZoom);
     if (!ok) toast('Could not open the print dialog. Try again.', 'error');
   };
 
@@ -152,7 +168,7 @@ export const PrintPreviewModal: React.FC = () => {
           <div>
             <div className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Print preview</div>
             <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">
-              {busy || pages === null ? 'Measuring…' : `About ${pages} page${pages === 1 ? '' : 's'}`}
+              {busy || pages === null ? 'Measuring…' : `About ${shownPages} page${shownPages === 1 ? '' : 's'}${fitZoom < 1 ? ` (shrunk to ${Math.round(fitZoom * 100)}%)` : ''}`}
               {autoNote && !busy ? ` · ${autoNote}` : ''}
             </div>
           </div>
@@ -198,6 +214,16 @@ export const PrintPreviewModal: React.FC = () => {
             <input type="checkbox" checked={pageNumbers} onChange={e => setPageNumbers(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
             Page numbers
           </label>
+          <label className="col-span-2 flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+            <input type="checkbox" checked={onePage} onChange={e => saveOnePage(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+            Fit on 1 page
+            <span className="font-normal text-[#78716C] dark:text-[#A8A29E]">(shrinks the whole sheet if it is longer)</span>
+          </label>
+          {stillTooLong && (
+            <div className="col-span-2 text-[11px] text-[#B45309] dark:text-[#FCD34D]">
+              This sheet is too long to fit on one page even at the smallest size. It will print on more pages.
+            </div>
+          )}
           {locked && (
             <div className="col-span-2 text-[11px] text-[#78716C] dark:text-[#A8A29E]">
               Settings forces {locked} pages, so Auto-fit only changes the text size. Change it here to override for this print.
@@ -224,7 +250,7 @@ export const PrintPreviewModal: React.FC = () => {
                   <iframe
                     title="Print preview"
                     srcDoc={srcDoc}
-                    style={{ position: 'absolute', left: g.margin, top: g.margin, width: g.printW, height: heightPx, border: 0, background: '#fff' }}
+                    style={{ position: 'absolute', left: g.margin, top: g.margin, width: g.printW, height: shownH, border: 0, background: '#fff' }}
                   />
                   {breaks.map((y, i) => (
                     <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: y, borderTop: '2px dashed #B91C1C', pointerEvents: 'none' }}>
