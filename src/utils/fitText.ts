@@ -140,29 +140,39 @@ export async function fitLongNames(html: string): Promise<string> {
       const origPt = origPx * (72 / 96);
       const floorPt = origPt * 0.75;
 
-      let fits = el.scrollWidth <= availWidth && cell.scrollWidth <= cell.clientWidth + 0.5;
+      const fitsOneLine = () => el.scrollWidth <= availWidth && cell.scrollWidth <= cell.clientWidth + 0.5;
 
-      if (!fits) {
-        let currPt = origPt;
-        while (currPt > floorPt) {
-          currPt = Math.max(floorPt, Math.round((currPt - 0.25) * 100) / 100);
-          el.style.fontSize = `${currPt}pt`;
-          if (el.scrollWidth <= availWidth && cell.scrollWidth <= cell.clientWidth + 0.5) {
-            fits = true;
-            break;
-          }
-          if (currPt <= floorPt) break;
-        }
-
-        if (!fits) {
-          // If still does not fit at 75% floor, remove nowrap so it wraps normally; never cut text off
-          el.style.whiteSpace = 'normal';
-          el.style.fontSize = `${floorPt}pt`;
-        }
-      } else {
-        // Fits at original size: remove unnecessary inline styles
+      if (fitsOneLine()) {
+        // Fits at original size on one line: remove unnecessary inline styles
         el.style.display = '';
         el.style.whiteSpace = '';
+        continue;
+      }
+
+      // Too long for one line: first wrap onto a second line at the ORIGINAL size.
+      // Only if two lines are still not enough (or one word is wider than the cell) shrink the text,
+      // and then it stays wrapped on its lines. Never cut the text off.
+      el.style.whiteSpace = 'normal';
+      el.style.overflowWrap = 'normal';
+      const fitsTwoLines = () => {
+        const px = parseFloat(doc.defaultView?.getComputedStyle(el).fontSize || '') || origPx;
+        const lhRaw = parseFloat(doc.defaultView?.getComputedStyle(el).lineHeight || '');
+        const lh = isFinite(lhRaw) && lhRaw > 0 ? lhRaw : px * 1.3;
+        const lines = Math.ceil(el.getBoundingClientRect().height / lh - 0.15);
+        return lines <= 2 && el.scrollWidth <= availWidth + 0.5 && cell.scrollWidth <= cell.clientWidth + 0.5;
+      };
+
+      let ok = fitsTwoLines();
+      let currPt = origPt;
+      while (!ok && currPt > floorPt) {
+        currPt = Math.max(floorPt, Math.round((currPt - 0.25) * 100) / 100);
+        el.style.fontSize = `${currPt}pt`;
+        ok = fitsTwoLines();
+      }
+      if (!ok) {
+        // Last resort (a single very long word): allow breaking inside the word so nothing leaves the box
+        el.style.overflowWrap = 'anywhere';
+        el.style.fontSize = `${floorPt}pt`;
       }
     }
 
