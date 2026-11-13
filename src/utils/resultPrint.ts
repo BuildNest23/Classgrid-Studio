@@ -256,6 +256,56 @@ export function buildClassResultHTML(
   </div>`;
 }
 
+// ---------- Blank marks sheet (teacher writes the marks by hand) ----------
+
+export function buildBlankMarksSheetHTML(
+  c: ResultPrintCtx,
+  layout: { orientation: 'portrait' | 'landscape'; namePct: number; headFontPt: number }
+): string {
+  const { asmt, data } = c;
+  const students = [...data.students].sort((a, b) => {
+    const x = String(a.rollNo || '').trim(), y = String(b.rollNo || '').trim();
+    if (!x || !y) return x === y ? 0 : !x ? 1 : -1;
+    return x.localeCompare(y, undefined, { numeric: true });
+  });
+  const headCells = asmt.subjects
+    .map(
+      sub =>
+        `<th style="font-size:calc(${layout.headFontPt}pt * var(--mult, 1));overflow-wrap:anywhere">${esc(sub.name)}<br><span class="ps2-th-max">(${sub.max})</span></th>`
+    )
+    .join('');
+  // Both print styles: every box gets a visible border so marks can be written by hand
+  const box = 'border:0.25mm solid #777;';
+  const blanks = asmt.subjects.map(() => `<td class="num" style="${box}">&nbsp;</td>`).join('');
+  const rows = students
+    .map(
+      s => `<tr style="height:10.5mm;">
+        <td class="num" style="${box}">${esc(s.rollNo || '—')}</td>
+        <td class="name" style="${box}"><span class="cg-fit">${esc(s.name || '—')}</span></td>
+        ${blanks}
+        <td class="num" style="${box}">&nbsp;</td>
+      </tr>`
+    )
+    .join('');
+  return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(layout.orientation)}">
+    ${headerHTML(c, 'Marks Sheet')}
+    ${infoBarHTML(c, [`Total max: ${c.totalMax}`, `Students: ${students.length}`])}
+    <style>.print-sheet.ps2 .ps2-table.ps2-hand th,.print-sheet.ps2 .ps2-table.ps2-hand td{border:0.25mm solid #777 !important}</style>
+    <table class="ps2-table ps2-res ps2-hand">
+      <thead><tr>
+        <th style="width:6%">Roll</th>
+        <th class="name" style="width:${layout.namePct}%">Name</th>
+        ${headCells}
+        <th style="width:9%">Total<br><span class="ps2-th-max">(${c.totalMax})</span></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="ps2-spacer"></div>
+    ${sigHTML('Examination Incharge')}
+    ${footerHTML(c)}
+  </div>`;
+}
+
 // ---------- 2. Report Cards ----------
 
 // Report-card rows shrink automatically as subjects are added so a card always fits on one page.

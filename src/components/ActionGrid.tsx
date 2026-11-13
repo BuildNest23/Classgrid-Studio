@@ -3,7 +3,7 @@ import React from 'react';
 interface ActionGridProps {
   children: React.ReactNode;
   /** Responsive columns on md+ screens: defaults to 2, 3, or 4 */
-  cols?: 2 | 3 | 4;
+  cols?: 2 | 3 | 4 | 5;
   className?: string;
 }
 
@@ -18,7 +18,9 @@ export const ActionGrid: React.FC<ActionGridProps> = ({
   className = ''
 }) => {
   const mdColsClass =
-    cols === 4
+    cols === 5
+      ? 'md:grid-cols-5'
+      : cols === 4
       ? 'md:grid-cols-4'
       : cols === 3
       ? 'md:grid-cols-3'

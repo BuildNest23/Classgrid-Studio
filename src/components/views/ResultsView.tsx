@@ -43,6 +43,7 @@ import {
   buildClassResultHTML,
   buildReportCardsHTML,
   buildBlankReportCardHTML,
+  buildBlankMarksSheetHTML,
   buildMeritListHTML,
 } from '../../utils/resultPrint';
 import {
@@ -645,6 +646,25 @@ export const ResultsView: React.FC = () => {
       return;
     }
     const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
+    if (!ok) toast("Could not open the print dialog. Try again.", "error");
+  };
+
+  const handlePrintBlankSheet = async () => {
+    if (!activeAsmt.subjects.length) {
+      toast("Add subjects first.", "error");
+      return;
+    }
+    if (!data.students.length) {
+      toast("Add students first.", "error");
+      return;
+    }
+    const layout = planResultPrintLayout(
+      data.students.map(s => s.name || ""),
+      activeAsmt.subjects.map(sub => sub.name),
+      data.printSize,
+      data.forceOrientation
+    );
+    const ok = await previewPrint({ html: buildBlankMarksSheetHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -1544,7 +1564,7 @@ export const ResultsView: React.FC = () => {
               placeholder="Footer text for prints (optional)"
               className="w-full px-3 py-2 text-[13px] rounded-xl border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-[#1C1917] dark:text-[#F5F5F4] placeholder:text-[#A8A29E] focus:outline-none focus:border-[#0B5D45]"
             />
-            <ActionGrid cols={4}>
+            <ActionGrid cols={5}>
               <ActionButton
                 variant="primary"
                 icon={Printer}
@@ -1571,9 +1591,15 @@ export const ResultsView: React.FC = () => {
                 variant="secondary"
                 icon={Printer}
                 onClick={handlePrintBlankCard}
-                fullWidth="mobile-only"
               >
                 Blank Card
+              </ActionButton>
+              <ActionButton
+                variant="secondary"
+                icon={Printer}
+                onClick={handlePrintBlankSheet}
+              >
+                Blank Sheet
               </ActionButton>
             </ActionGrid>
           </>
