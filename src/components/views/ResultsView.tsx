@@ -1,4 +1,5 @@
 import { SyncInput } from '../SyncInput';
+import { exportReportCardsZip } from '../../utils/reportCardImages';
 import { ActionGrid, ActionButton } from '../ActionGrid';
 import { AiAssistCard } from '../AiAssistCard';
 import { HowItWorks } from '../HowItWorks';
@@ -94,6 +95,9 @@ export const ResultsView: React.FC = () => {
   const [newSubName, setNewSubName] = useState("");
   const [newSubMax, setNewSubMax] = useState("");
   const [copyPickerOpen, setCopyPickerOpen] = useState(false);
+  const [cardChoice, setCardChoice] = useState(false);
+  const [zipProgress, setZipProgress] = useState<{ done: number; total: number } | null>(null);
+  const zipCancelRef = useRef(false);
 
   // Print design: A = colour, B = black & white (remembered on this device)
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
@@ -628,11 +632,37 @@ export const ResultsView: React.FC = () => {
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
-  const handlePrintReportCards = async () => {
+  // "Report Cards" asks first: one PDF with every card, or a ZIP of one picture per student
+  const handlePrintReportCards = () => {
     if (!activeAsmt.subjects.length) {
       toast("Add subjects first.", "error");
       return;
     }
+    setCardChoice(true);
+  };
+
+  const handleCardsZip = async () => {
+    setCardChoice(false);
+    if (!ranked.length) {
+      toast("Add students first.", "error");
+      return;
+    }
+    zipCancelRef.current = false;
+    setZipProgress({ done: 0, total: ranked.length });
+    try {
+      const res = await exportReportCardsZip(printCtx(), (done, total) => setZipProgress({ done, total }), () => zipCancelRef.current);
+      if (res.cancelled) toast("Cancelled.", "info");
+      else if (res.ok) toast(`${res.count} result card${res.count === 1 ? '' : 's'} ready.`, "success");
+      else toast("Could not create the ZIP file on this device.", "error");
+    } catch {
+      toast("Could not create the result card pictures on this device. Use the PDF option instead.", "error");
+    } finally {
+      setZipProgress(null);
+    }
+  };
+
+  const handleCardsPdf = async () => {
+    setCardChoice(false);
     const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
@@ -1603,6 +1633,40 @@ export const ResultsView: React.FC = () => {
           </>
         )}
       </div>
+      {cardChoice && (
+        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setCardChoice(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">Report Cards</div>
+            <button type="button" onClick={handleCardsPdf}
+              className="w-full text-left p-3 rounded-xl bg-[#B91C1C] text-white cursor-pointer">
+              <div className="text-sm font-bold">One PDF for printing</div>
+              <div className="text-[11px] opacity-90">Every student's card in a single file, one card per page.</div>
+            </button>
+            <button type="button" onClick={handleCardsZip}
+              className="w-full text-left p-3 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 cursor-pointer">
+              <div className="text-sm font-bold">ZIP of pictures</div>
+              <div className="text-[11px] opacity-80">One picture per student, named by Roll # and name. Good for sending on WhatsApp.</div>
+            </button>
+            <button type="button" onClick={() => setCardChoice(false)}
+              className="w-full py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {zipProgress && (
+        <div className="fixed inset-0 z-[310] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3 text-center">
+            <div className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Making result cards…</div>
+            <div className="text-xs text-[#78716C] dark:text-[#A8A29E]">{zipProgress.done} of {zipProgress.total}</div>
+            <div className="h-2 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+              <div className="h-full bg-[#B91C1C] transition-all" style={{ width: `${zipProgress.total ? Math.round((zipProgress.done * 100) / zipProgress.total) : 0}%` }} />
+            </div>
+            <button type="button" onClick={() => { zipCancelRef.current = true; }}
+              className="text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
+
       {entryStudentId && activeAsmt.subjects.length > 0 && (() => {
         const idx = sortedStudents.findIndex(x => x.id === entryStudentId);
         const st = sortedStudents[idx];
