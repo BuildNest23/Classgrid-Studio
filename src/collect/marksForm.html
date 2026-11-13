@@ -121,12 +121,12 @@ function one(v){return String(v==null?'':v).replace(/\s*[\r\n]+\s*/g,' ')}
 function has(o,k){return Object.prototype.hasOwnProperty.call(o,k)}
 
 var LSKEY='cgc:'+CFG.requestId;
-var edits={},from='',revision=0,savedAt=0;
+var edits={},maxes={},from='',revision=0,savedAt=0;
 (function(){
   var a=WORK&&WORK.edits?WORK:null,b=null;
   try{b=JSON.parse(localStorage.getItem(LSKEY)||'null')}catch(e){}
   var p=a;if(b&&b.edits&&(!a||(b.savedAt||0)>(a.savedAt||0)))p=b;
-  if(p){edits=p.edits||{};from=p.from||'';revision=p.revision||0;savedAt=p.savedAt||0}
+  if(p){edits=p.edits||{};maxes=p.maxes||{};from=p.from||'';revision=p.revision||0;savedAt=p.savedAt||0}
 })();
 function orig(s,k){return s[k]==null?'':String(s[k])}
 function cur(s,k){var e=edits[s.id];return (e&&has(e,k))?e[k]:orig(s,k)}
@@ -136,8 +136,9 @@ function setVal(s,k,v){
   else{(edits[s.id]=edits[s.id]||{})[k]=v}
 }
 var saveT=null;
-function persist(){clearTimeout(saveT);saveT=setTimeout(function(){try{localStorage.setItem(LSKEY,JSON.stringify({edits:edits,from:from,revision:revision,savedAt:Date.now()}))}catch(e){}},300)}
+function persist(){clearTimeout(saveT);saveT=setTimeout(function(){try{localStorage.setItem(LSKEY,JSON.stringify({edits:edits,maxes:maxes,from:from,revision:revision,savedAt:Date.now()}))}catch(e){}},300)}
 function changeCount(){var n=0;Object.keys(edits).forEach(function(id){n+=Object.keys(edits[id]).length});return n}
+function mx(x){if(x.text)return 0;if(x.max>0)return x.max;var n=parseInt(maxes[x.id],10);return n>0?n:0}
 function norm(v){v=one(v).trim().replace(/,/g,'.');if(/^(a|abs|absent)$/i.test(v))return 'A';return v}
 function fin(v){return /^\d+\.$/.test(v)?v.slice(0,-1):v}
 function check(v,max){
@@ -166,7 +167,7 @@ var top='<div class="card"><div class="head">'+(CFG.logo?'<img alt="" src="'+esc
  +(CFG.note?'<details class="msg"><summary><span>Message:</span> '+esc(CFG.note.replace(/\s+/g,' ').slice(0,70)+(CFG.note.length>70?'…':''))+'</summary><div class="note">'+esc(CFG.note)+'</div></details>':'')
  +'</div>';
 app.innerHTML='<div class="wrap">'+top
- +'<div class="subs" id="subs"></div><div class="smax" id="smax"></div>'
+ +'<div class="subs" id="subs"></div><div class="smax" id="smax"></div><div id="mxbox"></div>'
  +'<div class="sec" id="progWrap"></div><div class="issues" id="issues"></div>'
  +'<div class="sec"><textarea class="f" id="q" rows="1" wrap="off" autocomplete="off" placeholder="Search name or roll #"></textarea></div>'
  +'<div class="chips"><button class="chip" data-flt="all" type="button">All</button><button class="chip" data-flt="need" type="button">Not entered yet</button></div>'
@@ -178,7 +179,7 @@ app.innerHTML='<div class="wrap">'+top
 var BAD={};
 function computeIssues(){
   BAD={};var n=0;
-  STU.forEach(function(s){SUBS.forEach(function(x){if(x.text)return;var m=check(cur(s,x.id),x.max);if(m){BAD[s.id+':'+x.id]=m;n++}})});
+  STU.forEach(function(s){SUBS.forEach(function(x){if(x.text)return;var m=check(cur(s,x.id),mx(x));if(m){BAD[s.id+':'+x.id]=m;n++}})});
   document.getElementById('issues').innerHTML=n?(n+' mark'+(n===1?' is':'s are')+' not valid. Fix the red boxes before sending.'):'';
   return n;
 }
@@ -188,15 +189,21 @@ function drawSubs(){
   if(ALL.length>1)ALL.forEach(function(x){h+='<button class="chip'+(x.id===sub?' on':'')+'" data-sub="'+esc(x.id)+'" type="button">'+esc(x.name)+'<small>'+filled(x)+'/'+STU.length+'</small></button>'});
   document.getElementById('subs').innerHTML=h;
   var x=subById[sub];
-  document.getElementById('smax').innerHTML=x.text?'<b>Remarks</b> • a short comment for each student (optional)':'<b>'+esc(x.name)+'</b> • '+(x.max>0?'out of <b>'+x.max+'</b>':'no maximum set')+' • type <b>A</b> or tap A for absent';
+  document.getElementById('smax').innerHTML=x.text?'<b>Remarks</b> • a short comment for each student (optional)':'<b>'+esc(x.name)+'</b> • '+(mx(x)>0?'out of <b>'+mx(x)+'</b>'+(x.max>0?'':' (set by you)'):'total marks not set')+' • type <b>A</b> or tap A for absent';
 }
 function updateProgress(){
   var x=subById[sub],f=filled(x),pct=STU.length?Math.round(f*100/STU.length):100;
   document.getElementById('progWrap').innerHTML='<div class="pbar"><i style="width:'+pct+'%"></i></div><div class="prog"><span><b>'+f+'</b> of '+STU.length+' entered</span><span><b>'+changeCount()+'</b> changed</span></div>';
   drawSubs();
 }
+function drawMx(){
+  var x=subById[sub],b=document.getElementById('mxbox');
+  if(!x||x.text||x.max>0){b.innerHTML='';return}
+  b.innerHTML='<div class="card sec" style="padding:12px 14px"><span class="lbl">Total marks for '+esc(x.name)+' (if you know it)</span><textarea class="f" id="mxin" rows="1" wrap="off" autocomplete="off" inputmode="numeric" placeholder="e.g. 20"></textarea></div>';
+  document.getElementById('mxin').value=maxes[x.id]||'';
+}
 function drawRows(){
-  var x=subById[sub],h='',n=0;
+  var x=subById[sub],h='',n=0;drawMx();
   Array.prototype.forEach.call(document.querySelectorAll('[data-flt]'),function(b){b.classList.toggle('on',b.getAttribute('data-flt')===filter)});
   ORDER.forEach(function(s){
     var v=cur(s,x.id);
@@ -226,6 +233,11 @@ app.addEventListener('input',function(e){
   var t=e.target;
   if(t.id==='q'){var v=one(t.value);if(v!==t.value)t.value=v;query=v.trim().toLowerCase();drawRows();return}
   if(t.id==='from'){from=one(t.value);if(t.value!==from)t.value=from;persist();return}
+  if(t.id==='mxin'){
+    var dv=t.value.replace(/[^0-9]/g,'').slice(0,4);if(dv!==t.value)t.value=dv;
+    if(dv&&parseInt(dv,10)>0)maxes[sub]=String(parseInt(dv,10));else delete maxes[sub];
+    persist();refresh();Array.prototype.forEach.call(document.querySelectorAll('#rows .mrow'),styleRow);return;
+  }
   var sid=t.getAttribute('data-s');
   if(sid){
     var tx=!!subById[sub].text,v2=tx?one(t.value):one(t.value).replace(/,/g,'.');if(v2!==t.value)t.value=v2;
@@ -263,7 +275,7 @@ function printNow(){
   var nSub=SUBS.length,land=nSub+2+(showFather?1:0)+(REM?2:0)>8;
   var head='<th style="width:8%">Roll #</th><th>Name</th>'+(showFather?'<th>Father Name</th>':'');
   var sw=Math.max(7,Math.min(14,Math.floor(48/nSub)));
-  SUBS.forEach(function(x){head+='<th style="width:'+sw+'%">'+esc(x.name)+'<br>('+(x.max>0?x.max:'\u2014')+')</th>'});
+  SUBS.forEach(function(x){head+='<th style="width:'+sw+'%">'+esc(x.name)+'<br>('+(mx(x)>0?mx(x):'\u2014')+')</th>'});
   if(REM)head+='<th style="width:22%">Remarks</th>';
   var rows=ORDER.map(function(s){
     var r='<tr><td class="center font-mono font-bold">'+esc(String(s.rollNo||'').trim()||'—')+'</td><td><span class="cg-fit">'+esc(s.name||'—')+'</span></td>'+(showFather?'<td><span class="cg-fit">'+esc(s.fatherName||'—')+'</span></td>':'');
@@ -284,7 +296,7 @@ document.getElementById('bPrint').addEventListener('click',printNow);
 
 /* ---------- save / send ---------- */
 function download(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},4000)}
-function workBlock(){return JSON.stringify({revision:revision,savedAt:savedAt,from:from,edits:edits}).replace(/</g,'\\u003c')}
+function workBlock(){return JSON.stringify({revision:revision,savedAt:savedAt,from:from,edits:edits,maxes:maxes}).replace(/</g,'\\u003c')}
 function saveCopy(){
   revision++;savedAt=Date.now();persist();
   var html=SRC.replace(/(<script id="cg-work" type="application\/json">)[\s\S]*?(<\/script>)/,function(m,a,b){return a+workBlock()+b});
@@ -299,8 +311,10 @@ function returnObj(){
     Object.keys(edits[id]).forEach(function(k){if(!subById[k])return;o[k]={from:orig(s,k),to:subById[k].text?edits[id][k]:fin(edits[id][k])};n++});
     if(Object.keys(o).length)ch[id]=o;
   });
+  var mo={};
+  SUBS.forEach(function(x){if(x.max>0)return;var v=parseInt(maxes[x.id],10);if(v>0)mo[x.id]={from:'0',to:String(v)}});
   return {app:'classgrid-collect-return',v:1,kind:'marks',requestId:CFG.requestId,revision:revision+1,savedAt:Date.now(),from:from,className:CFG.className||'',
-    assessmentId:CFG.assessmentId,assessmentName:CFG.assessmentName||'',subjects:SUBS,fields:fields,count:n,changes:ch};
+    assessmentId:CFG.assessmentId,assessmentName:CFG.assessmentName||'',subjects:SUBS,fields:fields,count:n+Object.keys(mo).length,changes:ch,maxes:mo};
 }
 function guard(){if(computeIssues()){toast('Please fix the red boxes first.');return false}return true}
 async function send(){
@@ -329,8 +343,8 @@ document.getElementById('bCopy').addEventListener('click',function(){
   });
 });
 document.getElementById('bReset').addEventListener('click',function(){
-  if(!changeCount()||!confirm('Undo all your changes in this file?'))return;
-  edits={};persist();refresh();drawRows();
+  if(!changeCount()&&!Object.keys(maxes).length)return;if(!confirm('Undo all your changes in this file?'))return;
+  edits={};maxes={};persist();refresh();drawRows();
 });
 computeIssues();updateProgress();drawRows();
 })();

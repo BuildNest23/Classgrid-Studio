@@ -564,11 +564,11 @@ export const CollectView: React.FC = () => {
                     <label key={c.key} className={`flex items-start gap-2 p-2 rounded-lg text-xs cursor-pointer ${c.invalid ? 'opacity-50' : ''} ${c.conflict ? 'bg-[#FEF9C3] dark:bg-[#3B3510]' : ''}`}>
                       <input type="checkbox" disabled={!!c.invalid || l.applied} checked={l.picked.has(c.key)} onChange={() => toggle(li, c.key)} className="w-4 h-4 mt-0.5 accent-[#B91C1C] shrink-0" />
                       <span className="min-w-0">
-                        <span className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">{c.studentName}</span>
-                        <span className="text-[#78716C] dark:text-[#A8A29E]"> · Roll {c.roll || '—'} · {c.subName}{c.max ? ` (/${c.max})` : ''}</span>
+                        <span className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">{c.studentId === '' ? `Total marks · ${c.subName}` : c.studentName}</span>
+                        {c.studentId !== '' && <span className="text-[#78716C] dark:text-[#A8A29E]"> · Roll {c.roll || '—'} · {c.subName}{c.max ? ` (/${c.max})` : ''}</span>}
                         <span className="block">
                           <span className="text-[#78716C] dark:text-[#A8A29E] line-through">{showDaily(m.daily, c.current) || '—'}</span>{' → '}
-                          <b className="text-[#B91C1C] dark:text-[#FCA5A5]">{c.to === '' ? 'clear' : c.subId === '_remark' ? c.to : m.daily === 'attendance' ? showDaily('attendance', c.to) : c.to === 'A' ? 'Absent' : c.to}</b>
+                          <b className="text-[#B91C1C] dark:text-[#FCA5A5]">{c.studentId === '' ? `${c.to} marks` : c.to === '' ? 'clear' : c.subId === '_remark' ? c.to : m.daily === 'attendance' ? showDaily('attendance', c.to) : c.to === 'A' ? 'Absent' : c.to}</b>
                         </span>
                         {c.conflict && <span className="block text-[11px] text-[#92400E] dark:text-[#FCD34D]">You changed this after sending (it was "{c.from || '—'}"). Ticked only if you want theirs.</span>}
                         {c.invalid && <span className="block text-[11px] text-red-700 dark:text-red-400">{c.invalid}</span>}

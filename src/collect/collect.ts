@@ -102,6 +102,8 @@ export interface ReturnFile {
   assessmentName?: string;
   mode?: string;
   subjects?: { id: string; name: string; max: number }[];
+  /** marks files: total marks the teacher typed for subjects that had none */
+  maxes?: Record<string, { from: string; to: string }>;
 }
 
 /** Reads a returned .json/.txt (text around the data is ignored) or the teacher's saved HTML copy. */
@@ -132,6 +134,7 @@ export function parseReturn(text: string): ReturnFile {
       revision: work.revision || 0, savedAt: work.savedAt || 0, from: work.from || '',
       className: cfg.className || '', fields: cfg.fields || {}, count, changes,
       assessmentId: cfg.assessmentId, assessmentName: cfg.assessmentName, mode: cfg.mode, subjects: cfg.subjects,
+      maxes: Object.keys(work.maxes || {}).reduce((o: Record<string, { from: string; to: string }>, k) => { o[k] = { from: '0', to: String(work.maxes[k] ?? '') }; return o; }, {}),
     };
   }
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
