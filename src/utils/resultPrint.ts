@@ -208,7 +208,7 @@ export function buildClassResultHTML(
   const headCells = asmt.subjects
     .map(
       sub =>
-        `<th style="font-size:calc(${layout.headFontPt}pt * var(--mult, 1));overflow-wrap:anywhere">${esc(sub.name)}<br><span class="ps2-th-max">(${sub.max})</span></th>`
+        `<th style="font-size:calc(${layout.headFontPt}pt * var(--mult, 1));overflow-wrap:anywhere">${esc(sub.name)}<br><span class="ps2-th-max">(${Number(sub.max) > 0 ? sub.max : '—'})</span></th>`
     )
     .join('');
 
@@ -271,7 +271,7 @@ export function buildBlankMarksSheetHTML(
   const headCells = asmt.subjects
     .map(
       sub =>
-        `<th style="font-size:calc(${layout.headFontPt}pt * var(--mult, 1));overflow-wrap:anywhere">${esc(sub.name)}<br><span class="ps2-th-max">(${sub.max})</span></th>`
+        `<th style="font-size:calc(${layout.headFontPt}pt * var(--mult, 1));overflow-wrap:anywhere">${esc(sub.name)}<br><span class="ps2-th-max">(${Number(sub.max) > 0 ? sub.max : '—'})</span></th>`
     )
     .join('');
   // Both print styles: every box gets a visible border so marks can be written by hand

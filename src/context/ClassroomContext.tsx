@@ -830,8 +830,9 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (raw !== undefined && raw !== "A") {
         mark = Number(raw) || 0;
       }
-      total += mark;
       const max = Number(sub.max) || 0;
+      // A subject without max marks is not counted until its max is set (keeps % correct)
+      if (max > 0) total += mark;
       return {
         subId: sub.id,
         mark,

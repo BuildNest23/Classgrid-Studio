@@ -309,7 +309,7 @@ export const CollectView: React.FC = () => {
                       <input type="checkbox" className="w-4 h-4 accent-[#B91C1C]" checked={subIds.includes(sb.id)}
                         onChange={() => setSubIds(c => c.includes(sb.id) ? c.filter(x => x !== sb.id) : [...c, sb.id])} />
                       <span className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">{sb.name}</span>
-                      <span className="text-[#78716C] dark:text-[#A8A29E]">out of {sb.max}</span>
+                      <span className="text-[#78716C] dark:text-[#A8A29E]">{sb.max ? `out of ${sb.max}` : 'no max set'}</span>
                     </label>
                   ))}
                   {asmt.subjects.length === 0 && <div className="p-2.5 text-xs text-[#78716C]">This assessment has no subjects yet.</div>}

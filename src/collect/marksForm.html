@@ -188,7 +188,7 @@ function drawSubs(){
   if(ALL.length>1)ALL.forEach(function(x){h+='<button class="chip'+(x.id===sub?' on':'')+'" data-sub="'+esc(x.id)+'" type="button">'+esc(x.name)+'<small>'+filled(x)+'/'+STU.length+'</small></button>'});
   document.getElementById('subs').innerHTML=h;
   var x=subById[sub];
-  document.getElementById('smax').innerHTML=x.text?'<b>Remarks</b> • a short comment for each student (optional)':'<b>'+esc(x.name)+'</b> • out of <b>'+x.max+'</b> • type <b>A</b> or tap A for absent';
+  document.getElementById('smax').innerHTML=x.text?'<b>Remarks</b> • a short comment for each student (optional)':'<b>'+esc(x.name)+'</b> • '+(x.max>0?'out of <b>'+x.max+'</b>':'no maximum set')+' • type <b>A</b> or tap A for absent';
 }
 function updateProgress(){
   var x=subById[sub],f=filled(x),pct=STU.length?Math.round(f*100/STU.length):100;
@@ -263,7 +263,7 @@ function printNow(){
   var nSub=SUBS.length,land=nSub+2+(showFather?1:0)+(REM?2:0)>8;
   var head='<th style="width:8%">Roll #</th><th>Name</th>'+(showFather?'<th>Father Name</th>':'');
   var sw=Math.max(7,Math.min(14,Math.floor(48/nSub)));
-  SUBS.forEach(function(x){head+='<th style="width:'+sw+'%">'+esc(x.name)+'<br>('+x.max+')</th>'});
+  SUBS.forEach(function(x){head+='<th style="width:'+sw+'%">'+esc(x.name)+'<br>('+(x.max>0?x.max:'\u2014')+')</th>'});
   if(REM)head+='<th style="width:22%">Remarks</th>';
   var rows=ORDER.map(function(s){
     var r='<tr><td class="center font-mono font-bold">'+esc(String(s.rollNo||'').trim()||'—')+'</td><td><span class="cg-fit">'+esc(s.name||'—')+'</span></td>'+(showFather?'<td><span class="cg-fit">'+esc(s.fatherName||'—')+'</span></td>':'');

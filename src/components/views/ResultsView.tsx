@@ -372,13 +372,10 @@ export const ResultsView: React.FC = () => {
   const handleAddSubject = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newSubName.trim();
-    const max = Number(newSubMax) || 0;
+    // Max marks is optional: a subject can be added now and its max set later
+    const max = Math.max(0, Number(newSubMax) || 0);
     if (!name) {
       toast("Enter a subject name.", "error");
-      return;
-    }
-    if (max <= 0) {
-      toast("Enter a max mark greater than 0.", "error");
       return;
     }
 
@@ -397,7 +394,7 @@ export const ResultsView: React.FC = () => {
 
     setNewSubName("");
     setNewSubMax("");
-    toast("Subject added.", "success");
+    toast(max > 0 ? "Subject added." : "Subject added. Set its max marks before entering marks.", "success");
   };
 
   // Rename Subject Inline
@@ -420,7 +417,7 @@ export const ResultsView: React.FC = () => {
 
   // Change Subject Max Inline
   const handleChangeSubjectMax = (subId: string, maxVal: string) => {
-    const n = Math.max(1, Math.round(Number(maxVal) || 1));
+    const n = Math.max(0, Math.round(Number(maxVal) || 0));
     saveData(prev => ({
       ...prev,
       assessments: prev.assessments.map(a => {
@@ -1002,7 +999,7 @@ export const ResultsView: React.FC = () => {
                     title={`${sub.name} (Max: ${sub.max})`}
                   >
                     <span className="truncate">{sub.name}</span>
-                    <span className="text-[#A8A29E] shrink-0">({sub.max})</span>
+                    <span className="text-[#A8A29E] shrink-0">({sub.max || '?'})</span>
                   </span>
                 ))}
                 {activeAsmt.subjects.length > 6 && (
@@ -1043,8 +1040,9 @@ export const ResultsView: React.FC = () => {
                       <span className="text-[#78716C] dark:text-[#A8A29E] text-[10px]">max</span>
                       <SyncInput
                         type="number"
-                        min="1"
-                        value={sub.max}
+                        min="0"
+                        placeholder="?"
+                        value={sub.max || ''}
                         onCommit={v => handleChangeSubjectMax(sub.id, v)}
                         disabled={isLocked}
                         className="w-11 text-center bg-white dark:bg-[#1C1917] border border-[#D6D3D1] dark:border-[#44403C] rounded-md px-1 py-0.5 text-xs text-inherit"
@@ -1079,9 +1077,9 @@ export const ResultsView: React.FC = () => {
                 />
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   value={newSubMax}
-                  placeholder="Max marks"
+                  placeholder="Max marks (optional)"
                   disabled={isLocked}
                   onChange={e => setNewSubMax(e.target.value)}
                   className="w-full p-2.5 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit disabled:opacity-50"
@@ -1239,12 +1237,12 @@ export const ResultsView: React.FC = () => {
                           }`}
                         >
                           {sub.name}
-                          <span className="block text-[10px] font-semibold opacity-80">({sub.max}) ✎</span>
+                          <span className="block text-[10px] font-semibold opacity-80">({sub.max || '?'}) ✎</span>
                         </button>
                       ) : (
                         <>
                           {sub.name}
-                          <span className="block text-[10px] text-[#A8A29E]">({sub.max})</span>
+                          <span className="block text-[10px] text-[#A8A29E]">({sub.max || '?'})</span>
                         </>
                       )}
                     </th>
@@ -1880,11 +1878,11 @@ const StudentEntryModal: React.FC<{
           <div key={sub.id} className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[#1C1917] dark:text-[#F5F5F4] truncate">{sub.name}</div>
-              <div className="text-[11px] text-[#A8A29E]">out of {sub.max}</div>
+              <div className="text-[11px] text-[#A8A29E]">{sub.max ? `out of ${sub.max}` : 'max marks not set'}</div>
             </div>
             <MarkBox
               text={draft[sub.id] ?? ""}
-              max={sub.max}
+              max={sub.max || undefined}
               onText={t => setDraft(d => ({ ...d, [sub.id]: t }))}
               onEnter={() => goTo(i + 1)}
               inputRef={el => (refs.current[i] = el)}
@@ -1920,7 +1918,7 @@ const SubjectEntryModal: React.FC<{
   return (
     <EntryShell
       title={subject.name}
-      subtitle={`Out of ${subject.max} · ${filled} of ${students.length} filled · A = absent`}
+      subtitle={`${subject.max ? `Out of ${subject.max}` : 'Max marks not set'} · ${filled} of ${students.length} filled · A = absent`}
       onClose={onClose}
       footer={
         <button
@@ -1966,7 +1964,7 @@ const SubjectEntryModal: React.FC<{
               <div className="shrink-0">
                 <MarkBox
                   text={draft[s.id] ?? ""}
-                  max={subject.max}
+                  max={subject.max || undefined}
                   hideMsg
                   onText={t => setDraft(d => ({ ...d, [s.id]: t }))}
                   onEnter={() => (i + 1 < students.length ? refs.current[i + 1]?.focus() : saveRef.current?.focus())}

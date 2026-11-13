@@ -509,7 +509,7 @@ export function planMarksImport(
       else if (/^(\d+\.?\d*|\.\d+)$/.test(t)) {
         value = Number(t);
         if (!isFinite(value)) { plan.invalid++; continue; }
-        if (value > (Number(sub.max) || 0)) { plan.overMax++; continue; }
+        if (Number(sub.max) > 0 && value > Number(sub.max)) { plan.overMax++; continue; }
       } else { plan.invalid++; continue; }
       (final[id] ||= {})[subId] = value; // a student listed twice: the last row wins
     }

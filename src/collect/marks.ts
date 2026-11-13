@@ -129,7 +129,7 @@ export function planMarksReturn(data: AppData, ret: ReturnFile): MarksPlan {
       else if (to !== '' && to !== 'A') {
         const n = Number(to);
         if (!/^\d+(\.\d+)?$/.test(to) || !isFinite(n)) c.invalid = 'Not a valid mark';
-        else if (n > sub.max) c.invalid = `More than the maximum (${sub.max})`;
+        else if (sub.max > 0 && n > sub.max) c.invalid = `More than the maximum (${sub.max})`;
         else c.to = String(n);
       }
       if (sent.size && !sent.has(subId)) c.invalid = c.invalid || 'Subject was not in the file';
