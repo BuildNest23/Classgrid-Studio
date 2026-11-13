@@ -277,13 +277,26 @@ export function buildBlankMarksSheetHTML(
   // Both print styles: every box gets a visible border so marks can be written by hand
   const box = 'border:0.25mm solid #777;';
   const blanks = asmt.subjects.map(() => `<td class="num" style="${box}">&nbsp;</td>`).join('');
-  // Row height follows the number of students so the sheet fills one page: tall rows for small classes,
-  // 7 mm minimum for large ones (Fit on 1 page in the print preview shrinks the rest if needed)
-  const pageMm = layout.orientation === 'landscape' ? 190 : 273;
-  const rowMm = Math.max(7, Math.min(11, Math.floor(((pageMm - 85) / Math.max(1, students.length)) * 2) / 2));
+  // Layout in mm: name column just wide enough for the longest name on ONE line, equal small boxes for marks
+  const land = layout.orientation === 'landscape';
+  const W = land ? 255 : 184; // printable width (fits Letter and A4)
+  const longest = students.reduce((m, s) => Math.max(m, String(s.name || '').length), 4);
+  const nSub = asmt.subjects.length + 1; // subjects + Total
+  const rollMm = 9;
+  let nameFont = 9;
+  let nameMm = Math.max(22, longest * 1.9 + 4);
+  if ((W - rollMm - nameMm) / nSub < 11) { // many subjects: slightly smaller names so boxes stay usable
+    nameFont = 8;
+    nameMm = Math.max(20, longest * 1.7 + 3);
+  }
+  const cellMm = Math.max(8, (W - rollMm - nameMm) / nSub);
+  // Row height follows the number of students so the sheet fits one page without shrinking
+  const pageMm = land ? 182 : 258;
+  const rowMm = Math.max(5.2, Math.min(10, Math.floor(((pageMm - 103) / Math.max(1, students.length)) * 10) / 10));
+  const oldRowMm = Math.max(7, Math.min(11, Math.floor((((land ? 190 : 273) - 85) / Math.max(1, students.length)) * 2) / 2));
   const rows = students
     .map(
-      s => `<tr style="height:${rowMm}mm;">
+      s => `<tr style="height:var(--cg-rh, ${oldRowMm}mm);">
         <td class="num" style="${box}">${esc(s.rollNo || '—')}</td>
         <td class="name" style="${box}"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         ${blanks}
@@ -291,11 +304,19 @@ export function buildBlankMarksSheetHTML(
       </tr>`
     )
     .join('');
-  return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(layout.orientation)}">
+  return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(layout.orientation)} cg-fit-capable">
     ${headerHTML(c, 'Marks Sheet')}
     ${infoBarHTML(c, [`Total max: ${c.totalMax}`, `Students: ${students.length}`])}
-    <style>.print-sheet.ps2 .ps2-table.ps2-hand th,.print-sheet.ps2 .ps2-table.ps2-hand td{border:0.25mm solid #777 !important}</style>
+    <style>.print-sheet.ps2 .ps2-table.ps2-hand th,.print-sheet.ps2 .ps2-table.ps2-hand td{border:0.25mm solid #777 !important}
+    /* Compact layout: only when "Fit on 1 page" is ticked in the print preview */
+    .cg-fit1.cg-fit-capable{--cg-rh:${rowMm}mm}
+    .cg-fit1 .ps2-table.ps2-hand{table-layout:fixed;width:100%}
+    .cg-fit1 .ps2-table.ps2-hand th{width:auto !important}
+    .cg-fit1 .ps2-table.ps2-hand td{padding-top:0 !important;padding-bottom:0 !important;line-height:1.1}
+    .cg-fit1 .ps2-table.ps2-hand td.name{white-space:nowrap;overflow:hidden;font-size:${nameFont}pt;text-align:left}
+    .cg-fit1 .ps2-table.ps2-hand td.name .cg-fit{white-space:nowrap}</style>
     <table class="ps2-table ps2-res ps2-hand">
+      <colgroup><col style="width:${rollMm}mm"><col style="width:${nameMm.toFixed(1)}mm">${asmt.subjects.map(() => `<col style="width:${cellMm.toFixed(1)}mm">`).join('')}<col style="width:${cellMm.toFixed(1)}mm"></colgroup>
       <thead><tr>
         <th style="width:6%">Roll</th>
         <th class="name" style="width:${layout.namePct}%">Name</th>

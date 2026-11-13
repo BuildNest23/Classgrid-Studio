@@ -435,6 +435,11 @@ export function buildStandalonePrintHTML(
  * even for landscape documents. `@capgo/capacitor-printer`'s `printHtml` has no paper-size option.
  */
 /** Shrinks a whole sheet evenly (text, rows and lines) so it fits on fewer pages. Layout stays the same, only smaller. */
+/** Turns on the compact one-page layout of sheets that support it (Blank Sheet). Other sheets are unchanged. */
+export function applyFitLayout(html: string, on: boolean): string {
+  return on ? html.replace(/(class="[^"]*)cg-fit-capable"/g, '$1cg-fit-capable cg-fit1"') : html;
+}
+
 export function wrapZoom(contentHTML: string, zoom: number, orientation: 'portrait' | 'landscape' = 'portrait'): string {
   if (!(zoom > 0) || zoom >= 0.999) return contentHTML;
   const z = Math.round(zoom * 1000) / 1000;

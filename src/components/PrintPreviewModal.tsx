@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { PRINT_SIZES } from '../utils/helpers';
-import { triggerPrint, buildStandalonePrintHTML, wrapZoom } from '../utils/printEngine';
+import { triggerPrint, buildStandalonePrintHTML, wrapZoom, applyFitLayout } from '../utils/printEngine';
 import { fitLongNames } from '../utils/fitText';
 import { registerPrintPreview, PrintRequest } from '../utils/printPreviewBus';
 import { FitMeasurer, autoFit, pageGeometry, SIZE_ORDER, Orientation } from '../utils/printFit';
@@ -58,7 +58,7 @@ export const PrintPreviewModal: React.FC = () => {
 
   // Builds the content (names shrunk to fit) and a fresh measurer for it
   const prepare = async (r: PrintRequest) => {
-    const html = await fitLongNames(r.html);
+    const html = await fitLongNames(applyFitLayout(r.html, onePage));
     setContent(html);
     measurerRef.current?.dispose();
     const m = new FitMeasurer(html);
@@ -78,6 +78,19 @@ export const PrintPreviewModal: React.FC = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caps]);
+
+  // Fit on 1 page switches some sheets (Blank Sheet) to a compact layout: rebuild and re-count
+  const firstOneRef = useRef(true);
+  useEffect(() => {
+    if (firstOneRef.current) { firstOneRef.current = false; return; }
+    if (!req) return;
+    (async () => {
+      setBusy(true);
+      await prepare(req);
+      setBusy(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onePage]);
 
   // Opening: prepare the content, then pick the best layout automatically
   useEffect(() => {
