@@ -29,6 +29,7 @@ export function createZip(files: ZipEntry[]): Blob {
   const dosDate = (Math.max(0, now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
 
   const parts: BlobPart[] = [];
+  const asPart = (u: Uint8Array) => u as unknown as BlobPart;
   const central: Uint8Array[] = [];
   let offset = 0;
 
@@ -48,7 +49,7 @@ export function createZip(files: ZipEntry[]): Blob {
     local.setUint32(22, f.data.length, true);
     local.setUint16(26, name.length, true);
     local.setUint16(28, 0, true);
-    parts.push(local.buffer as ArrayBuffer, name, f.data);
+    parts.push(local.buffer as ArrayBuffer, asPart(name), asPart(f.data));
 
     const cen = new DataView(new ArrayBuffer(46));
     cen.setUint32(0, 0x02014b50, true);
@@ -79,5 +80,5 @@ export function createZip(files: ZipEntry[]): Blob {
   end.setUint32(12, cdSize, true);
   end.setUint32(16, offset, true);
 
-  return new Blob([...parts, ...central, end.buffer as ArrayBuffer], { type: 'application/zip' });
+  return new Blob([...parts, ...central.map(asPart), end.buffer as ArrayBuffer], { type: 'application/zip' });
 }
