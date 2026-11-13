@@ -142,7 +142,7 @@ export const PrintPreviewModal: React.FC = () => {
   const mult = (PRINT_SIZES[size] || PRINT_SIZES.m).mult;
   // Full-page sheets use a 100vh min-height; in the preview that must mean one page, not the whole preview.
   const srcDoc = content
-    ? buildStandalonePrintHTML(wrapZoom(content, fitZoom), mult, orientation, false, 'Preview').replace(
+    ? buildStandalonePrintHTML(wrapZoom(content, fitZoom, orientation), mult, orientation, false, 'Preview').replace(
         '</head>',
         `<style>.print-sheet.ps2-port,.print-sheet.ps2-land{min-height:${Math.round(g.printH - 8)}px !important;}</style></head>`
       )

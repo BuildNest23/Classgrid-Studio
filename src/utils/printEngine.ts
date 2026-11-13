@@ -435,12 +435,14 @@ export function buildStandalonePrintHTML(
  * even for landscape documents. `@capgo/capacitor-printer`'s `printHtml` has no paper-size option.
  */
 /** Shrinks a whole sheet evenly (text, rows and lines) so it fits on fewer pages. Layout stays the same, only smaller. */
-export function wrapZoom(contentHTML: string, zoom: number): string {
+export function wrapZoom(contentHTML: string, zoom: number, orientation: 'portrait' | 'landscape' = 'portrait'): string {
   if (!(zoom > 0) || zoom >= 0.999) return contentHTML;
   const z = Math.round(zoom * 1000) / 1000;
-  // Same layout as normal, just smaller all over (text, rows, columns), centred on the page.
-  // With CSS zoom a % width is measured after zooming, so z * 100% keeps the original layout width.
-  return `<div style="display:flex;justify-content:center;"><div style="zoom:${z};width:${Math.round(z * 10000) / 100}%;flex:none;">${contentHTML}</div></div>`;
+  // Fixed printable width (not a %), so every WebView/browser zoom model gives the same result:
+  // the sheet keeps its normal layout width and is shown z times smaller, centred.
+  const mm = orientation === 'landscape' ? 297 - 20 : 210 - 24;
+  const px = Math.round(mm * 96 / 25.4);
+  return `<div style="display:block;"><div style="zoom:${z};width:${px}px;margin:0 auto;">${contentHTML}</div></div>`;
 }
 
 export async function triggerPrint(
@@ -456,7 +458,7 @@ export async function triggerPrint(
 
   // Run long names auto-fit measurement pre-pass so names shrink instead of overflowing columns
   contentHTML = await fitLongNames(contentHTML);
-  contentHTML = wrapZoom(contentHTML, fitZoom);
+  contentHTML = wrapZoom(contentHTML, fitZoom, finalOrientation);
 
   const docTitle = extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();
