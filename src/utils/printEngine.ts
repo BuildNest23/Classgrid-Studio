@@ -438,7 +438,9 @@ export function buildStandalonePrintHTML(
 export function wrapZoom(contentHTML: string, zoom: number): string {
   if (!(zoom > 0) || zoom >= 0.999) return contentHTML;
   const z = Math.round(zoom * 1000) / 1000;
-  return `<div style="zoom:${z};width:calc(100% / ${z});">${contentHTML}</div>`;
+  // Same layout as normal, just smaller all over (text, rows, columns), centred on the page.
+  // With CSS zoom a % width is measured after zooming, so z * 100% keeps the original layout width.
+  return `<div style="display:flex;justify-content:center;"><div style="zoom:${z};width:${Math.round(z * 10000) / 100}%;flex:none;">${contentHTML}</div></div>`;
 }
 
 export async function triggerPrint(

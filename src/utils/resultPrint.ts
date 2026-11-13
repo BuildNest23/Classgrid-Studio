@@ -277,9 +277,13 @@ export function buildBlankMarksSheetHTML(
   // Both print styles: every box gets a visible border so marks can be written by hand
   const box = 'border:0.25mm solid #777;';
   const blanks = asmt.subjects.map(() => `<td class="num" style="${box}">&nbsp;</td>`).join('');
+  // Row height follows the number of students so the sheet fills one page: tall rows for small classes,
+  // 7 mm minimum for large ones (Fit on 1 page in the print preview shrinks the rest if needed)
+  const pageMm = layout.orientation === 'landscape' ? 190 : 273;
+  const rowMm = Math.max(7, Math.min(11, Math.floor(((pageMm - 85) / Math.max(1, students.length)) * 2) / 2));
   const rows = students
     .map(
-      s => `<tr style="height:10.5mm;">
+      s => `<tr style="height:${rowMm}mm;">
         <td class="num" style="${box}">${esc(s.rollNo || '—')}</td>
         <td class="name" style="${box}"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         ${blanks}
