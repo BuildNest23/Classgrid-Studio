@@ -258,6 +258,123 @@ export function buildClassResultHTML(
 
 // ---------- Blank marks sheet (teacher writes the marks by hand) ----------
 
+/**
+ * Compact hand-writing sheet: one-line names, equal small boxes, short rows. Pages are laid out by real measurements
+ * (no zoom): rows never get shorter than 5.5 mm, a long class continues on more pages with the headings repeated,
+ * and the rows are split evenly between the pages.
+ */
+export function buildCompactMarksSheetHTML(
+  c: ResultPrintCtx,
+  o: { orientation: 'portrait' | 'landscape'; signatures: boolean; pct: boolean; caps: boolean }
+): string {
+  const { asmt, data } = c;
+  const students = [...data.students].sort((a, b) => {
+    const x = String(a.rollNo || '').trim(), y = String(b.rollNo || '').trim();
+    if (!x || !y) return x === y ? 0 : !x ? 1 : -1;
+    return x.localeCompare(y, undefined, { numeric: true });
+  });
+  const n = students.length;
+  const land = o.orientation === 'landscape';
+  const W = land ? 255 : 184; // printable width, mm (safe for Letter and A4)
+  const H = land ? 191 : 252; // printable height, mm
+  const ROW_MIN = 5.5, ROW_MAX = 9;
+  const headMm = 19; // first-page header
+  const theadMm = 12; // two heading rows
+  const sigMm = o.signatures ? 16 : 0;
+  const footMm = (c.footerText || '').trim() || data.printNote ? 9 : 0;
+  const lastExtra = sigMm + footMm;
+  const safety = 4;
+
+  const cols = [...asmt.subjects.map(s => s.name), 'Total', ...(o.pct ? ['%age'] : [])];
+  const maxes = [...asmt.subjects.map(s => (Number(s.max) > 0 ? String(s.max) : '')), c.totalMax > 0 ? String(c.totalMax) : '', ...(o.pct ? [''] : [])];
+
+  // Columns: roll, name (longest name on one line), equal boxes for the rest
+  const longest = students.reduce((m, s) => Math.max(m, String(s.name || '').length), 4);
+  const rollMm = 8;
+  let nameFont = 8.5;
+  let nameMm = Math.max(30, longest * (o.caps ? 2.15 : 1.8) + 4);
+  if ((W - rollMm - nameMm) / cols.length < 10) {
+    nameFont = 7.5;
+    nameMm = Math.max(26, longest * (o.caps ? 1.9 : 1.6) + 3);
+  }
+  const cellMm = Math.max(7, (W - rollMm - nameMm) / cols.length);
+
+  // Pages: smallest number of pages where every page holds its rows at the minimum row height
+  let pages = 1;
+  let per = Math.max(1, n);
+  for (let p = 1; p <= 200; p++) {
+    per = Math.max(1, Math.ceil(n / p));
+    const last = n - (p - 1) * per;
+    const free1 = H - headMm - theadMm - safety - (p === 1 ? lastExtra : 0);
+    const freeN = H - theadMm - safety;
+    const freeLast = (p === 1 ? free1 : freeN - lastExtra);
+    const ok = per * ROW_MIN <= (p === 1 ? free1 : Math.min(free1, freeN)) && Math.max(1, last) * ROW_MIN <= freeLast;
+    pages = p;
+    if (ok) break;
+  }
+  const lastRows = Math.max(1, n - (pages - 1) * per);
+  const free1 = H - headMm - theadMm - safety - (pages === 1 ? lastExtra : 0);
+  const freeLast = pages === 1 ? free1 : H - theadMm - safety - lastExtra;
+  let rowMm = Math.min(free1 / per, pages === 1 ? ROW_MAX : Math.min(ROW_MAX, freeLast / lastRows));
+  rowMm = Math.max(ROW_MIN, Math.min(ROW_MAX, Math.floor(rowMm * 10) / 10));
+
+  const logo = data.schoolLogo
+    ? `<img src="${esc(data.schoolLogo)}" alt="">`
+    : `<span>LOGO</span>`;
+  const line = esc(headerLine(data));
+  const header = `<div class="cg-cmp-head">
+      <div class="cg-cmp-logo">${logo}</div>
+      <div class="cg-cmp-ht">
+        <div class="cg-cmp-school">${esc(data.schoolName)}</div>
+        ${line ? `<div class="cg-cmp-sub">${line}</div>` : ''}
+        <div class="cg-cmp-sub cg-cmp-title">Marks Sheet • ${esc(asmt.name)}</div>
+      </div>
+    </div>`;
+
+  const colgroup = `<colgroup><col style="width:${rollMm}mm"><col style="width:${nameMm.toFixed(1)}mm">${cols.map(() => `<col style="width:${cellMm.toFixed(2)}mm">`).join('')}</colgroup>`;
+  const thead = `<thead>
+      <tr><th>Roll</th><th class="cg-n">Name</th>${cols.map(t => `<th>${esc(t)}</th>`).join('')}</tr>
+      <tr class="cg-mx"><th colspan="2">Total Marks</th>${maxes.map(m => `<th>${esc(m)}</th>`).join('')}</tr>
+    </thead>`;
+  const blank = cols.map(() => '<td></td>').join('');
+
+  const chunks: string[] = [];
+  for (let p = 0; p < pages; p++) {
+    const part = students.slice(p * per, (p + 1) * per);
+    const body = part
+      .map(s => `<tr style="height:${rowMm}mm"><td class="cg-r">${esc(s.rollNo || '—')}</td><td class="cg-n">${esc(s.name || '—')}</td>${blank}</tr>`)
+      .join('');
+    chunks.push(`<table class="cg-cmp-t">${colgroup}${thead}<tbody>${body}</tbody></table>`);
+  }
+  const brk = '<div style="height:0;break-after:page;page-break-after:always;"></div>';
+  const tail = `${o.signatures ? sigHTML('Examination Incharge') : ''}${footerHTML(c)}`;
+
+  return `<div class="print-sheet ps2 ps2-${c.style} cg-cmp">
+    <style>
+      .print-sheet.ps2.cg-cmp{display:block;min-height:0;font-family:Arial,Helvetica,sans-serif;color:#000}
+      .cg-cmp .cg-cmp-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:12mm;padding-bottom:1.5mm;margin-bottom:1.5mm;border-bottom:0.6mm solid #000}
+      .cg-cmp .cg-cmp-logo{position:absolute;left:0;top:0;width:12mm;height:12mm;display:flex;align-items:center;justify-content:center}
+      .cg-cmp .cg-cmp-logo img{max-width:12mm;max-height:12mm}
+      .cg-cmp .cg-cmp-logo span{width:11mm;height:11mm;border:0.3mm solid #666;border-radius:50%;font-size:5pt;display:flex;align-items:center;justify-content:center;color:#666}
+      .cg-cmp .cg-cmp-ht{text-align:center;padding:0 14mm}
+      .cg-cmp .cg-cmp-school{font:700 13pt Georgia,'Times New Roman',serif;line-height:1.15}
+      .cg-cmp .cg-cmp-sub{font-size:7pt;letter-spacing:.15mm;margin-top:0.6mm}
+      .cg-cmp .cg-cmp-title{font-weight:700}
+      .cg-cmp table.cg-cmp-t{border-collapse:collapse;table-layout:fixed;width:100%;margin:0}
+      .cg-cmp table.cg-cmp-t th,.cg-cmp table.cg-cmp-t td{border:0.25mm solid #666;padding:0 !important;text-align:center;overflow:hidden;white-space:nowrap;line-height:1.1;background:#fff;color:#000}
+      .cg-cmp table.cg-cmp-t th{font-size:7.5pt;font-weight:700;height:6.5mm}
+      .cg-cmp table.cg-cmp-t tr.cg-mx th{height:5.5mm;font-size:7pt}
+      .cg-cmp table.cg-cmp-t td.cg-r{font-size:7.5pt}
+      .cg-cmp table.cg-cmp-t td.cg-n,.cg-cmp table.cg-cmp-t th.cg-n{text-align:left;padding-left:1mm !important;font-size:${nameFont}pt}
+      .cg-cmp table.cg-cmp-t td.cg-n{font-weight:500}
+      .cg-cmp .ps2-sigs{margin-top:6mm}
+    </style>
+    ${header}
+    ${chunks.map((t, i) => (i < chunks.length - 1 ? t + brk : t)).join('')}
+    ${tail}
+  </div>`;
+}
+
 export function buildBlankMarksSheetHTML(
   c: ResultPrintCtx,
   layout: { orientation: 'portrait' | 'landscape'; namePct: number; headFontPt: number }

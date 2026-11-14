@@ -21,6 +21,16 @@ export const PrintPreviewModal: React.FC = () => {
   const [orientation, setOrientation] = useState<Orientation>('portrait');
   const [size, setSize] = useState<PrintSizeKey>('m');
   const [pageNumbers, setPageNumbers] = useState(false);
+  const boolPref = (key: string, def: boolean) => {
+    try { const v = localStorage.getItem(key); return v === null ? def : v === '1'; } catch { return def; }
+  };
+  const [compactOn, setCompactOn] = useState<boolean>(() => boolPref('classgridCompactSheet', false));
+  const [sigOn, setSigOn] = useState<boolean>(() => boolPref('classgridPrintSignatures', true));
+  const [pctOn, setPctOn] = useState<boolean>(() => boolPref('classgridCompactPct', false));
+  const savePref = (key: string, set: (v: boolean) => void) => (v: boolean) => {
+    set(v);
+    try { localStorage.setItem(key, v ? '1' : '0'); } catch { /* ignore */ }
+  };
   const [pages, setPages] = useState<number | null>(null);
   const [heightPx, setHeightPx] = useState(1000);
   const [busy, setBusy] = useState(false);
@@ -50,8 +60,16 @@ export const PrintPreviewModal: React.FC = () => {
   };
 
   // Builds the content (names shrunk to fit) and a fresh measurer for it
-  const prepare = async (r: PrintRequest) => {
-    const html = await fitLongNames(r.html);
+  const prepare = async (r: PrintRequest, ori?: Orientation) => {
+    const useCompact = compactOn && !!r.compact;
+    let base = useCompact
+      ? r.compact!({ orientation: (ori || orientation) as Orientation, signatures: sigOn, pct: pctOn, caps })
+      : r.html;
+    // Signatures off: hide the signature block of normal sheets (the compact sheet leaves it out itself)
+    if (!useCompact && !sigOn && base.includes('ps2-sigs')) {
+      base = `<style>.ps2 .ps2-sigs{display:none !important}</style>${base}`;
+    }
+    const html = await fitLongNames(base);
     setContent(html);
     measurerRef.current?.dispose();
     const m = new FitMeasurer(html);
@@ -72,6 +90,19 @@ export const PrintPreviewModal: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caps]);
 
+  // Compact sheet / Signatures / %age change the sheet itself: rebuild it and recount the pages
+  const firstOptRef = useRef(true);
+  useEffect(() => {
+    if (firstOptRef.current) { firstOptRef.current = false; return; }
+    if (!req) return;
+    (async () => {
+      setBusy(true);
+      await prepare(req);
+      setBusy(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactOn, sigOn, pctOn, compactOn && !!req?.compact ? orientation : '']);
+
   // Opening: prepare the content, then pick the best layout automatically
   useEffect(() => {
     if (!req) return;
@@ -80,7 +111,7 @@ export const PrintPreviewModal: React.FC = () => {
       setBusy(true);
       setPages(null);
       setPageNumbers(!!req.pageNumbers);
-      const m = await prepare(req);
+      const m = await prepare(req, (locked || req.orientation) as Orientation);
       if (cancelled || !m) return;
       setOrientation((locked || req.orientation) as Orientation);
       setSize(data.printSize);
@@ -198,6 +229,25 @@ export const PrintPreviewModal: React.FC = () => {
             <input type="checkbox" checked={pageNumbers} onChange={e => setPageNumbers(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
             Page numbers
           </label>
+          {req.compact && (
+            <label className="col-span-2 flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+              <input type="checkbox" checked={compactOn} onChange={e => savePref('classgridCompactSheet', setCompactOn)(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+              Compact sheet
+              <span className="font-normal text-[#78716C] dark:text-[#A8A29E]">(one-line names, small boxes, fewer pages)</span>
+            </label>
+          )}
+          {req.compact && compactOn && (
+            <label className="col-span-2 flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+              <input type="checkbox" checked={pctOn} onChange={e => savePref('classgridCompactPct', setPctOn)(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+              Add %age column
+            </label>
+          )}
+          {(req.compact || req.html.includes('ps2-sigs')) && (
+            <label className="col-span-2 flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+              <input type="checkbox" checked={sigOn} onChange={e => savePref('classgridPrintSignatures', setSigOn)(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+              Signatures
+            </label>
+          )}
           {locked && (
             <div className="col-span-2 text-[11px] text-[#78716C] dark:text-[#A8A29E]">
               Settings forces {locked} pages, so Auto-fit only changes the text size. Change it here to override for this print.

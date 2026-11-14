@@ -1,10 +1,20 @@
 import { triggerPrint } from './printEngine';
 
+/** Options of the compact (one-line names, small boxes) version of a sheet, set in the print preview. */
+export interface CompactOptions {
+  orientation: 'portrait' | 'landscape';
+  signatures: boolean;
+  pct: boolean;
+  caps: boolean;
+}
+
 export interface PrintRequest {
   html: string;
   /** The orientation this sheet is normally printed in. */
   orientation: 'portrait' | 'landscape';
   pageNumbers?: boolean;
+  /** Builds the compact version of this sheet. When present, the preview offers a Compact sheet option. */
+  compact?: (o: CompactOptions) => string;
 }
 
 type Listener = (req: PrintRequest) => void;

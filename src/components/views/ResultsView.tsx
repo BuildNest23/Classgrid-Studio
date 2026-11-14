@@ -45,6 +45,7 @@ import {
   buildReportCardsHTML,
   buildBlankReportCardHTML,
   buildBlankMarksSheetHTML,
+  buildCompactMarksSheetHTML,
   buildMeritListHTML,
 } from '../../utils/resultPrint';
 import {
@@ -691,7 +692,7 @@ export const ResultsView: React.FC = () => {
       data.printSize,
       data.forceOrientation
     );
-    const ok = await previewPrint({ html: buildBlankMarksSheetHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true }, data);
+    const ok = await previewPrint({ html: buildBlankMarksSheetHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true, compact: o => buildCompactMarksSheetHTML(printCtx(), o) }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
