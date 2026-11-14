@@ -434,36 +434,18 @@ export function buildStandalonePrintHTML(
  * The Android system print dialog ignores `@page { size }`, so previews show Letter portrait
  * even for landscape documents. `@capgo/capacitor-printer`'s `printHtml` has no paper-size option.
  */
-/** Shrinks a whole sheet evenly (text, rows and lines) so it fits on fewer pages. Layout stays the same, only smaller. */
-/** Turns on the compact one-page layout of sheets that support it (Blank Sheet). Other sheets are unchanged. */
-export function applyFitLayout(html: string, on: boolean): string {
-  return on ? html.replace(/(class="[^"]*)cg-fit-capable"/g, '$1cg-fit-capable cg-fit1"') : html;
-}
-
-export function wrapZoom(contentHTML: string, zoom: number, orientation: 'portrait' | 'landscape' = 'portrait'): string {
-  if (!(zoom > 0) || zoom >= 0.999) return contentHTML;
-  const z = Math.round(zoom * 1000) / 1000;
-  // Fixed printable width (not a %), so every WebView/browser zoom model gives the same result:
-  // the sheet keeps its normal layout width and is shown z times smaller, centred.
-  const mm = orientation === 'landscape' ? 297 - 20 : 210 - 24;
-  const px = Math.round(mm * 96 / 25.4);
-  return `<div style="display:block;"><div style="zoom:${z};width:${px}px;margin:0 auto;">${contentHTML}</div></div>`;
-}
-
 export async function triggerPrint(
   contentHTML: string,
   orientation: 'portrait' | 'landscape' = 'portrait',
   printSize: PrintSizeKey = 'm',
   forceOrientation: string = '',
-  pageNumbers: boolean = false,
-  fitZoom: number = 1
+  pageNumbers: boolean = false
 ): Promise<boolean> {
   const mult = (PRINT_SIZES[printSize] || PRINT_SIZES.m).mult;
   const finalOrientation = (forceOrientation || orientation || 'portrait') as 'portrait' | 'landscape';
 
   // Run long names auto-fit measurement pre-pass so names shrink instead of overflowing columns
   contentHTML = await fitLongNames(contentHTML);
-  contentHTML = wrapZoom(contentHTML, fitZoom, finalOrientation);
 
   const docTitle = extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();
