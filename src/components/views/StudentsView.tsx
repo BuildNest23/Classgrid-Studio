@@ -394,6 +394,8 @@ export const StudentsView: React.FC = () => {
         if (plan.changedNames) what.push(`${plan.changedNames} names`);
         if (plan.changedFathers) what.push(`${plan.changedFathers} father names`);
         if (plan.changedOccupations) what.push(`${plan.changedOccupations} occupations`);
+        if (plan.changedPhones) what.push(`${plan.changedPhones} phone numbers`);
+        if (plan.changedAddresses) what.push(`${plan.changedAddresses} addresses`);
         parts.push(`${plan.changedStudents} students will be updated (${what.join(", ")}).\n${plan.examples.join("\n")}`);
       }
       if (adds) {
@@ -422,7 +424,7 @@ export const StudentsView: React.FC = () => {
           name: n.name,
           fatherName: n.fatherName,
           phone: n.phone || "",
-          address: "",
+          address: n.address || "",
           occupation: n.occupation || "",
           notes: "",
           createdAt: Date.now(),

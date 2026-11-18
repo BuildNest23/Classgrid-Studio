@@ -286,6 +286,10 @@ export const SettingsView: React.FC = () => {
         const parsed = JSON.parse(text);
 
         let importedData = null;
+        if (parsed && parsed.app === "ClassgridAI") {
+          // An "Edit with AI" file is not a backup: restoring it would replace the whole class with a short student list
+          throw new Error("This is an Edit with AI file, not a backup. Import it in the Students tab instead.");
+        }
         if (parsed.app === "ClassroomManager" && parsed.data) {
           importedData = parsed.data;
         } else if (parsed.students && Array.isArray(parsed.students)) {

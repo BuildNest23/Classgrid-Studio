@@ -134,8 +134,9 @@ export async function planResultsImport(file: File, data: AppData, asmt: Assessm
 }
 
 // ---------- Students Master tab ----------
-// Existing students: name, father name and occupation can change. New students can be added (name, father name, adm. no, occupation).
-// Roll numbers are always given by the app. Phone, address and notes are never sent or changed.
+// Existing students: name, father name, occupation, phone and address can change (an empty value never wipes an existing one).
+// New students can be added (name, father name, adm. no, phone, address, occupation).
+// Roll numbers and admission numbers of existing students are never changed. Notes are never sent or changed.
 
 const MAX_NAME_LEN = 80;
 
@@ -145,10 +146,25 @@ export function buildStudentsAiFile(data: AppData) {
     version: AI_FILE_VERSION,
     tab: 'students',
     instructions:
-      'To fix a name, edit "name" or "fatherName". ' +
-      'To set or fix an occupation (the parent/guardian\'s job, optional), edit "occupation". ' +
-      'To add a student, add an entry at the end with "name", "fatherName", "admissionNo" and optionally "occupation" (no "id"). ' +
-      'Do not change anything else.',
+      'Edit only the values of the fields already listed for each student. Use EXACTLY these field names: ' +
+      '"name", "fatherName", "occupation" (the parent/guardian\'s job), "phone" (parent mobile number) and "address". ' +
+      'Do not rename fields, do not add other fields (for example not "phoneNumber"), and keep every "id" exactly as it is. ' +
+      'Leave a value as "" if it is not known. ' +
+      'To add a student, add an entry at the end with "name", "fatherName", "admissionNo" and optionally "phone", "address" and "occupation" (no "id"). ' +
+      'Do not change "rollNo" or "admissionNo" of existing students. Return the complete JSON file only.',
+    template: {
+      note: 'Every student entry looks like this. Fill in the values, keep the field names.',
+      student: {
+        id: '(keep as is)',
+        rollNo: '(keep as is)',
+        admissionNo: '(keep as is)',
+        name: 'Muhammad Ali',
+        fatherName: 'Ahmad Khan',
+        occupation: 'Driver',
+        phone: '03001234567',
+        address: 'Lala Zar',
+      },
+    },
     school: data.schoolName,
     students: data.students.map(s => ({
       id: s.id,
@@ -157,6 +173,8 @@ export function buildStudentsAiFile(data: AppData) {
       name: s.name,
       fatherName: s.fatherName,
       occupation: s.occupation || '',
+      phone: s.phone || '',
+      address: s.address || '',
     })),
   };
 }
@@ -166,16 +184,19 @@ export interface NewStudentInput {
   fatherName: string;
   admissionNo: string;
   phone?: string;
+  address?: string;
   occupation?: string;
 }
 
 export interface StudentsImportPlan {
-  updates: Record<string, { name?: string; fatherName?: string; occupation?: string }>;
+  updates: Record<string, { name?: string; fatherName?: string; occupation?: string; phone?: string; address?: string }>;
   additions: NewStudentInput[];
   changedStudents: number;
   changedNames: number;
   changedFathers: number;
   changedOccupations: number;
+  changedPhones: number;
+  changedAddresses: number;
   unchanged: number;
   skippedUnknown: number;
   skippedInvalid: number;
@@ -206,6 +227,17 @@ function cleanPhone(v: unknown): string {
   return v.replace(/[^0-9+\-\s]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
 }
 
+// Address: free text, up to 120 characters
+function cleanAddress(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  return v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+// Other AIs often rename the field: accept the common spellings
+const pickPhone = (e: any) => e.phone ?? e.phoneNumber ?? e.phone_number ?? e.mobile ?? e.mobileNumber ?? e.contact ?? e.contactNumber;
+const pickAddress = (e: any) => e.address ?? e.Address ?? e.addr;
+
 const lc = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
 
 export async function planStudentsImport(file: File, data: AppData): Promise<StudentsImportPlan> {
@@ -221,7 +253,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (k) byAdm.set(k, s);
   });
   const plan: StudentsImportPlan = {
-    updates: {}, additions: [], changedStudents: 0, changedNames: 0, changedFathers: 0, changedOccupations: 0,
+    updates: {}, additions: [], changedStudents: 0, changedNames: 0, changedFathers: 0, changedOccupations: 0, changedPhones: 0, changedAddresses: 0,
     unchanged: 0, skippedUnknown: 0, skippedInvalid: 0, skippedDuplicate: 0, sameNameNotes: 0,
     examples: [], addedPreview: [],
   };
@@ -233,7 +265,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
       plan.skippedDuplicate++; // same student listed twice
       return;
     }
-    const patch: { name?: string; fatherName?: string; occupation?: string } = {};
+    const patch: { name?: string; fatherName?: string; occupation?: string; phone?: string; address?: string } = {};
     let invalid = false;
     if (entry.name !== undefined) {
       const n = cleanName(entry.name);
@@ -250,8 +282,21 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
       if (!o && cur.occupation) invalid = true; // never blank out an existing occupation
       else if (o !== (cur.occupation || '')) patch.occupation = o;
     }
+    const rawPhone = pickPhone(entry);
+    if (rawPhone !== undefined) {
+      const ph = cleanPhone(rawPhone);
+      if (ph && ph !== (cur.phone || '')) patch.phone = ph; // an empty value never wipes an existing number
+    }
+    const rawAddr = pickAddress(entry);
+    if (rawAddr !== undefined) {
+      const ad = cleanAddress(rawAddr);
+      if (ad && ad !== (cur.address || '')) patch.address = ad;
+    }
     if (invalid) plan.skippedInvalid++;
-    if (patch.name === undefined && patch.fatherName === undefined && patch.occupation === undefined) {
+    if (
+      patch.name === undefined && patch.fatherName === undefined && patch.occupation === undefined &&
+      patch.phone === undefined && patch.address === undefined
+    ) {
       if (!invalid) plan.unchanged++;
       return;
     }
@@ -268,6 +313,14 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (patch.occupation !== undefined) {
       plan.changedOccupations++;
       if (plan.examples.length < 5) plan.examples.push(`Occupation: ${cur.occupation || '—'} → ${patch.occupation}`);
+    }
+    if (patch.phone !== undefined) {
+      plan.changedPhones++;
+      if (plan.examples.length < 5) plan.examples.push(`${cur.name}: phone ${cur.phone || '—'} → ${patch.phone}`);
+    }
+    if (patch.address !== undefined) {
+      plan.changedAddresses++;
+      if (plan.examples.length < 5) plan.examples.push(`${cur.name}: address ${cur.address || '—'} → ${patch.address}`);
     }
   };
 
@@ -312,7 +365,7 @@ export async function planStudentsImport(file: File, data: AppData): Promise<Stu
     if (adm) seenNewAdm.add(adm);
     seenNewKey.add(key);
     if (sameInApp.length) plan.sameNameNotes++;
-    plan.additions.push({ name, fatherName: father, admissionNo: adm, phone: cleanPhone(entry.phone), occupation: cleanName(entry.occupation) });
+    plan.additions.push({ name, fatherName: father, admissionNo: adm, phone: cleanPhone(pickPhone(entry)), address: cleanAddress(pickAddress(entry)), occupation: cleanName(entry.occupation) });
     if (plan.addedPreview.length < 6) plan.addedPreview.push(`${name}${adm ? ` (Adm. ${adm})` : ''}`);
   }
   return plan;
