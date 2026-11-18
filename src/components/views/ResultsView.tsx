@@ -1520,13 +1520,13 @@ export const ResultsView: React.FC = () => {
       </div>
 
       <AiAssistCard
-        title="AI assistant"
+        title="Import & AI assistant"
         placeholder={RESULTS_AI_PLACEHOLDER}
-        hint="Attach Excel, CSV, PDF, photo or JSON. Marks are filled from subject columns, remarks from a Remarks column. With no file, remarks are written from the marks (names are not sent). You see a preview before anything is saved."
+        hint="Attach a file to import marks or remarks. Excel, CSV and an edited Export JSON are read on your phone (no AI). PDF and photos use AI. Marks are filled from subject columns, remarks from a Remarks column. With no file, remarks are written from the marks (names are not sent). You see a preview before anything is saved."
         accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
         onGo={handleAiGo}
         onExport={handleExportForAi}
-        exportLabel="Export file for another AI"
+        exportLabel="Export file (to edit or use with AI)"
       />
 
       {/* Print Actions Section */}

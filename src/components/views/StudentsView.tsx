@@ -36,7 +36,7 @@ import {
 import { PlainTextInput } from '../PlainTextInput';
 
 const STUDENTS_AI_PLACEHOLDER =
-  "Attach a file and tap Go, or type / paste names here.\n\nYou can add instructions, for example:\n• Only take the Class 5 students\n• Names are in the second column\n• Ali Khan s/o Ahmed 0300-1234567";
+  "Attach your file (Excel, CSV, PDF, photo, or the JSON you edited) and tap Go, or type / paste names here.\n\nYou can add instructions, for example:\n• Only take the Class 5 students\n• Names are in the second column\n• Ali Khan s/o Ahmed 0300-1234567";
 
 export const StudentsView: React.FC = () => {
   const { data, saveData, toast, uiConfirm } = useClassroom();
@@ -666,13 +666,13 @@ export const StudentsView: React.FC = () => {
       </div>
 
       <AiAssistCard
-        title="AI assistant"
+        title="Import & AI assistant"
         placeholder={STUDENTS_AI_PLACEHOLDER}
-        hint="Excel and CSV are read on your phone. PDF, photo, JSON and typed text use AI (needs internet). Typed instructions help the AI read PDFs and photos. You see a preview before anything is saved."
+        hint="Attach a file to import or update students. Excel, CSV and a JSON file edited from Export are read on your phone (no internet, no AI). PDF, photos and typed text use AI (needs internet). Typed instructions help the AI read PDFs and photos. You see a preview before anything is saved."
         accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
         onGo={handleAiGo}
         onExport={handleExportForAi}
-        exportLabel="Export file for another AI"
+        exportLabel="Export file (to edit or use with AI)"
       />
 
       {/* Search Header */}
