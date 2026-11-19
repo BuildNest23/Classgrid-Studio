@@ -2,7 +2,8 @@
 import template from './teacherForm.html?raw';
 import { AppData, Student } from '../types';
 import { getSortedStudents } from '../utils/helpers';
-import { formatRoll } from '../utils/rollNumbers';
+import { formatRoll, nextRollNumber } from '../utils/rollNumbers';
+import { newId } from '../utils/helpers';
 
 export type FieldKey = 'rollNo' | 'name' | 'fatherName' | 'admissionNo' | 'phone' | 'address' | 'occupation' | 'notes';
 /** show = teacher can see it; edit = teacher can type/correct it; off = not put in the file at all */
@@ -30,6 +31,8 @@ export interface SendOptions {
   note: string;
   /** only students that have an empty box in a field the teacher is asked to fill */
   onlyMissing: boolean;
+  /** the teacher can add new students (used for an empty class, or to let them add the ones who are missing) */
+  allowAdd?: boolean;
 }
 
 export function newRequestId(): string {
@@ -72,6 +75,8 @@ export function buildStudentFile(data: AppData, opts: SendOptions, requestId = n
     academicYear: data.academicYear || '',
     logo: data.schoolLogo || '',
     title: 'Student list',
+    allowAdd: !!opts.allowAdd,
+    addKeys: opts.allowAdd ? Array.from(new Set(['name', ...keys.filter(k => k !== 'rollNo')])) : undefined,
     note: opts.note.trim(),
     fields,
     print: print || null,
@@ -97,6 +102,8 @@ export interface ReturnFile {
   fields: Record<string, string>;
   count: number;
   changes: Record<string, Record<string, { from: string; to: string }>>;
+  /** students the teacher added (students files only) */
+  added?: Record<string, string>[];
   /** marks files only */
   assessmentId?: string;
   assessmentName?: string;
@@ -129,7 +136,19 @@ export function parseReturn(text: string): ReturnFile {
         count++;
       });
     });
+    const added: Record<string, string>[] = [];
+    if (cfg.allowAdd) {
+      const keys: string[] = cfg.addKeys || [];
+      (work.added || []).forEach((tid: string) => {
+        const e = (work.edits || {})[tid] || {};
+        const o: Record<string, string> = { tid };
+        keys.forEach(k => { o[k] = String(e[k] ?? '').trim(); });
+        added.push(o);
+      });
+      count += added.length;
+    }
     return {
+      added,
       app: 'classgrid-collect-return', v: 1, kind: cfg.kind || 'students', requestId: cfg.requestId,
       revision: work.revision || 0, savedAt: work.savedAt || 0, from: work.from || '',
       className: cfg.className || '', fields: cfg.fields || {}, count, changes,
@@ -160,8 +179,25 @@ export interface PlannedChange {
   invalid?: string;
 }
 
+export interface PlannedAddition {
+  key: string;
+  tid: string;
+  name: string;
+  fatherName: string;
+  admissionNo: string;
+  phone: string;
+  address: string;
+  occupation: string;
+  notes: string;
+  /** an existing student (or an earlier row) has the same name and father name */
+  duplicateOf?: string;
+  invalid?: string;
+}
+
 export interface ReturnPlan {
   changes: PlannedChange[];
+  /** new students the teacher added */
+  additions: PlannedAddition[];
   /** changes for students that are not in the class any more */
   missing: number;
   /** changes already the same in the app */
@@ -169,9 +205,9 @@ export interface ReturnPlan {
 }
 
 export function planReturn(data: AppData, ret: ReturnFile): ReturnPlan {
-  if (ret.kind === 'marks' || ret.kind === 'daily') return { changes: [], missing: 0, alreadySame: 0 };
+  if (ret.kind === 'marks' || ret.kind === 'daily') return { changes: [], additions: [], missing: 0, alreadySame: 0 };
   const byId = new Map(data.students.map(s => [s.id, s]));
-  const plan: ReturnPlan = { changes: [], missing: 0, alreadySame: 0 };
+  const plan: ReturnPlan = { changes: [], additions: [], missing: 0, alreadySame: 0 };
   const labels = new Set(FIELD_DEFS.map(f => f.key as string));
 
   Object.keys(ret.changes || {}).forEach(id => {
@@ -193,6 +229,31 @@ export function planReturn(data: AppData, ret: ReturnFile): ReturnPlan {
       plan.changes.push(c);
     });
   });
+  // students the teacher added
+  const clean = (v: unknown, max: number) =>
+    // eslint-disable-next-line no-control-regex
+    String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  const lc = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
+  const seen = new Set(data.students.map(s => lc(s.name || '') + '|' + lc(s.fatherName || '')));
+  (Array.isArray(ret.added) ? ret.added : []).forEach((a: any, i: number) => {
+    if (!a || typeof a !== 'object') return;
+    const add: PlannedAddition = {
+      key: 'new:' + (clean(a.tid, 40) || i),
+      tid: clean(a.tid, 40),
+      name: clean(a.name, 80),
+      fatherName: clean(a.fatherName, 80),
+      admissionNo: clean(a.admissionNo, 20).replace(/[^A-Za-z0-9-]/g, ''),
+      phone: clean(a.phone, 20).replace(/[^0-9+\-\s]/g, ''),
+      address: clean(a.address, 120),
+      occupation: clean(a.occupation, 80),
+      notes: clean(a.notes, 200),
+    };
+    if (!add.name) { add.invalid = 'Name is empty'; plan.additions.push(add); return; }
+    const k = lc(add.name) + '|' + lc(add.fatherName);
+    if (seen.has(k)) add.duplicateOf = add.name;
+    seen.add(k);
+    plan.additions.push(add);
+  });
   // roll changes first (they affect every list), then the rest in roll order
   const order = new Map(getSortedStudents(data.students).map((s, i) => [s.id, i]));
   plan.changes.sort((a, b) => {
@@ -201,6 +262,25 @@ export function planReturn(data: AppData, ret: ReturnFile): ReturnPlan {
     return (order.get(a.studentId) ?? 0) - (order.get(b.studentId) ?? 0);
   });
   return plan;
+}
+
+/** Adds the ticked new students at the end of the list; roll numbers follow on from the last one. */
+export function applyAdditions(students: Student[], chosen: PlannedAddition[]): Student[] {
+  if (!chosen.length) return students;
+  const start = parseInt(nextRollNumber(students), 10) || students.length + 1;
+  const added: Student[] = chosen.map((a, i) => ({
+    id: newId(),
+    admissionNo: a.admissionNo,
+    rollNo: String(start + i).padStart(2, '0'),
+    name: a.name,
+    fatherName: a.fatherName,
+    phone: a.phone,
+    address: a.address,
+    occupation: a.occupation,
+    notes: a.notes,
+    createdAt: Date.now(),
+  }));
+  return [...students, ...added];
 }
 
 const rollKey = (r: string) => { const t = String(r || '').trim(); return /^\d+$/.test(t) ? String(parseInt(t, 10)) : t.toLowerCase(); };

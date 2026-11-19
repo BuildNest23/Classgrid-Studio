@@ -113,19 +113,27 @@ var STU=CFG.students;
 var byId={};STU.forEach(function(s){byId[s.id]=s});
 var editCols=COLS.filter(function(f){return CFG.fields[f.k]==='edit'});
 var hasRoll=!!(CFG.fields&&CFG.fields.rollNo);
+// "Add students" mode: the teacher can add new students. New students get no roll number here (the app gives it).
+var ALLOW=!!CFG.allowAdd;
+var addKeys=(CFG.addKeys&&CFG.addKeys.length)?CFG.addKeys:COLS.map(function(f){return f.k});
+var addCols=FIELDS.filter(function(f){return f.k!=='rollNo'&&(addKeys.indexOf(f.k)>=0||f.k==='name')});
+function colsFor(s){return s&&s.isNew?addCols:editCols}
+var newSeq=0;
 
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function one(v){return String(v==null?'':v).replace(/\s*[\r\n]+\s*/g,' ')}
 
 /* ---------- state ---------- */
 var LSKEY='cgc:'+CFG.requestId;
-var edits={}, from='', revision=0, savedAt=0;
+var edits={}, from='', revision=0, savedAt=0, addedIds=[];
 (function load(){
   var a=WORK&&WORK.edits?WORK:null, b=null;
   try{b=JSON.parse(localStorage.getItem(LSKEY)||'null')}catch(e){}
   var pick=a;
   if(b&&b.edits&&(!a||(b.savedAt||0)>(a.savedAt||0)))pick=b;
-  if(pick){edits=pick.edits||{};from=pick.from||'';revision=pick.revision||0;savedAt=pick.savedAt||0}
+  if(pick){edits=pick.edits||{};from=pick.from||'';revision=pick.revision||0;savedAt=pick.savedAt||0;
+    if(ALLOW&&pick.added&&pick.added.length)pick.added.forEach(function(id){if(!byId[id]){var o={id:id,isNew:true};STU.push(o);byId[id]=o;addedIds.push(id);var m=/^new_(\d+)$/.exec(id);if(m)newSeq=Math.max(newSeq,parseInt(m[1],10))}});
+  }
 })();
 function cur(s,k){var e=edits[s.id];return (e&&Object.prototype.hasOwnProperty.call(e,k))?e[k]:(s[k]==null?'':s[k])}
 function setVal(s,k,v){
@@ -137,7 +145,7 @@ function setVal(s,k,v){
 var saveT=null;
 function persist(){
   clearTimeout(saveT);
-  saveT=setTimeout(function(){try{localStorage.setItem(LSKEY,JSON.stringify({edits:edits,from:from,revision:revision,savedAt:Date.now()}))}catch(e){}},300);
+  saveT=setTimeout(function(){try{localStorage.setItem(LSKEY,JSON.stringify({edits:edits,from:from,revision:revision,savedAt:Date.now(),added:addedIds}))}catch(e){}},300);
 }
 function changeCount(){var n=0;Object.keys(edits).forEach(function(id){n+=Object.keys(edits[id]).length});return n}
 
@@ -158,7 +166,7 @@ function safeName(s){return String(s||'file').replace(/[^A-Za-z0-9_-]+/g,'-').re
 var BASE=safeName((CFG.className||'class')+'_students_'+CFG.requestId);
 
 /* ---------- screen ---------- */
-var editable=editCols.length>0;
+var editable=editCols.length>0||ALLOW;
 var ORDER=sorted();               // fixed order for this session (rows do not jump while roll numbers are edited)
 var cursor=0, view=editable?'one':'list', filter='all', query='';
 var LABEL={};FIELDS.forEach(function(f){LABEL[f.k]=f.l});
@@ -184,8 +192,8 @@ app.innerHTML='<div class="wrap">'+top
 var mainEl=document.getElementById('main');
 
 /* ----- status helpers ----- */
-function emptyKeys(s){return editCols.filter(function(f){return !String(cur(s,f.k)||'').trim()}).map(function(f){return f.k})}
-function isChanged(s){return !!(edits[s.id]&&Object.keys(edits[s.id]).length)}
+function emptyKeys(s){return colsFor(s).filter(function(f){return !String(cur(s,f.k)||'').trim()}).map(function(f){return f.k})}
+function isChanged(s){return !!(s.isNew||(edits[s.id]&&Object.keys(edits[s.id]).length))}
 var CURISSUES=0, DUP={}, BLANK={};
 function computeIssues(){
   DUP={};BLANK={};
@@ -197,29 +205,31 @@ function computeIssues(){
       issues.push('Roll '+esc(String(cur(seen[k][0],'rollNo')).trim())+' is used by '+seen[k].map(function(s){return esc(cur(s,'name')||'(no name)')}).join(' and ')+'.');
     }
   });
-  if(CFG.fields.name==='edit')STU.forEach(function(s){if(!String(cur(s,'name')||'').trim()){BLANK[s.id]=1}});
+  STU.forEach(function(s){if((s.isNew||CFG.fields.name==='edit')&&!String(cur(s,'name')||'').trim()){BLANK[s.id]=1}});
   if(Object.keys(BLANK).length)issues.push('A name is empty. Names cannot be left blank.');
   CURISSUES=issues.length;
   document.getElementById('issues').innerHTML=issues.join('<br>');
 }
 function updateProgress(){
   var filled=0,total=0,done=0;
-  STU.forEach(function(s){var e=emptyKeys(s);total+=editCols.length;filled+=editCols.length-e.length;if(!e.length)done++});
+  STU.forEach(function(s){var e=emptyKeys(s),n=colsFor(s).length;total+=n;filled+=n-e.length;if(!e.length)done++});
   var w=document.getElementById('progWrap');
   if(editable){
     var pct=total?Math.round(filled*100/total):100;
-    w.innerHTML='<div class="pbar"><i style="width:'+pct+'%"></i></div><div class="prog"><span><b>'+done+'</b> of '+STU.length+' students complete</span><span><b>'+changeCount()+'</b> changed</span></div>';
+    w.innerHTML='<div class="pbar"><i style="width:'+pct+'%"></i></div><div class="prog"><span><b>'+done+'</b> of '+STU.length+' student'+(STU.length===1?'':'s')+' complete</span><span><b>'+changeCount()+'</b> changed</span></div>';
   }else w.innerHTML='<div class="prog"><span><b>'+STU.length+'</b> students</span></div>';
 }
 
 /* ----- one by one ----- */
 function nameOf(s){return String(cur(s,'name')||'').trim()||'(no name)'}
 function drawOne(){
-  var s=ORDER[cursor];if(!s){mainEl.innerHTML='<div class="card empty">No students in this file.</div>';return}
+  var s=ORDER[cursor];
+  if(!s){mainEl.innerHTML='<div class="card empty">'+(ALLOW?'No students yet. Tap <b>Add student</b> and type each student\'s details.':'No students in this file.')+'</div>'+(ALLOW?'<div class="nav"><button class="btn main" id="bAdd" type="button">+ Add student</button></div>':'');return}
+  var cols=colsFor(s);
   var h='<div class="card"><div class="pos"><span>Student '+(cursor+1)+' of '+ORDER.length+'</span><span class="badge" id="badge"></span></div>';
   h+='<div class="who">'+(hasRoll?'<span class="roll" id="whoRoll"></span>':'')+'<div class="nm" id="whoName"></div><div class="ro" id="whoRo"></div></div>';
   h+='<div class="fields">';
-  editCols.forEach(function(f){
+  cols.forEach(function(f){
     var tall=(f.k==='address'||f.k==='notes');
     h+='<div><label class="lbl" for="e_'+f.k+'">'+esc(f.l)+'</label>'
      +'<textarea class="f'+(tall?' tall':'')+'" id="e_'+f.k+'" data-k="'+f.k+'" rows="'+(tall?2:1)+'" '+(tall?'':'wrap="off" ')+'autocomplete="off" autocorrect="off"'+(f.mode?' inputmode="'+f.mode+'"':'')+'></textarea>'
@@ -228,26 +238,28 @@ function drawOne(){
   h+='</div></div>';
   h+='<div class="nav"><button class="btn" id="bPrev" type="button">◀ Previous</button><button class="btn main" id="bNext" type="button">Next ▶</button></div>';
   h+='<button class="link" id="bEmpty" type="button">Jump to the next student with an empty box</button>';
+  if(ALLOW)h+='<div class="nav"><button class="btn main" id="bAdd" type="button">+ Add student</button></div>';
+  if(s.isNew)h+='<button class="link" id="bDel" type="button">Remove this new student</button>';
   mainEl.innerHTML=h;
-  editCols.forEach(function(f){document.getElementById('e_'+f.k).value=String(cur(s,f.k)||'')});
+  cols.forEach(function(f){document.getElementById('e_'+f.k).value=String(cur(s,f.k)||'')});
   document.getElementById('bPrev').disabled=cursor===0;
   document.getElementById('bNext').disabled=cursor>=ORDER.length-1;
   refreshOne();
 }
 function refreshOne(){
   var s=ORDER[cursor];if(!s)return;
-  var r=document.getElementById('whoRoll');if(r)r.textContent='Roll '+(String(cur(s,'rollNo')||'').trim()||'—');
+  var r=document.getElementById('whoRoll');if(r)r.textContent=s.isNew?'New student':'Roll '+(String(cur(s,'rollNo')||'').trim()||'—');
   document.getElementById('whoName').textContent=nameOf(s);
   var ro='';
   COLS.forEach(function(f){
-    if(CFG.fields[f.k]!=='show'||f.k==='name'||f.k==='rollNo')return;
+    if(CFG.fields[f.k]!=='show'||f.k==='name'||f.k==='rollNo'||s.isNew||colsFor(s).some(function(c){return c.k===f.k}))return;
     var v=String(cur(s,f.k)||'').trim();if(v)ro+='<span>'+esc(f.l)+': <b>'+esc(v)+'</b></span>';
   });
   document.getElementById('whoRo').innerHTML=ro;
   var e=emptyKeys(s),b=document.getElementById('badge');
   b.className='badge '+(e.length?'need':'ok');
   b.textContent=e.length?(e.length+' empty'):'Complete ✓';
-  editCols.forEach(function(f){
+  colsFor(s).forEach(function(f){
     var t=document.getElementById('e_'+f.k),x=document.getElementById('x_'+f.k);
     var changed=String(cur(s,f.k))!==String(s[f.k]==null?'':s[f.k]);
     t.classList.toggle('chg',changed);
@@ -260,7 +272,7 @@ function refreshOne(){
 function go(i,focusFirst){
   if(i<0||i>=ORDER.length)return;
   cursor=i;drawOne();window.scrollTo(0,0);
-  if(focusFirst){var e=emptyKeys(ORDER[cursor])[0]||(editCols[0]&&editCols[0].k);var t=e&&document.getElementById('e_'+e);if(t)t.focus()}
+  if(focusFirst){var e=emptyKeys(ORDER[cursor])[0]||(colsFor(ORDER[cursor])[0]&&colsFor(ORDER[cursor])[0].k);var t=e&&document.getElementById('e_'+e);if(t)t.focus()}
 }
 function nextEmpty(){
   for(var d=1;d<=ORDER.length;d++){var i=(cursor+d)%ORDER.length;if(emptyKeys(ORDER[i]).length){go(i,true);return}}
@@ -271,6 +283,7 @@ function nextEmpty(){
 function drawList(){
   var h='<div class="sec"><textarea class="f" id="q" rows="1" wrap="off" autocomplete="off" placeholder="Search name or roll #"></textarea></div>';
   if(editable)h+='<div class="chips"><button class="chip" data-flt="all" type="button">All</button><button class="chip" data-flt="need" type="button">Needs info</button><button class="chip" data-flt="chg" type="button">Changed</button></div>';
+  if(ALLOW)h+='<div class="nav" style="margin-top:8px"><button class="btn main" id="bAdd" type="button">+ Add student</button></div>';
   h+='<div id="rows"></div>';
   mainEl.innerHTML=h;
   document.getElementById('q').value=query;
@@ -286,7 +299,7 @@ function drawRows(){
     if(filter==='chg'&&!isChanged(s))return;
     n++;
     var sub=COLS.filter(function(f){return f.k!=='name'&&f.k!=='rollNo'&&CFG.fields[f.k]==='show'}).map(function(f){var v=String(cur(s,f.k)||'').trim();return v?esc(f.l)+': '+esc(v):''}).filter(Boolean).join(' · ');
-    h+='<button class="row'+((DUP[s.id]||BLANK[s.id])?' bad':'')+'" data-i="'+i+'" type="button"><span class="r">'+esc(String(cur(s,'rollNo')||'').trim()||(hasRoll?'—':(i+1)))+'</span><span class="m"><div class="n">'+esc(nameOf(s))+'</div>'
+    h+='<button class="row'+((DUP[s.id]||BLANK[s.id])?' bad':'')+'" data-i="'+i+'" type="button"><span class="r">'+(s.isNew?'New':esc(String(cur(s,'rollNo')||'').trim()||(hasRoll?'—':(i+1))))+'</span><span class="m"><div class="n">'+esc(nameOf(s))+'</div>'
       +(sub?'<div class="s">'+sub+'</div>':'')
       +(editable?'<div class="c">'+(e.length?e.map(function(k){return '<span>'+esc(LABEL[k])+' empty</span>'}).join(''):'<em>✓ Complete</em>')+'</div>':'')
       +'</span>'+(isChanged(s)?'<i class="d" title="Changed"></i>':'')+'</button>';
@@ -319,8 +332,9 @@ app.addEventListener('keydown',function(e){
   e.preventDefault();
   var k=t.getAttribute('data-k');
   if(!k){t.blur();return}
-  var i=editCols.map(function(f){return f.k}).indexOf(k);
-  if(i<editCols.length-1){var n=document.getElementById('e_'+editCols[i+1].k);n.focus();n.select&&n.select()}
+  var cc=colsFor(ORDER[cursor]);
+  var i=cc.map(function(f){return f.k}).indexOf(k);
+  if(i<cc.length-1){var n=document.getElementById('e_'+cc[i+1].k);n.focus();n.select&&n.select()}
   else if(cursor<ORDER.length-1)go(cursor+1,true);
   else t.blur();
 });
@@ -335,10 +349,33 @@ app.addEventListener('click',function(e){
   else if(c.id==='bPrev')go(cursor-1);
   else if(c.id==='bNext')go(cursor+1);
   else if(c.id==='bEmpty')nextEmpty();
+  else if(c.id==='bAdd')addStudent();
+  else if(c.id==='bDel')removeNew();
   else if(c.hasAttribute('data-flt')){filter=c.getAttribute('data-flt');drawRows()}
   else if(c.hasAttribute('data-i')){cursor=parseInt(c.getAttribute('data-i'),10);if(editable){setView('one');window.scrollTo(0,0)}}
 });
 var fromEl=document.getElementById('from');if(fromEl)fromEl.value=from;
+
+/* ----- add / remove new students ----- */
+function addStudent(){
+  var id='new_'+(++newSeq);
+  var o={id:id,isNew:true};
+  STU.push(o);byId[id]=o;ORDER.push(o);addedIds.push(id);
+  persist();computeIssues();updateProgress();
+  cursor=ORDER.length-1;
+  if(view!=='one')setView('one');else drawOne();
+  window.scrollTo(0,0);
+  var t=document.getElementById('e_name');if(t)t.focus();
+}
+function removeNew(){
+  var s=ORDER[cursor];if(!s||!s.isNew)return;
+  if(!confirm('Remove this new student?'))return;
+  STU.splice(STU.indexOf(s),1);ORDER.splice(cursor,1);delete byId[s.id];delete edits[s.id];
+  addedIds=addedIds.filter(function(x){return x!==s.id});
+  if(cursor>=ORDER.length)cursor=Math.max(0,ORDER.length-1);
+  persist();computeIssues();updateProgress();
+  if(view==='one')drawOne();else drawList();
+}
 
 /* ---------- print ---------- */
 function printNow(){
@@ -381,7 +418,7 @@ function download(blob,name){
   document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},4000);
 }
 function workBlock(){
-  return JSON.stringify({revision:revision,savedAt:savedAt,from:from,edits:edits}).replace(/</g,'\\u003c');
+  return JSON.stringify({revision:revision,savedAt:savedAt,from:from,edits:edits,added:addedIds}).replace(/</g,'\\u003c');
 }
 function saveCopy(){
   revision++;savedAt=Date.now();persist();
@@ -392,7 +429,7 @@ function saveCopy(){
 function returnObj(){
   var ch={},n=0;
   Object.keys(edits).forEach(function(id){
-    var s=byId[id];if(!s)return;
+    var s=byId[id];if(!s||s.isNew)return;
     var o={};
     Object.keys(edits[id]).forEach(function(k){
       if(CFG.fields[k]!=='edit')return;
@@ -400,8 +437,14 @@ function returnObj(){
     });
     if(Object.keys(o).length)ch[id]=o;
   });
+  var added=[];
+  STU.forEach(function(s){
+    if(!s.isNew)return;
+    var o={tid:s.id};addCols.forEach(function(f){o[f.k]=String(cur(s,f.k)||'').trim()});
+    added.push(o);
+  });
   return {app:'classgrid-collect-return',v:1,kind:CFG.kind||'students',requestId:CFG.requestId,revision:revision+1,savedAt:Date.now(),
-    from:from,className:CFG.className||'',fields:CFG.fields,count:n,changes:ch};
+    from:from,className:CFG.className||'',fields:CFG.fields,count:n+added.length,changes:ch,added:added,addKeys:addCols.map(function(f){return f.k})};
 }
 function guard(){
   computeIssues();

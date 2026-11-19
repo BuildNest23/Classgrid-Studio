@@ -6,7 +6,7 @@ import { HowItWorks } from '../HowItWorks';
 import { exportFileBlob } from '../../utils/nativeFileExport';
 import {
   FIELD_DEFS, DEFAULT_CHOICES, FieldChoices, FieldMode, FieldKey,
-  buildStudentFile, studentsForFile, parseReturn, planReturn, applyChanges,
+  buildStudentFile, studentsForFile, parseReturn, planReturn, applyChanges, applyAdditions, PlannedAddition,
   loadLog, logSent, logReturn, ReturnFile, ReturnPlan, PlannedChange, SentRecord,
 } from '../../collect/collect';
 import { buildMarksFile, studentsForMarks, planMarksReturn, applyMarks, MarksPlan, PlannedMark } from '../../collect/marks';
@@ -31,6 +31,7 @@ export const CollectView: React.FC = () => {
   const [choices, setChoices] = useState<FieldChoices>(() => ({ ...DEFAULT_CHOICES }));
   const [note, setNote] = useState('');
   const [onlyMissing, setOnlyMissing] = useState(false);
+  const [allowAddPick, setAllowAddPick] = useState(false);
   const [busy, setBusy] = useState(false);
   const [what, setWhat] = useState<'students' | 'marks' | 'view' | 'daily'>('students');
   const [asmtId, setAsmtId] = useState('');
@@ -52,7 +53,8 @@ export const CollectView: React.FC = () => {
   };
   const marksOpts = { assessmentId: asmtId, subjectIds: subIds, showFather, remarks, note, onlyMissing };
   const marksCount = asmt ? studentsForMarks(data, marksOpts).length : 0;
-  const opts = { choices, note, onlyMissing };
+  const allowAdd = allowAddPick || data.students.length === 0; // an empty class can only be filled by adding
+  const opts = { choices, note, onlyMissing, allowAdd };
   const count = studentsForFile(data, opts).length;
   const editNames = FIELD_DEFS.filter(f => choices[f.key] === 'edit').map(f => f.label);
 
@@ -134,8 +136,8 @@ export const CollectView: React.FC = () => {
   };
 
   const sendFile = async () => {
-    if (!data.students.length) { toast('Add students first.', 'error'); return; }
-    if (!count) { toast('No student matches. Untick "Only students with an empty box".', 'error'); return; }
+    if (!allowAdd && !data.students.length) { toast('Add students first.', 'error'); return; }
+    if (!allowAdd && !count) { toast('No student matches. Untick "Only students with an empty box".', 'error'); return; }
     setBusy(true);
     try {
       const { css, caps } = getPrintStyleBundle();
@@ -166,7 +168,10 @@ export const CollectView: React.FC = () => {
     const ret = parseReturn(text);
     const plan = planReturn(data, ret);
     const marks = ret.kind === 'marks' ? planMarksReturn(data, ret) : ret.kind === 'daily' ? planDailyReturn(data, ret) : undefined;
-    const picked = new Set((marks ? marks.changes : plan.changes).filter(c => !c.conflict && !c.invalid).map(c => c.key));
+    const picked = new Set<string>([
+      ...(marks ? marks.changes : plan.changes).filter(c => !c.conflict && !c.invalid).map(c => c.key),
+      ...(marks ? [] : plan.additions.filter(a => !a.invalid && !a.duplicateOf).map(a => a.key)),
+    ]);
     setLoaded(prev => {
       // same request sent again: keep only the newest version
       const others = prev.filter(l => l.ret.requestId !== ret.requestId);
@@ -200,7 +205,7 @@ export const CollectView: React.FC = () => {
       return { ...l, picked: p };
     }));
   const setAll = (li: number, on: boolean) =>
-    setLoaded(ls => ls.map((l, i) => i !== li ? l : { ...l, picked: new Set(on ? (l.marks ? l.marks.changes : l.plan.changes).filter(c => !c.invalid).map(c => c.key) : []) }));
+    setLoaded(ls => ls.map((l, i) => i !== li ? l : { ...l, picked: new Set(on ? [...(l.marks ? l.marks.changes : l.plan.changes).filter(c => !c.invalid).map(c => c.key), ...(l.marks ? [] : l.plan.additions.filter(a => !a.invalid).map(a => a.key))] : []) }));
 
   const apply = (li: number) => {
     const l = loaded[li];
@@ -227,14 +232,16 @@ export const CollectView: React.FC = () => {
       return;
     }
     const chosen = l.plan.changes.filter(c => l.picked.has(c.key) && !c.invalid);
-    if (!chosen.length) { toast('Nothing ticked.', 'info'); return; }
+    const chosenAdd = l.plan.additions.filter(a => l.picked.has(a.key) && !a.invalid);
+    if (!chosen.length && !chosenAdd.length) { toast('Nothing ticked.', 'info'); return; }
     const res = applyChanges(data.students, chosen);
     if (res.problem) { toast(res.problem, 'error'); return; }
-    saveData(prev => ({ ...prev, students: applyChanges(prev.students, chosen).students }));
-    logReturn(l.ret.requestId, l.ret, chosen.length, { className: l.ret.className });
+    saveData(prev => ({ ...prev, students: applyAdditions(applyChanges(prev.students, chosen).students, chosenAdd) }));
+    const total = chosen.length + chosenAdd.length;
+    logReturn(l.ret.requestId, l.ret, total, { className: l.ret.className });
     setLoaded(ls => ls.map((x, i) => i === li ? { ...x, applied: true } : x));
     setLog(loadLog());
-    toast(`${chosen.length} change${chosen.length === 1 ? '' : 's'} applied. You can Undo.`, 'success');
+    toast(`${chosenAdd.length ? `${chosenAdd.length} student${chosenAdd.length === 1 ? '' : 's'} added` + (chosen.length ? `, ${chosen.length} change${chosen.length === 1 ? '' : 's'} applied` : '') : `${chosen.length} change${chosen.length === 1 ? '' : 's'} applied`}. You can Undo.`, 'success');
   };
 
   // ---- Requests ----
@@ -482,7 +489,18 @@ export const CollectView: React.FC = () => {
             />
           </div>
 
-          {editNames.length > 0 && (
+          {data.students.length === 0 ? (
+            <div className="text-xs rounded-xl bg-[#FEF9C3] dark:bg-[#3B3510] text-[#713F12] dark:text-[#FDE68A] p-2.5">
+              This class has no students yet. The teacher will add them in the form: tap <b>Share / Save the file</b>. Use "Show only" or "Teacher fills in" for the boxes you want them to type (Name is always included).
+            </div>
+          ) : (
+            <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
+              <input type="checkbox" checked={allowAddPick} onChange={e => setAllowAddPick(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
+              Teacher can also add new students
+            </label>
+          )}
+
+          {editNames.length > 0 && data.students.length > 0 && (
             <label className="flex items-center gap-2 text-xs font-semibold text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">
               <input type="checkbox" checked={onlyMissing} onChange={e => setOnlyMissing(e.target.checked)} className="w-4 h-4 accent-[#B91C1C]" />
               Only students with an empty box to fill
@@ -490,7 +508,7 @@ export const CollectView: React.FC = () => {
           )}
 
           <div className="text-xs text-[#78716C] dark:text-[#A8A29E] rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] p-2.5">
-            <b>{count}</b> student{count === 1 ? '' : 's'} in the file.{' '}
+            <b>{count}</b> student{count === 1 ? '' : 's'} in the file{allowAdd ? ', and the teacher can add new ones' : ''}.{' '}
             {editNames.length
               ? <>Teacher fills in: <b>{editNames.join(', ')}</b>.</>
               : <>No boxes to fill in: the teacher can only view and print.</>}
@@ -587,7 +605,7 @@ export const CollectView: React.FC = () => {
                 </div>
               );
             }
-            const picked = l.plan.changes.filter(c => l.picked.has(c.key) && !c.invalid).length;
+            const picked = l.plan.changes.filter(c => l.picked.has(c.key) && !c.invalid).length + l.plan.additions.filter(a => l.picked.has(a.key) && !a.invalid).length;
             const rolls = l.plan.changes.filter(c => c.field === 'rollNo');
             const others = l.plan.changes.filter(c => c.field !== 'rollNo');
             const renderRow = (c: PlannedChange) => {
@@ -636,7 +654,7 @@ export const CollectView: React.FC = () => {
                   </div>
                 )}
 
-                {l.plan.changes.length === 0 ? (
+                {l.plan.changes.length === 0 && l.plan.additions.length === 0 ? (
                   <div className="text-xs text-[#78716C] dark:text-[#A8A29E] py-3 text-center">Nothing to change from this file.</div>
                 ) : (
                   <>
@@ -645,6 +663,23 @@ export const CollectView: React.FC = () => {
                         <div className="text-[10.5px] font-bold text-[#B91C1C] dark:text-[#FCA5A5] uppercase tracking-wide">Roll number changes ({rolls.length})</div>
                         <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mb-1">Applied together, so two students can swap numbers.</div>
                         {rolls.map(renderRow)}
+                      </div>
+                    )}
+                    {l.plan.additions.length > 0 && (
+                      <div>
+                        <div className="text-[10.5px] font-bold text-[#B91C1C] dark:text-[#FCA5A5] uppercase tracking-wide">New students ({l.plan.additions.length})</div>
+                        <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mb-1">Added at the end of the list. Roll numbers follow on from the last one.</div>
+                        {l.plan.additions.map((a: PlannedAddition) => (
+                          <label key={a.key} className={`flex items-start gap-2 p-2 rounded-lg text-xs cursor-pointer ${a.invalid ? 'opacity-50' : ''} ${a.duplicateOf ? 'bg-[#FEF9C3] dark:bg-[#3B3510]' : ''}`}>
+                            <input type="checkbox" disabled={!!a.invalid || l.applied} checked={l.picked.has(a.key)} onChange={() => toggle(li, a.key)} className="w-4 h-4 mt-0.5 accent-[#B91C1C] shrink-0" />
+                            <span className="min-w-0">
+                              <span className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">{a.name || '(no name)'}</span>
+                              <span className="text-[#78716C] dark:text-[#A8A29E]">{[a.fatherName && ` · s/o ${a.fatherName}`, a.admissionNo && ` · Adm. ${a.admissionNo}`, a.phone && ` · ${a.phone}`, a.address && ` · ${a.address}`, a.occupation && ` · ${a.occupation}`].filter(Boolean).join('')}</span>
+                              {a.duplicateOf && <span className="block text-[11px] text-[#92400E] dark:text-[#FCD34D]">A student with the same name and father name is already in this class. Ticked only if it is a different student.</span>}
+                              {a.invalid && <span className="block text-[11px] text-red-700 dark:text-red-400">{a.invalid}</span>}
+                            </span>
+                          </label>
+                        ))}
                       </div>
                     )}
                     {others.length > 0 && (
@@ -663,7 +698,7 @@ export const CollectView: React.FC = () => {
                           onClick={() => apply(li)}
                           className="flex-1 py-2 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer"
                         >
-                          Apply {picked} change{picked === 1 ? '' : 's'}
+                          Apply {picked} item{picked === 1 ? '' : 's'}
                         </button>
                       </div>
                     )}
@@ -685,7 +720,7 @@ export const CollectView: React.FC = () => {
             return (
               <div key={r.requestId} className="p-2.5 rounded-xl border border-[#E7E5E4] dark:border-[#44403C] text-xs">
                 <div className="font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-                  {r.className || 'Class'} · {r.count || '?'} students · {r.requestId}
+                  {r.className || 'Class'} · {r.count ?? '?'} students · {r.requestId}
                 </div>
                 <div className="text-[#78716C] dark:text-[#A8A29E]">
                   Sent {fmt(r.createdAt)}{fillIn.length ? ` · fill in: ${fillIn.join(', ')}` : ' · view and print only'}
