@@ -151,8 +151,10 @@ export async function exportImageBlob(
   filename: string,
   title?: string
 ): Promise<boolean> {
+  // Images always go to the share menu (Android share sheet, or the browser's share menu on a phone)
   return exportFileBlob(blob, filename, {
     title,
-    dialogTitle: title ? `Save or Share ${title}` : undefined,
+    dialogTitle: title ? `Share ${title}` : undefined,
+    preferShareOnWeb: true,
   });
 }

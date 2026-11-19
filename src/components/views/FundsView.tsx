@@ -480,7 +480,7 @@ export const FundsView: React.FC = () => {
           <>Status shows <b>Paid</b>, <b>Partial</b> or <b>Pending</b> by itself, based on the amount.</>,
           <>Tap <b>E</b> next to the amount to mark a student <b>Exempt</b>. They are left out of the totals.</>,
           <>Use <b>Mark All Paid</b> when everyone has paid the full amount, if it is shown.</>,
-          <>Tap a <b>student's name</b> to open their <b>Fee Statement</b> (all funds, paid and balance). Use the arrows to move between students, then <b>Print</b>, <b>Save as image</b> or <b>Share</b> it with the parent.</>,
+          <>Tap a <b>student's name</b> to open their <b>Fee Statement</b> (all funds, paid and balance). Use the arrows to move between students, then <b>Print</b>, <b>Share as image</b> or <b>Share</b> it with the parent.</>,
           <>Print the <b>Collection Sheet</b>, or the <b>Pending List</b> to see who still owes.</>
         ]}
         note="Everything saves automatically as you type."

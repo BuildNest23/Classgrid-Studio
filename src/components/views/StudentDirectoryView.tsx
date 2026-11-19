@@ -8,7 +8,7 @@ import { previewPrint } from '../../utils/printPreviewBus';
 import { downloadStudentListPNG } from '../../utils/canvasExport';
 import { ActionGrid, ActionButton } from '../ActionGrid';
 import { HowItWorks } from '../HowItWorks';
-import { Printer, Download, ArrowLeft } from 'lucide-react';
+import { Printer, Share2, ArrowLeft } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { OPTIONAL_COLS, loadListColumns, saveListColumns, ListColumns, OptionalCol } from '../../utils/studentListColumns';
 
@@ -130,7 +130,7 @@ export const StudentDirectoryView: React.FC = () => {
     try {
       const ok = await downloadStudentListPNG(data, cols);
       if (ok) {
-        toast(Capacitor.isNativePlatform() ? "Student list ready in Android share sheet." : "Student list image downloaded.", "success");
+        toast(Capacitor.isNativePlatform() ? "Student list ready in Android share sheet." : "Student list image ready to share.", "success");
       } else {
         toast("Failed to create image.", "error");
       }
@@ -150,7 +150,7 @@ export const StudentDirectoryView: React.FC = () => {
         title="About this list"
         steps={[
           <>Tap any box in the list to correct it quickly. To add or remove students, go to the <b>Students</b> tab.</>,
-          <>Tap <b>Print View</b> for a paper copy, or <b>Save as Image</b> to share it, for example on WhatsApp.</>
+          <>Tap <b>Print View</b> for a paper copy, or <b>Share as Image</b> to send it, for example on WhatsApp.</>
         ]}
       />
 
@@ -204,11 +204,11 @@ export const StudentDirectoryView: React.FC = () => {
           </ActionButton>
           <ActionButton
             variant="secondary"
-            icon={Download}
+            icon={Share2}
             onClick={handleDownloadPNG}
             disabled={downloading}
           >
-            {downloading ? "Generating..." : "Save as Image"}
+            {downloading ? "Generating..." : "Share as Image"}
           </ActionButton>
         </ActionGrid>
       </div>

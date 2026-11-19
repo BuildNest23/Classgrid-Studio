@@ -152,9 +152,9 @@ export const StudentCardModal: React.FC<Props> = ({
       if (kind === 'img') {
         const ok = await downloadBlob(blob, `${baseName}.png`, itemTitle);
         if (ok) {
-          toast(Capacitor.isNativePlatform() ? 'Card ready in Android share sheet.' : 'Image downloaded.', 'success');
+          toast(Capacitor.isNativePlatform() ? 'Card ready in Android share sheet.' : 'Image ready to share.', 'success');
         } else {
-          toast('Failed to save image.', 'error');
+          toast('Could not create the image.', 'error');
         }
       } else {
         const ok = await shareFile(blob, `${baseName}.png`, itemTitle);
@@ -253,7 +253,7 @@ export const StudentCardModal: React.FC<Props> = ({
           <button type="button" className={iconBtn} onClick={handlePrint} disabled={!!busy} title="Print" aria-label="Print">
             <Printer className="w-5 h-5" />
           </button>
-          <button type="button" className={iconBtn} onClick={() => run('img')} disabled={!!busy} title="Save as image" aria-label="Save as image">
+          <button type="button" className={iconBtn} onClick={() => run('img')} disabled={!!busy} title="Share as image" aria-label="Share as image">
             {busy === 'img' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
           </button>
           <button type="button" className={iconBtn} onClick={() => run('share')} disabled={!!busy} title="Share" aria-label="Share">

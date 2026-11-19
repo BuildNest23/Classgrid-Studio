@@ -892,7 +892,7 @@ export const ResultsView: React.FC = () => {
           <>Type each student's marks in the table. Tap <b>A</b> if the student was absent in that subject.</>,
           <><b>Total, Result and Rank update automatically.</b> The pass percentage is set for this assessment.</>,
           <>A student who just missed can be passed manually with <b>Pass anyway</b>. Tap <b>Undo</b> to remove it.</>,
-          <>Tap a <b>student's name</b> to open their <b>result card</b>. Use the arrows to move between students, then <b>Print</b>, <b>Save as image</b> or <b>Share</b> it.</>,
+          <>Tap a <b>student's name</b> to open their <b>result card</b>. Use the arrows to move between students, then <b>Print</b>, <b>Share as image</b> or <b>Share</b> it.</>,
           <>Choose <b>Colour</b> or <b>Black &amp; White</b> under Print Options (it also changes the card), then print the Class Result Sheet, Report Cards or Merit List.</>
         ]}
         note="Marks save automatically as you type."

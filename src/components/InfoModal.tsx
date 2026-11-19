@@ -125,7 +125,7 @@ export const HelpModal: React.FC = () => {
               <li><b>A (Absent):</b> Marked in ruby red; triggers inclusion in absentee slips.</li>
               <li><b>L (Leave):</b> Excused absence; excluded from denominator in % calculations.</li>
               <li><b>Class Holiday:</b> Whole class day off; does not penalize student percentages.</li>
-              <li><b>Absentee Slip:</b> Download crystal-clear 2x HD PNG image or print directly for administrative records.</li>
+              <li><b>Absentee Slip:</b> Share a crystal-clear 2x HD PNG image (for example on WhatsApp) or print directly for administrative records.</li>
             </ul>
           </section>
 

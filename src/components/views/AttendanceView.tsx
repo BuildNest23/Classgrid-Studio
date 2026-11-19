@@ -24,7 +24,7 @@ import {
   Sun,
   Calendar,
   Printer,
-  Download,
+  Share2,
   BarChart2,
   GraduationCap,
   FileText,
@@ -457,7 +457,7 @@ export const AttendanceView: React.FC = () => {
     try {
       const ok = await downloadAbsenteeSlipPNG(key, data);
       if (ok) {
-        toast(Capacitor.isNativePlatform() ? "Absentee slip ready in Android share sheet." : "Absentee slip saved as image.", "success");
+        toast(Capacitor.isNativePlatform() ? "Absentee slip ready in Android share sheet." : "Absentee slip image ready to share.", "success");
       } else {
         toast("Could not generate image.", "error");
       }
@@ -935,11 +935,11 @@ export const AttendanceView: React.FC = () => {
           </ActionButton>
           <ActionButton
             variant="secondary"
-            icon={Download}
+            icon={Share2}
             onClick={handleDownloadSlipPNG}
             disabled={savingSlipImage}
           >
-            {savingSlipImage ? "Generating..." : "Save as Image"}
+            {savingSlipImage ? "Generating..." : "Share as Image"}
           </ActionButton>
           <ActionButton
             variant="secondary"
