@@ -105,7 +105,7 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
 
   const dataRows = (isHoliday || noAbsentees) ? 0 : (absentList.length + leaveList.length);
   const tableH = (isHoliday || noAbsentees) ? 60 : (headRowH + dataRows * rowH);
-  const statsExtraH = (day && !day.holiday) ? 70 : 0;
+  const statsExtraH = !isHoliday ? 70 : 0;
   const totalH = pad * 2 + headerH + dateH + tableH + statsExtraH + 30;
 
   const canvas = document.createElement("canvas");
@@ -171,10 +171,12 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     ctx.font = `700 18px ${F}`;
     ctx.fillStyle = "#1D4ED8";
     ctx.fillText("This day was marked as a Class Holiday.", centerX, y + 30);
+    y += tableH;
   } else if (noAbsentees) {
     ctx.font = `700 18px ${F}`;
     ctx.fillStyle = "#166534";
     ctx.fillText("All students were present.", centerX, y + 30);
+    y += tableH; // move below the message, so the summary line never overlaps it
   } else {
     const headers = ["#", "Roll", "Name", "Father Name", "Phone", "Status"].map(h => cap(h, isCaps));
     ctx.fillStyle = "#F3F4F6";
@@ -226,8 +228,8 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     });
   }
 
-  // Draw the summary stats line below the table
-  if (day && !day.holiday) {
+  // Summary line below the table: also when nobody is absent, and also when nothing was marked for the day
+  if (!isHoliday) {
     y += 40;
     ctx.font = `800 18px ${F}`;
     ctx.fillStyle = "#000000";
