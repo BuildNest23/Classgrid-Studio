@@ -1,5 +1,14 @@
 import { Student, PrintSizeKey } from '../types';
 
+/** Class text and session text for print headers, following the "Session on prints" setting. */
+export function sessionParts(d: { className?: string; academicYear?: string; sessionDisplay?: string }): { cls: string; year: string } {
+  const cls = (d.className || '').trim();
+  const year = (d.academicYear || '').trim();
+  if (!year || d.sessionDisplay === 'off') return { cls, year: '' };
+  if (d.sessionDisplay === 'withClass' && cls) return { cls: `${cls} - ${year}`, year: '' };
+  return { cls, year };
+}
+
 export function newId(): string {
   return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }

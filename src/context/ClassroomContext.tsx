@@ -14,6 +14,7 @@ import {
   getMonthDays,
   getSortedStudents,
   esc,
+  sessionParts,
   TBL_SIZES
 } from '../utils/helpers';
 import { normalizeData, makeBaseData } from '../utils/migrate';
@@ -1024,10 +1025,11 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const buildPrintHeaderHTML = useCallback((title: string = "Student List", subline: string = "") => {
     const logoHTML = data.schoolLogo ? `<div class="print-logo-slot"><img src="${esc(data.schoolLogo)}" alt=""></div>` : "";
     const spacerHTML = data.schoolLogo ? `<div class="print-logo-slot print-logo-spacer"></div>` : "";
-    const classSub = data.className ? `Class: ${esc(data.className)}` : "";
+    const sp = sessionParts(data);
+    const classSub = sp.cls ? `Class: ${esc(sp.cls)}` : "";
     const inchargeSub = data.inchargeName ? `Incharge: ${esc(data.inchargeName)}` : "";
     const line1 = [classSub, inchargeSub].filter(Boolean).join(" • ");
-    const yearSub = data.academicYear ? esc(data.academicYear) : "";
+    const yearSub = sp.year ? esc(sp.year) : "";
     const noteLine = data.printNote ? esc(data.printNote) : "";
 
     return `<div class="print-header-inner">
@@ -1042,7 +1044,7 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       </div>
       ${spacerHTML}
     </div>`;
-  }, [data.schoolLogo, data.className, data.inchargeName, data.academicYear, data.printNote, data.schoolName]);
+  }, [data.schoolLogo, data.className, data.inchargeName, data.academicYear, data.sessionDisplay, data.printNote, data.schoolName]);
 
   return (
     <ClassroomContext.Provider

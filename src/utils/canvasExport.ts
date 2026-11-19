@@ -1,5 +1,5 @@
 import { AppData, Student } from '../types';
-import { getSortedStudents, loadImage, prettyDate } from './helpers';
+import { getSortedStudents, loadImage, prettyDate, sessionParts } from './helpers';
 import { exportImageBlob } from './nativeFileExport';
 import { loadCapsPrint } from './capsPrint';
 import { ListColumns, DEFAULT_LIST_COLUMNS, OptionalCol } from './studentListColumns';
@@ -139,7 +139,7 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
   ctx.fillText(cap(data.schoolName, isCaps), centerX, y + 16);
   y += 32;
 
-  const classSub = data.className ? `Class: ${data.className}` : "";
+  const classSub = sessionParts(data).cls ? `Class: ${sessionParts(data).cls}` : "";
   const inchargeSub = data.inchargeName ? `Incharge: ${data.inchargeName}` : "";
   const line1 = [classSub, inchargeSub].filter(Boolean).join(" • ");
   if (line1) {
@@ -149,10 +149,10 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     y += 22;
   }
 
-  if (data.academicYear) {
+  if (sessionParts(data).year) {
     ctx.font = `600 12px ${F}`;
     ctx.fillStyle = "#4B5563";
-    ctx.fillText(cap(data.academicYear, isCaps), centerX, y + 8);
+    ctx.fillText(cap(sessionParts(data).year, isCaps), centerX, y + 8);
     y += 20;
   }
 
@@ -265,7 +265,7 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
   }
 
   const pad = 30;
-  const headerH = (data.academicYear && data.className) ? 170 : (data.academicYear || data.className ? 155 : 140);
+  const headerH = (sessionParts(data).year && data.className) ? 170 : (sessionParts(data).year || data.className ? 155 : 140);
   const headRowH = 44;
   const rowH = 44;
   const optDefs: { key: OptionalCol; label: string; w: number }[] = [
@@ -311,7 +311,7 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
   ctx.fillText(cap(data.schoolName, isCaps), centerX, y + 16);
   y += 32;
 
-  const classSub = data.className ? `Class: ${data.className}` : "";
+  const classSub = sessionParts(data).cls ? `Class: ${sessionParts(data).cls}` : "";
   const inchargeSub = data.inchargeName ? `Incharge: ${data.inchargeName}` : "";
   const line1 = [classSub, inchargeSub].filter(Boolean).join(" • ");
   if (line1) {
@@ -321,10 +321,10 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
     y += 22;
   }
 
-  if (data.academicYear) {
+  if (sessionParts(data).year) {
     ctx.font = `600 12px ${F}`;
     ctx.fillStyle = "#4B5563";
-    ctx.fillText(cap(data.academicYear, isCaps), centerX, y + 8);
+    ctx.fillText(cap(sessionParts(data).year, isCaps), centerX, y + 8);
     y += 20;
   }
 

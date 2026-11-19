@@ -76,6 +76,7 @@ export const SettingsView: React.FC = () => {
   const [inchargeName, setInchargeName] = useState(data.inchargeName);
   const [schoolName, setSchoolName] = useState(data.schoolName);
   const [academicYear, setAcademicYear] = useState(data.academicYear);
+  const [sessionDisplay, setSessionDisplay] = useState<'line' | 'withClass' | 'off'>(data.sessionDisplay || 'line');
   const [lastBackup, setLastBackup] = useState<number | null>(readLastBackup);
   const [autoBackupTimestamp] = useState<number | null>(() => getLastAutoBackupTimestamp());
   const [storageStatus, setStorageStatus] = useState<{
@@ -125,10 +126,11 @@ export const SettingsView: React.FC = () => {
     setInchargeName(data.inchargeName);
     setSchoolName(data.schoolName);
     setAcademicYear(data.academicYear);
+    setSessionDisplay(data.sessionDisplay || 'line');
     setEmisCode(data.emisCode || '');
     setSection(data.section || '');
     setPrintNote(data.printNote);
-  }, [data.className, data.inchargeName, data.schoolName, data.academicYear, data.printNote, data.emisCode, data.section]);
+  }, [data.className, data.inchargeName, data.schoolName, data.academicYear, data.sessionDisplay, data.printNote, data.emisCode, data.section]);
 
   const handleSaveInfo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +140,7 @@ export const SettingsView: React.FC = () => {
       inchargeName: inchargeName.trim(),
       schoolName: schoolName.trim() || "Your School Name",
       academicYear: academicYear.trim(),
+      sessionDisplay,
       emisCode: emisCode.trim(),
       section: section.trim(),
       printNote: printNote.trim()
@@ -476,6 +479,22 @@ export const SettingsView: React.FC = () => {
                 onChange={e => setAcademicYear(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
               />
+              <div className="mt-2 text-[10.5px] font-bold text-[#6E6656] dark:text-[#A79B85] uppercase">On prints, show the session</div>
+              <div className="mt-1 flex rounded-lg overflow-hidden border border-[#DAD3C3] dark:border-[#3A3527]">
+                {([['line', 'On its own line'], ['withClass', 'With the class'], ['off', 'Don\'t show']] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setSessionDisplay(v)}
+                    className={`flex-1 px-2 py-1.5 text-[11px] font-bold cursor-pointer ${sessionDisplay === v ? 'bg-[#B91C1C] text-white' : 'bg-[#F8F5EE] dark:bg-[#1F1C17] text-[#1C1917] dark:text-[#F5F5F4]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-1 text-[10.5px] text-[#6E6656] dark:text-[#A79B85]">
+                {sessionDisplay === 'withClass' ? `Prints show: Class: ${className.trim() || '10th Iqbal'} - ${academicYear.trim() || '2026-27'}` : sessionDisplay === 'off' ? 'The session is not printed.' : 'The session is printed under the class line.'}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">

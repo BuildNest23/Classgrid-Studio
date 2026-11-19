@@ -64,6 +64,8 @@ export interface AppData {
   emisCode: string; // optional
   section: string; // optional
   academicYear: string;
+  /** how the session (academic year) shows on prints: its own line, joined to the class name, or not at all */
+  sessionDisplay: 'line' | 'withClass' | 'off';
   className: string;
   inchargeName: string;
   schoolLogo: string;

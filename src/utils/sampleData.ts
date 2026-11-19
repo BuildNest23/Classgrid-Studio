@@ -270,6 +270,7 @@ export function generateSampleClassData(): AppData {
     emisCode: "",
     section: "A",
     academicYear: "2026-2027",
+    sessionDisplay: "line",
     className: "Grade 10-A",
     inchargeName: "Mr. Tariq Mehmood",
     schoolLogo: "",

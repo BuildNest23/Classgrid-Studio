@@ -1,5 +1,5 @@
 import { AppData, Assessment, Student } from '../types';
-import { esc, ordinal, PRINT_SIZES } from './helpers';
+import { esc, ordinal, PRINT_SIZES, sessionParts } from './helpers';
 import { WatermarkSettings, loadWatermark, watermarkActive, watermarkHTML } from './logoWatermark';
 
 export type ResultPrintStyle = 'a' | 'b';
@@ -93,9 +93,11 @@ function pctOf(n: number, max: number): number {
 
 function headerLine(d: AppData, hideClassIncharge = false): string {
   const parts: string[] = [];
-  if (!hideClassIncharge && d.className) parts.push(`Class: ${d.className}`);
+  const sp = sessionParts(d);
+  const joined = !hideClassIncharge && sp.cls && d.sessionDisplay === 'withClass';
+  if (!hideClassIncharge && sp.cls) parts.push(`Class: ${sp.cls}`);
   if (!hideClassIncharge && d.inchargeName) parts.push(`Incharge: ${d.inchargeName}`);
-  if (d.academicYear) parts.push(`Session ${d.academicYear}`);
+  if (sp.year && !joined) parts.push(`Session ${sp.year}`);
   return parts.join(' • ');
 }
 

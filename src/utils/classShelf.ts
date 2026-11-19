@@ -218,6 +218,7 @@ export function makeNewClassData(current: AppData, keepSchool: boolean): AppData
     schoolName: current.schoolName,
     emisCode: current.emisCode,
     academicYear: current.academicYear,
+    sessionDisplay: current.sessionDisplay,
     schoolLogo: current.schoolLogo,
     printSize: current.printSize,
     printNote: current.printNote,
