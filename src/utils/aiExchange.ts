@@ -221,10 +221,20 @@ function cleanAdm(v: unknown): string {
 }
 
 // Phone numbers: digits, +, spaces and dashes only, up to 20 characters
-function cleanPhone(v: unknown): string {
+export function cleanPhone(v: unknown): string {
   if (typeof v === 'number') v = String(v);
   if (typeof v !== 'string') return '';
-  return v.replace(/[^0-9+\-\s]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  // A student can have more than one number: they are kept and shown as "First / Second"
+  const parts: string[] = [];
+  v.split(/[\/,;|\n]+|\s+(?:and|or)\s+|\s&\s/i).forEach(part => {
+    const t = part.replace(/[^0-9+\-\s]/g, '').replace(/\s+/g, ' ').trim();
+    if (!t) return;
+    // two numbers written with only a space between them
+    if (t.replace(/\D/g, '').length >= 20) {
+      t.split(/\s+(?=\+?0?\d{2,}[\d-]{6,})/).forEach(x => { const y = x.trim(); if (y) parts.push(y); });
+    } else parts.push(t);
+  });
+  return parts.slice(0, 3).map(x => x.slice(0, 20)).join(' / ');
 }
 
 // Address: free text, up to 120 characters

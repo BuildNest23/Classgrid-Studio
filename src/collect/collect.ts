@@ -4,6 +4,7 @@ import { AppData, Student } from '../types';
 import { getSortedStudents } from '../utils/helpers';
 import { formatRoll, nextRollNumber } from '../utils/rollNumbers';
 import { newId } from '../utils/helpers';
+import { cleanPhone } from '../utils/aiExchange';
 
 export type FieldKey = 'rollNo' | 'name' | 'fatherName' | 'admissionNo' | 'phone' | 'address' | 'occupation' | 'notes';
 /** show = teacher can see it; edit = teacher can type/correct it; off = not put in the file at all */
@@ -243,7 +244,7 @@ export function planReturn(data: AppData, ret: ReturnFile): ReturnPlan {
       name: clean(a.name, 80),
       fatherName: clean(a.fatherName, 80),
       admissionNo: clean(a.admissionNo, 20).replace(/[^A-Za-z0-9-]/g, ''),
-      phone: clean(a.phone, 20).replace(/[^0-9+\-\s]/g, ''),
+      phone: cleanPhone(a.phone),
       address: clean(a.address, 120),
       occupation: clean(a.occupation, 80),
       notes: clean(a.notes, 200),
