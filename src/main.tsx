@@ -25,6 +25,17 @@ if (typeof window !== 'undefined' && Capacitor.isNativePlatform() && 'serviceWor
   navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
 }
 
+// No spell-check red underlines anywhere (tapping a suggestion made the keyboard close).
+if (typeof document !== 'undefined') {
+  document.addEventListener('focusin', e => {
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+      el.setAttribute('spellcheck', 'false');
+      el.setAttribute('autocorrect', 'off');
+    }
+  });
+}
+
 createRoot(document.getElementById('root')!).render(<App />);
 
 // Offline support (installable PWA). Only in production builds.

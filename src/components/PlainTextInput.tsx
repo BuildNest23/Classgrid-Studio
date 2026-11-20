@@ -27,6 +27,7 @@ export const PlainTextInput = React.forwardRef<HTMLTextAreaElement, Props>(
         inputMode={mode}
         autoComplete="off"
         autoCorrect="off"
+        spellCheck={false}
         data-form-type="other"
         data-lpignore="true"
         className={`${className} block resize-none overflow-x-auto overflow-y-hidden whitespace-nowrap`}

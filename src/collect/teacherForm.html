@@ -232,7 +232,7 @@ function drawOne(){
   cols.forEach(function(f){
     var tall=(f.k==='address'||f.k==='notes');
     h+='<div><label class="lbl" for="e_'+f.k+'">'+esc(f.l)+'</label>'
-     +'<textarea class="f'+(tall?' tall':'')+'" id="e_'+f.k+'" data-k="'+f.k+'" rows="'+(tall?2:1)+'" '+(tall?'':'wrap="off" ')+'autocomplete="off" autocorrect="off"'+(f.mode?' inputmode="'+f.mode+'"':'')+'></textarea>'
+     +'<textarea class="f'+(tall?' tall':'')+'" id="e_'+f.k+'" data-k="'+f.k+'" rows="'+(tall?2:1)+'" '+(tall?'':'wrap="off" ')+'autocomplete="off" autocorrect="off" spellcheck="false"'+(f.mode?' inputmode="'+f.mode+'"':'')+'></textarea>'
      +'<div class="err" id="x_'+f.k+'"></div></div>';
   });
   h+='</div></div>';

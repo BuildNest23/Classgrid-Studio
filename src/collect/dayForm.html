@@ -218,7 +218,7 @@ function drawRows(){
     h+='<div class="mrow" data-id="'+esc(s.id)+'"><span class="r">'+esc(String(s.rollNo||'').trim()||'—')+'</span>'
      +'<span class="m"><div class="n">'+esc(s.name||'(no name)')+'</div>'+(showFather&&s.fatherName?'<div class="s">'+esc(s.fatherName)+'</div>':'')+'<div class="e"></div></span>'
      +(MODE==='test'
-       ?'<textarea class="f" rows="1" wrap="off" autocomplete="off" autocorrect="off" inputmode="decimal" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea><button class="ab" type="button" data-ab="'+esc(s.id)+'">A</button>'
+       ?'<textarea class="f" rows="1" wrap="off" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="decimal" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea><button class="ab" type="button" data-ab="'+esc(s.id)+'">A</button>'
        :'<span class="pl">'+['P','A','L'].map(function(c){return '<button type="button" class="'+c+'" data-st="'+c+'" data-sid="'+esc(s.id)+'">'+c+'</button>'}).join('')+'</span>')
      +'</div>';
   });

@@ -212,7 +212,7 @@ function drawRows(){
     n++;
     h+='<div class="mrow'+(x.text?' t':'')+'" data-id="'+esc(s.id)+'"><span class="r">'+esc(String(s.rollNo||'').trim()||'—')+'</span>'
      +'<span class="m"><div class="n">'+esc(s.name||'(no name)')+'</div>'+(showFather&&s.fatherName?'<div class="s">'+esc(s.fatherName)+'</div>':'')+'<div class="e"></div></span>'
-     +'<textarea class="f'+(x.text?' rem':'')+'" rows="1" wrap="off" autocomplete="off" autocorrect="off" inputmode="'+(x.text?'text':'decimal')+'" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea>'
+     +'<textarea class="f'+(x.text?' rem':'')+'" rows="1" wrap="off" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="'+(x.text?'text':'decimal')+'" data-s="'+esc(s.id)+'" aria-label="Marks for '+esc(s.name)+'"></textarea>'
      +(x.text?'':'<button class="ab" type="button" data-ab="'+esc(s.id)+'">A</button>')+'</div>';
   });
   var rows=document.getElementById('rows');
