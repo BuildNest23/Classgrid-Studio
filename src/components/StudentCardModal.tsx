@@ -4,6 +4,7 @@ import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { Capacitor } from '@capacitor/core';
 import { triggerPrint } from '../utils/printEngine';
+import { confirmCardPrintSettings } from '../utils/printSettingsPrompt';
 import {
   CARD_W_PX,
   CARD_H_PX,
@@ -48,7 +49,7 @@ interface Props {
 export const StudentCardModal: React.FC<Props> = ({
   items, studentId, onChange, onClose, buildHTML, mult, printSize, forceOrientation, notice, label, receipt, options
 }) => {
-  const { toast } = useClassroom();
+  const { toast, uiConfirm, setActiveTab } = useClassroom();
   const list = items;
   const index = Math.max(0, list.findIndex(i => i.id === studentId));
   const item = list[index];
@@ -138,6 +139,7 @@ export const StudentCardModal: React.FC<Props> = ({
   };
 
   const handlePrint = async () => {
+    if (!receipt && !(await confirmCardPrintSettings(uiConfirm, printSize, forceOrientation))) { onClose(); setActiveTab('settings'); return; }
     const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };

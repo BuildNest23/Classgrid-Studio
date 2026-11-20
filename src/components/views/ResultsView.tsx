@@ -69,6 +69,7 @@ import {
   ResultsCollapseState,
 } from '../../utils/resultsCollapse';
 import { PlainTextInput } from '../PlainTextInput';
+import { confirmCardPrintSettings } from '../../utils/printSettingsPrompt';
 
 const RESULTS_AI_PLACEHOLDER =
   "Attach a file and tap Go, or tap Go with no file to write remarks from the marks.\n\nYou can add instructions, for example:\n• Write remarks in Urdu, short and kind\n• Be gentle with failed students\n• Mention weak subjects\n• In the file, marks are in the last 5 columns";
@@ -85,7 +86,8 @@ export const ResultsView: React.FC = () => {
     activeAssessmentId,
     setActiveAssessmentId,
     computeAssessmentRanking,
-    assessmentEntryCount
+    assessmentEntryCount,
+    setActiveTab
   } = useClassroom();
 
   const [newFormOpen, setNewFormOpen] = useState(false);
@@ -664,6 +666,7 @@ export const ResultsView: React.FC = () => {
 
   const handleCardsPdf = async () => {
     setCardChoice(false);
+    if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
     const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
@@ -673,6 +676,7 @@ export const ResultsView: React.FC = () => {
       toast("Add subjects first.", "error");
       return;
     }
+    if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
     const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
