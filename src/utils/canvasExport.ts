@@ -96,7 +96,9 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
   const rowH = 56;
   const dateH = 30;
 
-  const colWidths = [50, 80, 220, 220, 150, 150];
+  const colWidths = [44, 70, 200, 200, 150, 200, 260];
+  const bandH = 36;
+  const bandCount = (absentList.length ? 1 : 0) + (leaveList.length ? 1 : 0);
   const tableW = colWidths.reduce((a, b) => a + b, 0);
   const totalW = pad * 2 + tableW;
 
@@ -104,7 +106,7 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
   const present = total - absentList.length - leaveList.length;
 
   const dataRows = (isHoliday || noAbsentees) ? 0 : (absentList.length + leaveList.length);
-  const tableH = (isHoliday || noAbsentees) ? 60 : (headRowH + dataRows * rowH);
+  const tableH = (isHoliday || noAbsentees) ? 60 : (headRowH + dataRows * rowH + bandCount * bandH);
   const statsExtraH = !isHoliday ? 70 : 0;
   const totalH = pad * 2 + headerH + dateH + tableH + statsExtraH + 30;
 
@@ -178,7 +180,7 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     ctx.fillText("All students were present.", centerX, y + 30);
     y += tableH; // move below the message, so the summary line never overlaps it
   } else {
-    const headers = ["#", "Roll", "Name", "Father Name", "Phone", "Status"].map(h => cap(h, isCaps));
+    const headers = ["#", "Roll", "Name", "Father Name", "Father Occupation", "Phone", "Address"].map(h => cap(h, isCaps));
     ctx.fillStyle = "#F3F4F6";
     ctx.fillRect(pad, y, tableW, headRowH);
     ctx.strokeStyle = "#000000";
@@ -186,46 +188,56 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
 
     let x = pad;
     ctx.fillStyle = "#000000";
-    ctx.font = `700 16px ${F}`;
+    ctx.font = `700 15px ${F}`;
     headers.forEach((h, i) => {
       ctx.strokeRect(x, y, colWidths[i], headRowH);
-      ctx.fillText(h, x + colWidths[i] / 2, y + headRowH / 2);
+      drawFittedOrWrappedText(ctx, h, x, y, colWidths[i], headRowH, 15, F, 2);
       x += colWidths[i];
     });
     y += headRowH;
 
-    const allRows: Array<{ idx: number; s: Student; status: string }> = [];
-    absentList.forEach((s, i) => allRows.push({ idx: i + 1, s, status: "Absent" }));
-    leaveList.forEach((s, i) => allRows.push({ idx: absentList.length + i + 1, s, status: "Leave (Excused)" }));
-
-    allRows.forEach((row, idx) => {
-      x = pad;
-      ctx.fillStyle = idx % 2 === 0 ? "#ffffff" : "#F9FAFB";
-      ctx.fillRect(pad, y, tableW, rowH);
+    const drawSection = (title: string, color: string, list: Student[]) => {
+      if (!list.length) return;
+      ctx.fillStyle = color;
+      ctx.fillRect(pad, y, tableW, bandH);
       ctx.strokeStyle = "#000000";
-      ctx.fillStyle = "#000000";
-      ctx.font = `600 15px ${F}`;
-
-      const cells = [
-        String(row.idx),
-        row.s.rollNo || "—",
-        cap(row.s.name || "—", isCaps),
-        cap(row.s.fatherName || "—", isCaps),
-        row.s.phone || "—",
-        cap(row.status, isCaps)
-      ];
-
-      cells.forEach((val, i) => {
-        ctx.strokeRect(x, y, colWidths[i], rowH);
-        if (i === 2 || i === 3) {
-          drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 15, F, 2);
-        } else {
-          ctx.fillText(val, x + colWidths[i] / 2, y + rowH / 2);
-        }
-        x += colWidths[i];
+      ctx.strokeRect(pad, y, tableW, bandH);
+      ctx.fillStyle = "#111827";
+      ctx.font = `800 15px ${F}`;
+      ctx.textAlign = "left";
+      ctx.fillText(cap(`${title} (${list.length})`, isCaps), pad + 12, y + bandH / 2);
+      ctx.textAlign = "center";
+      y += bandH;
+      list.forEach((st, idx) => {
+        x = pad;
+        ctx.fillStyle = idx % 2 === 0 ? "#ffffff" : "#F9FAFB";
+        ctx.fillRect(pad, y, tableW, rowH);
+        ctx.strokeStyle = "#000000";
+        ctx.fillStyle = "#000000";
+        ctx.font = `600 15px ${F}`;
+        const cells = [
+          String(idx + 1),
+          st.rollNo || "—",
+          cap(st.name || "—", isCaps),
+          cap(st.fatherName || "—", isCaps),
+          cap(st.occupation || "—", isCaps),
+          st.phone || "—",
+          st.address || "—"
+        ];
+        cells.forEach((val, i) => {
+          ctx.strokeRect(x, y, colWidths[i], rowH);
+          if (i >= 2) {
+            drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 15, F, 2);
+          } else {
+            ctx.fillText(val, x + colWidths[i] / 2, y + rowH / 2);
+          }
+          x += colWidths[i];
+        });
+        y += rowH;
       });
-      y += rowH;
-    });
+    };
+    drawSection("Absent", "#FEE2E2", absentList);
+    drawSection("Leave (Excused)", "#FEF3C7", leaveList);
   }
 
   // Summary line below the table: also when nobody is absent, and also when nothing was marked for the day

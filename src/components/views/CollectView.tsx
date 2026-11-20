@@ -23,7 +23,7 @@ interface Loaded { id: string; fileName: string; ret: ReturnFile; plan: ReturnPl
 
 const MODE_LABEL: Record<FieldMode, string> = { off: 'Leave out', show: 'Show only', edit: 'Teacher fills in' };
 
-export const CollectView: React.FC = () => {
+export const CollectView: React.FC<{ limit?: 'marks' }> = ({ limit }) => {
   const { data, saveData, toast, buildPrintHeaderHTML, computeAssessmentRanking } = useClassroom();
   const [tab, setTab] = useState<Tab>('send');
 
@@ -33,7 +33,7 @@ export const CollectView: React.FC = () => {
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [allowAddPick, setAllowAddPick] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [what, setWhat] = useState<'students' | 'marks' | 'view' | 'daily'>('students');
+  const [what, setWhat] = useState<'students' | 'marks' | 'view' | 'daily'>(limit === 'marks' ? 'marks' : 'students');
   const [asmtId, setAsmtId] = useState('');
   const [subIds, setSubIds] = useState<string[]>([]);
   const [showFather, setShowFather] = useState(false);
@@ -280,7 +280,7 @@ export const CollectView: React.FC = () => {
         {tabBtn('requests', 'Requests', ListChecks)}
       </div>
 
-      {tab === 'send' && (
+      {tab === 'send' && !limit && (
         <div className="flex rounded-xl overflow-hidden border border-[#D6D3D1] dark:border-[#44403C]">
           {(['students', 'marks', 'daily', 'view'] as const).map(w => (
             <button key={w} type="button" onClick={() => { setWhat(w); setOnlyMissing(false); }}

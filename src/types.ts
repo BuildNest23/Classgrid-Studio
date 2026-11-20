@@ -82,9 +82,23 @@ export interface AppData {
   fundPayments: Record<string, Record<string, FundPayment>>; // fundId -> studentId -> payment
   dailyTests: Record<string, Record<string, number | 'A'>>; // dateKey (YYYY-MM-DD) -> studentId -> mark (0-10) or 'A'
   tools?: ClassTools;
+  /** stable id of this class across devices (assigned when a class file is first made) */
+  classId?: string;
+  /** management side: last class-file version sent to the teacher */
+  packageVersion?: number;
+  /** set on a teacher's phone: where this class came from and which file version it holds */
+  teacherLink?: TeacherLink;
 }
 
-export type ActiveTab = 'dashboard' | 'students' | 'attendance' | 'dailytest' | 'results' | 'funds' | 'view' | 'settings' | 'classes' | 'collect';
+export interface TeacherLink {
+  version: number;
+  from: string;
+  receivedAt: number;
+  /** last time the teacher exported an update file */
+  lastSentAt?: number;
+}
+
+export type ActiveTab = 'dashboard' | 'students' | 'attendance' | 'dailytest' | 'results' | 'funds' | 'view' | 'settings' | 'classes' | 'collect' | 'inbox' | 'board' | 'forms';
 
 export interface ToastItem {
   id: string;

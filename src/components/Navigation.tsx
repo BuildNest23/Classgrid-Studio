@@ -15,6 +15,8 @@ import {
   PenTool,
   Archive,
   Send,
+  Inbox,
+  LayoutGrid,
   SlidersHorizontal
 } from 'lucide-react';
 import { useClassgridPrefs } from '../utils/prefs';
@@ -36,7 +38,8 @@ export const Navigation: React.FC = () => {
 
   // Desktop navigation: filter by active tools and advanced status
   const desktopAllTabs = [
-    { id: 'dashboard' as ActiveTab, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'board' as ActiveTab, label: 'Classes', icon: LayoutGrid },
+    { id: 'dashboard' as ActiveTab, label: 'Class home', icon: LayoutDashboard },
     ...(tools.attendance ? [{ id: 'attendance' as ActiveTab, label: 'Attendance', icon: ClipboardCheck, hasBadge: showAttBadge }] : []),
     ...(tools.dailyTest ? [{ id: 'dailytest' as ActiveTab, label: 'Daily Test', icon: PenTool }] : []),
     ...(tools.results ? [{ id: 'results' as ActiveTab, label: 'Results', icon: BarChart3 }] : []),
@@ -44,13 +47,14 @@ export const Navigation: React.FC = () => {
     { id: 'students' as ActiveTab, label: 'Students', icon: Users },
     { id: 'view' as ActiveTab, label: 'Student list (Print)', icon: FileText },
     { id: 'collect' as ActiveTab, label: 'Send & Receive', icon: Send },
+    { id: 'inbox' as ActiveTab, label: 'Class files', icon: Inbox },
     ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Classes', icon: Archive }] : []),
     { id: 'settings' as ActiveTab, label: 'Class Detail and Backup', icon: Settings },
   ];
 
   // Mobile main bottom bar tabs
   const candidateMainTabs: { id: ActiveTab; label: string; icon: any; hasBadge?: boolean }[] = [
-    { id: 'dashboard' as ActiveTab, label: 'Home', icon: LayoutDashboard },
+    { id: 'board' as ActiveTab, label: 'Classes', icon: LayoutGrid },
     ...(tools.attendance ? [{ id: 'attendance' as ActiveTab, label: 'Attendance', icon: ClipboardCheck, hasBadge: showAttBadge }] : []),
     ...(tools.results ? [{ id: 'results' as ActiveTab, label: 'Results', icon: BarChart3 }] : []),
     ...(tools.funds ? [{ id: 'funds' as ActiveTab, label: 'Funds', icon: Wallet }] : []),
@@ -64,6 +68,12 @@ export const Navigation: React.FC = () => {
 
   // Mobile "More" sheet items
   const moreTabs = [
+    {
+      id: 'dashboard' as ActiveTab,
+      label: 'Class home',
+      icon: LayoutDashboard,
+      desc: 'Overview of the open class'
+    },
     ...(tools.dailyTest ? [{
       id: 'dailytest' as ActiveTab,
       label: 'Daily Test Register',
@@ -88,6 +98,12 @@ export const Navigation: React.FC = () => {
       icon: Send,
       desc: 'Send a form to a teacher · receive their entries'
     },
+    {
+      id: 'inbox' as ActiveTab,
+      label: 'Class files',
+      icon: Inbox,
+      desc: 'Send a class to its teacher · receive teacher updates'
+    },
     ...(prefs.showAdvanced ? [{
       id: 'classes' as ActiveTab,
       label: 'Classes',
@@ -108,8 +124,7 @@ export const Navigation: React.FC = () => {
     },
   ];
 
-  const isMoreActive =
-    !mainTabs.some(t => t.id === activeTab) && activeTab !== 'dashboard';
+  const isMoreActive = !mainTabs.some(t => t.id === activeTab);
 
   return (
     <>

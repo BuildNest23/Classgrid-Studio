@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ModeCard } from '../teacher/ModeCard';
 import { useClassroom } from '../../context/ClassroomContext';
 import { PrintSizeKey } from '../../types';
 import { PRINT_SIZES } from '../../utils/helpers';
@@ -393,6 +394,7 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <ModeCard />
       <HowItWorks
         id="settings"
         title="How settings work"

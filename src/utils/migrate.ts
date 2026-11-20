@@ -195,6 +195,16 @@ export function normalizeData(raw: unknown): AppData {
     funds,
     fundPayments: isObj(src.fundPayments) ? src.fundPayments : {},
     dailyTests,
-    tools
+    tools,
+    ...(typeof src.packageVersion === "number" && src.packageVersion > 0 ? { packageVersion: Math.floor(src.packageVersion) } : {}),
+    ...(typeof src.classId === "string" && src.classId ? { classId: src.classId } : {}),
+    ...(isObj(src.teacherLink) && typeof src.teacherLink.version === "number"
+      ? { teacherLink: {
+          version: src.teacherLink.version,
+          from: typeof src.teacherLink.from === "string" ? src.teacherLink.from : "",
+          receivedAt: Number(src.teacherLink.receivedAt) || 0,
+          ...(src.teacherLink.lastSentAt ? { lastSentAt: Number(src.teacherLink.lastSentAt) } : {}),
+        } }
+      : {}),
   };
 }
