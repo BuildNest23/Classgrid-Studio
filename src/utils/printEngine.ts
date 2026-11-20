@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { Printer } from '@capgo/capacitor-printer';
 import { loadCapsPrint } from './capsPrint';
 import { fitLongNames } from './fitText';
-import { isCardContent, printCardsAsImages } from './cardPrintNative';
+import { isCardContent, printCardsAsImages, renderCardPages, cardPagesBlocks, lastCardPrintError } from './cardPrintNative';
 
 /**
  * Extracts a human-friendly document title from HTML content for the Android print job / default PDF file name.
@@ -460,6 +460,7 @@ export async function triggerPrint(
     if (isCardContent(contentHTML)) {
       try {
         if (await printCardsAsImages(contentHTML, mult, docTitle)) return true;
+        try { window.alert('Card pictures could not be made (' + lastCardPrintError + '). Using the normal print instead.'); } catch { /* ignore */ }
       } catch { /* fall back to the normal way below */ }
     }
     try {
@@ -484,6 +485,15 @@ export async function triggerPrint(
   // Web Browser / Standard Desktop pipeline
   const printArea = document.getElementById('printArea');
   if (!printArea) return false;
+
+  // Result cards: print as pictures (browser print also lays full-page cards out at the wrong height)
+  if (isCardContent(contentHTML)) {
+    try {
+      const pages = await renderCardPages(contentHTML, mult);
+      if (pages) contentHTML = cardPagesBlocks(pages);
+      else { try { window.alert('Card pictures could not be made (' + lastCardPrintError + '). Using the normal print instead.'); } catch { /* ignore */ } }
+    } catch { /* fall back to the normal way */ }
+  }
 
   printArea.style.setProperty('--mult', String(mult));
   // Full-page sheets need the real paper height. 100vh is the phone screen height in a browser, not the page.

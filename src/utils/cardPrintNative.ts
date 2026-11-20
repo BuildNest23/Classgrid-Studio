@@ -18,15 +18,18 @@ async function waitForPage(doc: Document) {
   await nextFrame();
 }
 
+export let lastCardPrintError = '';
+
 export function isCardContent(html: string): boolean {
   return html.includes('ps2-card');
 }
 
-/** Prints every card in `contentHTML` as one picture per page. Returns false if anything fails (caller falls back). */
-export async function printCardsAsImages(contentHTML: string, mult: number, docTitle: string): Promise<boolean> {
+/** Draws every card in `contentHTML` as a picture. Returns null if anything fails (caller falls back). */
+export async function renderCardPages(contentHTML: string, mult: number): Promise<string[] | null> {
+  lastCardPrintError = '';
   const holder = new DOMParser().parseFromString(`<body>${contentHTML}</body>`, 'text/html');
   const cards = Array.from(holder.body.children).filter(el => el.classList.contains('print-sheet')) as HTMLElement[];
-  if (!cards.length) return false;
+  if (!cards.length) { lastCardPrintError = 'no card found'; return null; }
 
   const iframe = document.createElement('iframe');
   iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${CARD_W_PX}px;height:${CARD_H_PX}px;border:0;visibility:hidden;pointer-events:none;`;
@@ -34,7 +37,7 @@ export async function printCardsAsImages(contentHTML: string, mult: number, docT
   const pages: string[] = [];
   try {
     const doc = iframe.contentDocument;
-    if (!doc) return false;
+    if (!doc) { lastCardPrintError = 'no page'; return null; }
     for (const card of cards) {
       const html = await fitLongNames(card.outerHTML);
       doc.open();
@@ -47,19 +50,34 @@ export async function printCardsAsImages(contentHTML: string, mult: number, docT
       crop.width = Math.round(CROP_W * k);
       crop.height = Math.round(CROP_H * k);
       const cx = crop.getContext('2d');
-      if (!cx) return false;
+      if (!cx) { lastCardPrintError = 'no canvas'; return null; }
       cx.fillStyle = '#fff';
       cx.fillRect(0, 0, crop.width, crop.height);
       cx.drawImage(full, PAD * k, PAD * k, CROP_W * k, CROP_H * k, 0, 0, crop.width, crop.height);
       pages.push(crop.toDataURL('image/jpeg', 0.9));
       full.width = full.height = crop.width = crop.height = 0; // free memory
     }
-  } catch {
-    return false;
+  } catch (e: any) {
+    lastCardPrintError = 'draw: ' + (e?.message || e);
+    return null;
   } finally {
     document.body.removeChild(iframe);
   }
 
+  return pages;
+}
+
+/** The pictures as page blocks, sized by page width only (inline styles, so it works inside the web print area too). */
+export function cardPagesBlocks(pages: string[]): string {
+  return pages
+    .map((src, i) => `<div style="width:100%;text-align:center;${i === pages.length - 1 ? '' : 'page-break-after:always;break-after:page;'}"><img src="${src}" style="display:block;margin:0 auto;width:82%;height:auto"></div>`)
+    .join('');
+}
+
+/** Android app: prints every card as one picture per page. Returns false if anything fails (caller falls back). */
+export async function printCardsAsImages(contentHTML: string, mult: number, docTitle: string): Promise<boolean> {
+  const pages = await renderCardPages(contentHTML, mult);
+  if (!pages) return false;
   const imgs = pages.map((src, i) => `<div class="pg${i === pages.length - 1 ? ' last' : ''}"><img src="${src}"></div>`).join('');
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle.replace(/[<>&]/g, '')}</title><style>
 @page{size:A4 portrait;margin:0}
@@ -71,7 +89,8 @@ html,body{margin:0;padding:0;background:#fff}
   try {
     await Printer.printHtml({ name: docTitle, html });
     return true;
-  } catch {
+  } catch (e: any) {
+    lastCardPrintError = 'print: ' + (e?.message || e);
     return false;
   }
 }
