@@ -476,6 +476,8 @@ export async function triggerPrint(
   if (!printArea) return false;
 
   printArea.style.setProperty('--mult', String(mult));
+  // Full-page sheets need the real paper height. 100vh is the phone screen height in a browser, not the page.
+  printArea.style.setProperty('--page-h', finalOrientation === 'landscape' ? '190mm' : '273mm');
   printArea.innerHTML = contentHTML;
   printArea.style.display = 'block';
   if (isCaps) {
