@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { Student } from '../../types';
-import { newId, getSortedStudents } from '../../utils/helpers';
+import { newId, getSortedStudents, fileTitle } from '../../utils/helpers';
 import { RollConflictModal } from '../RollConflictModal';
 import { RollMode, changeRoll, findRollOwner, formatRoll, nextRollNumber, renumberAll, isBlankRoll } from '../../utils/rollNumbers';
 import { HowItWorks } from '../HowItWorks';
@@ -321,7 +321,7 @@ export const StudentsView: React.FC = () => {
   // Edit with AI: one export / one import. The AI can fix names and add new students.
   const handleExportForAi = async () => {
     const blob = new Blob([JSON.stringify(buildStudentsAiFile(data), null, 2)], { type: "application/json" });
-    const ok = await exportFileBlob(blob, "students-for-ai.json", { title: "Students for AI" });
+    const ok = await exportFileBlob(blob, `${fileTitle(data.className, "Students for AI")}.json`, { title: "Students for AI" });
     if (!ok) toast("Could not export the file.", "error");
   };
 

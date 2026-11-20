@@ -17,6 +17,7 @@ import {
   planResultPrintLayout,
   gridNavKeyDown,
   gridTabIndex,
+  fileTitle,
 } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
 import { triggerPrint } from '../../utils/printEngine';
@@ -667,7 +668,7 @@ export const ResultsView: React.FC = () => {
   const handleCardsPdf = async () => {
     setCardChoice(false);
     if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
-    const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Result Cards`);
+    const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Report Cards`);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -677,7 +678,7 @@ export const ResultsView: React.FC = () => {
       return;
     }
     if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
-    const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Blank Result Card`);
+    const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Blank Report Card`);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -718,7 +719,7 @@ export const ResultsView: React.FC = () => {
     const file = buildResultsAiFile(data, activeAsmt, ranked);
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
     const safe = activeAsmt.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 40) || "results";
-    const ok = await exportFileBlob(blob, `results-for-ai-${safe}.json`, { title: "Results for AI" });
+    const ok = await exportFileBlob(blob, `${fileTitle(data.className, activeAsmt.name, "Results for AI")}.json`, { title: "Results for AI" });
     if (!ok) toast("Could not export the file.", "error");
   };
 

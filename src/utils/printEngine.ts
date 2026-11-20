@@ -8,7 +8,7 @@ import { fitLongNames } from './fitText';
 /**
  * Extracts a human-friendly document title from HTML content for the Android print job / default PDF file name.
  */
-function extractDocumentTitle(contentHTML: string): string {
+export function extractDocumentTitle(contentHTML: string): string {
   try {
     // Prefer the real sheet title; the generic header emits "Class: … • Incharge: …" (.print-sub)
     // BEFORE .sheet-title, so a single alternation picked the subtitle as the job / PDF name.
@@ -525,4 +525,12 @@ export function cleanupPrintArea() {
     printArea.style.display = 'none';
     printArea.classList.remove('caps-on');
   }
+}
+
+/** Print / PDF name with the class in front, e.g. "8th Iqbal - Class Result Sheet". */
+export function classPrintTitle(className: string | undefined, contentHTML: string): string {
+  const t = extractDocumentTitle(contentHTML);
+  const c = String(className || '').trim();
+  if (!c || t.toLowerCase().includes(c.toLowerCase())) return t;
+  return `${c} - ${t}`;
 }

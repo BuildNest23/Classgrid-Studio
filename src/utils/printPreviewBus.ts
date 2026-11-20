@@ -1,4 +1,4 @@
-import { triggerPrint } from './printEngine';
+import { triggerPrint, classPrintTitle } from './printEngine';
 
 /** Options of the compact (one-line names, small boxes) version of a sheet, set in the print preview. */
 export interface CompactOptions {
@@ -30,5 +30,5 @@ export async function previewPrint(req: PrintRequest, fallback: { printSize: any
     listener(req);
     return true;
   }
-  return triggerPrint(req.html, req.orientation, fallback.printSize, fallback.forceOrientation, !!req.pageNumbers);
+  return triggerPrint(req.html, req.orientation, fallback.printSize, fallback.forceOrientation, !!req.pageNumbers, classPrintTitle((fallback as any).className, req.html));
 }

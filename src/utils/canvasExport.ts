@@ -1,5 +1,5 @@
 import { AppData, Student } from '../types';
-import { getSortedStudents, loadImage, prettyDate, sessionParts } from './helpers';
+import { getSortedStudents, loadImage, prettyDate, sessionParts, fileTitle } from './helpers';
 import { exportImageBlob } from './nativeFileExport';
 import { loadCapsPrint } from './capsPrint';
 import { ListColumns, DEFAULT_LIST_COLUMNS, OptionalCol } from './studentListColumns';
@@ -255,8 +255,8 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
         return;
       }
       const safeDate = dateKey.replace(/[^\d-]/g, "");
-      const filename = `absentee-slip-${safeDate}.png`;
-      const title = `Absentee Slip - ${prettyDate(dateKey)}`;
+      const filename = `${fileTitle(data.className, 'Absentee Slip', safeDate)}.png`;
+      const title = fileTitle(data.className, 'Absentee Slip', prettyDate(dateKey));
       const ok = await exportImageBlob(blob, filename, title);
       resolve(ok);
     }, "image/png");
@@ -425,8 +425,8 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
         return;
       }
       const stamp = new Date().toISOString().slice(0, 10);
-      const filename = `students-${stamp}.png`;
-      const title = `Student List - ${stamp}`;
+      const filename = `${fileTitle(data.className, 'Student List', stamp)}.png`;
+      const title = fileTitle(data.className, 'Student List', stamp);
       const ok = await exportImageBlob(blob, filename, title);
       resolve(ok);
     }, "image/png");

@@ -49,7 +49,7 @@ interface Props {
 export const StudentCardModal: React.FC<Props> = ({
   items, studentId, onChange, onClose, buildHTML, mult, printSize, forceOrientation, notice, label, receipt, options
 }) => {
-  const { toast, uiConfirm, setActiveTab } = useClassroom();
+  const { data: classData, toast, uiConfirm, setActiveTab } = useClassroom();
   const list = items;
   const index = Math.max(0, list.findIndex(i => i.id === studentId));
   const item = list[index];
@@ -116,7 +116,7 @@ export const StudentCardModal: React.FC<Props> = ({
 
   if (!item) return null;
 
-  const baseName = safeFileName(`${label} - ${item.name || 'Student'}${item.rollNo ? ' - Roll ' + item.rollNo : ''}`);
+  const baseName = safeFileName(`${classData.className ? classData.className + ' - ' : ''}${label} - ${item.name || 'Student'}${item.rollNo ? ' - Roll ' + item.rollNo : ''}`);
 
   const getCanvas = async () => {
     const doc = iframeRef.current?.contentDocument;

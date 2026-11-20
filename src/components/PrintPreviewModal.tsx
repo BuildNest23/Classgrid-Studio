@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { PRINT_SIZES } from '../utils/helpers';
-import { triggerPrint, buildStandalonePrintHTML } from '../utils/printEngine';
+import { triggerPrint, buildStandalonePrintHTML, classPrintTitle } from '../utils/printEngine';
 import { fitLongNames } from '../utils/fitText';
 import { registerPrintPreview, PrintRequest } from '../utils/printPreviewBus';
 import { FitMeasurer, autoFit, pageGeometry, SIZE_ORDER, Orientation } from '../utils/printFit';
@@ -170,7 +170,7 @@ export const PrintPreviewModal: React.FC = () => {
   const handlePrint = async () => {
     const html = content || req.html;
     close();
-    const ok = await triggerPrint(html, orientation, size, orientation, pageNumbers);
+    const ok = await triggerPrint(html, orientation, size, orientation, pageNumbers, classPrintTitle(data.className, html));
     if (!ok) toast('Could not open the print dialog. Try again.', 'error');
   };
 

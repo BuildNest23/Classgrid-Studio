@@ -299,3 +299,12 @@ export function gridNavKeyDown(
 export function gridTabIndex(row: number, col: number, rows: number): number {
   return Math.min(32000, col * rows + row + 1);
 }
+
+/** A readable file / print name from parts, e.g. fileTitle('8th Iqbal', 'Student List') -> "8th Iqbal - Student List". */
+export function fileTitle(...parts: Array<string | undefined | null>): string {
+  return parts
+    .map(p => String(p ?? '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' - ')
+    .slice(0, 100);
+}

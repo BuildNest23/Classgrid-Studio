@@ -68,7 +68,7 @@ export async function exportReportCardsZip(
   }
 
   const zip = createZip(files);
-  const zipName = safeFileName(`${ctx.data.className || 'Class'} - ${ctx.asmt.name} - Result Cards`) + '.zip';
-  const ok = await exportFileBlob(zip, zipName, { title: `${ctx.asmt.name} result cards`, dialogTitle: 'Save or share the result cards' });
+  const zipName = safeFileName(`${ctx.data.className || 'Class'} - ${ctx.asmt.name} - Report Cards`) + '.zip';
+  const ok = await exportFileBlob(zip, zipName, { title: `${ctx.asmt.name} report cards`, dialogTitle: 'Save or share the report cards' });
   return { ok, count: files.length };
 }

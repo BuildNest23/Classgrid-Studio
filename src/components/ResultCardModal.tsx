@@ -63,7 +63,7 @@ export const ResultCardModal: React.FC<Props> = ({ ctx, studentId, onChange, onC
       printSize={ctx.data.printSize}
       forceOrientation={ctx.data.forceOrientation}
       notice={notice}
-      label="Result"
+      label="Report Card"
       options={options}
     />
   );
