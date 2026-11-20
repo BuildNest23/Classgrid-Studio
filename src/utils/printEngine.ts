@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { Printer } from '@capgo/capacitor-printer';
 import { loadCapsPrint } from './capsPrint';
 import { fitLongNames } from './fitText';
+import { isCardContent, printCardsAsImages } from './cardPrintNative';
 
 /**
  * Extracts a human-friendly document title from HTML content for the Android print job / default PDF file name.
@@ -455,6 +456,12 @@ export async function triggerPrint(
 
   // Native mobile runtime: Use Capacitor native print manager
   if (Capacitor.isNativePlatform()) {
+    // Result cards: print as pictures (the Android print window sizes full-page layouts wrongly)
+    if (isCardContent(contentHTML)) {
+      try {
+        if (await printCardsAsImages(contentHTML, mult, docTitle)) return true;
+      } catch { /* fall back to the normal way below */ }
+    }
     try {
       const fullHtml = buildStandalonePrintHTML(
         contentHTML,
