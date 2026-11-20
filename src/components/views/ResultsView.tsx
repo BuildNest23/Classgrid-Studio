@@ -1811,14 +1811,14 @@ const EntryShell: React.FC<{
 /** One marks box (with Absent button). Shared by both popups. */
 const MarkBox: React.FC<{
   text: string;
-  max: number;
+  max?: number;
   onText: (t: string) => void;
   onEnter: () => void;
   inputRef: (el: HTMLTextAreaElement | null) => void;
   autoFocus?: boolean;
   hideMsg?: boolean;
 }> = ({ text, max, onText, onEnter, inputRef, autoFocus, hideMsg }) => {
-  const st = fieldState(text, max);
+  const st = fieldState(text, max as number);
   const absent = /^a$/i.test(text.trim());
   return (
     <div className="flex items-center gap-2">

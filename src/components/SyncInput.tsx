@@ -32,15 +32,15 @@ export const SyncInput: React.FC<Props> = ({ value, onCommit, onLive, onFocus, o
     <Field
       {...rest}
       value={text}
-      onFocus={e => {
+      onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
         focused.current = true;
         onFocus?.(e);
       }}
-      onChange={e => {
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
         setText(e.target.value);
         onLive?.(e.target.value);
       }}
-      onBlur={e => {
+      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
         focused.current = false;
         onCommit(e.target.value);
         setTick(t => t + 1); // force re-sync even if the committed value was rejected
