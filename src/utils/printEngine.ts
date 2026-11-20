@@ -439,7 +439,9 @@ export async function triggerPrint(
   orientation: 'portrait' | 'landscape' = 'portrait',
   printSize: PrintSizeKey = 'm',
   forceOrientation: string = '',
-  pageNumbers: boolean = false
+  pageNumbers: boolean = false,
+  /** File name shown when saving as PDF, e.g. "8th Iqbal - First Term - Result Cards" */
+  title?: string
 ): Promise<boolean> {
   const mult = (PRINT_SIZES[printSize] || PRINT_SIZES.m).mult;
   const finalOrientation = (forceOrientation || orientation || 'portrait') as 'portrait' | 'landscape';
@@ -447,7 +449,7 @@ export async function triggerPrint(
   // Run long names auto-fit measurement pre-pass so names shrink instead of overflowing columns
   contentHTML = await fitLongNames(contentHTML);
 
-  const docTitle = extractDocumentTitle(contentHTML);
+  const docTitle = (title || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();
 
   // Native mobile runtime: Use Capacitor native print manager
@@ -474,6 +476,13 @@ export async function triggerPrint(
   // Web Browser / Standard Desktop pipeline
   const printArea = document.getElementById('printArea');
   if (!printArea) return false;
+
+  // The browser names the saved PDF after the page title
+  const oldTitle = document.title;
+  document.title = docTitle;
+  const restoreTitle = () => { document.title = oldTitle; window.removeEventListener('afterprint', restoreTitle); };
+  window.addEventListener('afterprint', restoreTitle);
+  setTimeout(restoreTitle, 120000);
 
   printArea.style.setProperty('--mult', String(mult));
   printArea.innerHTML = contentHTML;

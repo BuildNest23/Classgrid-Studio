@@ -140,7 +140,7 @@ export const StudentCardModal: React.FC<Props> = ({
 
   const handlePrint = async () => {
     if (!receipt && !(await confirmCardPrintSettings(uiConfirm, printSize, forceOrientation))) { onClose(); setActiveTab('settings'); return; }
-    const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false);
+    const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false, baseName);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

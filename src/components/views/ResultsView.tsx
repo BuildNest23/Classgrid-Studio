@@ -667,7 +667,7 @@ export const ResultsView: React.FC = () => {
   const handleCardsPdf = async () => {
     setCardChoice(false);
     if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
-    const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
+    const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Result Cards`);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -677,7 +677,7 @@ export const ResultsView: React.FC = () => {
       return;
     }
     if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
-    const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false);
+    const ok = await triggerPrint(buildBlankReportCardHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Blank Result Card`);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
