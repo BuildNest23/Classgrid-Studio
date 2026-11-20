@@ -247,8 +247,8 @@ const BASE_PRINT_CSS = `
     flex-direction: column;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
-  .print-sheet.ps2-port { min-height: calc(100vh - 2mm); }
-  .print-sheet.ps2-land { min-height: calc(100vh - 2mm); }
+  .print-sheet.ps2-port { min-height: calc(var(--page-h, 100vh) - 2mm); }
+  .print-sheet.ps2-land { min-height: calc(var(--page-h, 100vh) - 2mm); }
   .print-sheet.ps2 .ps2-spacer { flex: 1 1 auto; min-height: 6mm; }
   .ps2 .ps2-rows { flex: 100 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .ps2 .ps2-rows > table { flex: 1 1 auto; }
@@ -304,7 +304,7 @@ const BASE_PRINT_CSS = `
   .ps2-a .ps2-foot .ps2-foot-chip { margin-left: auto; background: #ffc72c; color: #0b5d45; padding: 1.8mm 4mm; }
 
   /* Report Card A */
-  .print-sheet.ps2-card { height: calc(100vh - 2mm); min-height: 0; padding: 1.3mm; }
+  .print-sheet.ps2-card { height: calc(var(--page-h, 100vh) - 2mm); min-height: 0; padding: 1.3mm; }
   .print-sheet.ps2-card .ps2-cardframe { flex: 1 1 auto; display: flex; flex-direction: column; padding: 5mm 6mm 4mm; }
   .print-sheet.ps2-a.ps2-card { border: 0.7mm solid #0b5d45; border-radius: 4mm; }
   .ps2-a .ps2-cardframe { border: 0.35mm solid #ffc72c; border-radius: 3mm; }
@@ -412,6 +412,9 @@ export function buildStandalonePrintHTML(
       margin: ${pageMargin};
     }
     ${pageNumCSS}
+    /* Real printable height. 100vh is not the page height in a print WebView (cards came out half a page tall).
+       Portrait uses Letter (the Android print dialog's default) so it fits both Letter and A4. */
+    :root { --page-h: ${orientation === 'landscape' ? '190mm' : '255mm'}; }
     ${BASE_PRINT_CSS}
     ${dynamicCss}
     ${imageCss}
