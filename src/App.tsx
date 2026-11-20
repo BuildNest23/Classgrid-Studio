@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ClassroomProvider, useClassroom } from './context/ClassroomContext';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
@@ -21,6 +21,8 @@ import { BoardView } from './components/views/BoardView';
 import { OpenClassBar } from './components/OpenClassBar';
 import { ClassFilesView } from './components/views/ClassFilesView';
 import { CollectView } from './components/views/CollectView';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { cleanupPrintArea } from './utils/printEngine';
 import { useAppMode } from './utils/useAppMode';
 import { ModeChooser } from './components/teacher/ModeChooser';
@@ -61,6 +63,50 @@ const MainContent: React.FC = () => {
     };
     window.addEventListener('afterprint', handleAfterPrint);
     return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
+
+  // Android back button: close an open pop-up first, then go back through the screens, then leave the app
+  const tabStack = useRef<string[]>([]);
+  const goingBack = useRef(false);
+  const tabRef = useRef(activeTab);
+  const modeRef = useRef(mode);
+  tabRef.current = activeTab;
+  modeRef.current = mode;
+  useEffect(() => {
+    if (goingBack.current) { goingBack.current = false; return; }
+    const st = tabStack.current;
+    if (st[st.length - 1] !== activeTab) st.push(activeTab);
+    if (st.length > 30) st.shift();
+  }, [activeTab]);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let sub: { remove: () => void } | null = null;
+    let gone = false;
+    CapApp.addListener('backButton', () => {
+      // 1) a pop-up / sheet is open: tap its backdrop
+      const overlays = Array.from(document.querySelectorAll<HTMLElement>('div.fixed.inset-0'))
+        .filter(el => el.id !== 'top-status-strip' && !el.className.includes('pointer-events-none'));
+      const top = overlays[overlays.length - 1];
+      if (top) {
+        top.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        top.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        return;
+      }
+      // 2) go back to the previous screen
+      const home = modeRef.current === 'teacher' ? 'dashboard' : 'board';
+      const st = tabStack.current;
+      if (st.length > 1) {
+        st.pop();
+        goingBack.current = true;
+        setActiveTab(st[st.length - 1] as any);
+        return;
+      }
+      if (tabRef.current !== home) { setActiveTab(home as any); return; }
+      // 3) already at the start screen: leave the app
+      CapApp.exitApp();
+    }).then(h => { if (gone) h.remove(); else sub = h; }).catch(() => {});
+    return () => { gone = true; sub?.remove(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Management starts every new session on the Classes board
