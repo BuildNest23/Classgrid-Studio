@@ -58,12 +58,12 @@ const RED = 'FF991B1B', LIGHT = 'FFFEF2F2', GRID = 'FFD6D3D1';
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="6">
-<font><sz val="11"/><name val="Calibri"/><family val="2"/></font>
-<font><b/><sz val="16"/><color rgb="${RED}"/><name val="Calibri"/><family val="2"/></font>
-<font><i/><sz val="10"/><color rgb="FF57534E"/><name val="Calibri"/><family val="2"/></font>
-<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font>
-<font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font>
-<font><b/><sz val="12"/><color rgb="FF44403C"/><name val="Calibri"/><family val="2"/></font>
+<font><sz val="13"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="22"/><color rgb="${RED}"/><name val="Calibri"/><family val="2"/></font>
+<font><i/><sz val="12"/><color rgb="FF57534E"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="13"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="13"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="15"/><color rgb="FF292524"/><name val="Calibri"/><family val="2"/></font>
 </fonts>
 <fills count="4">
 <fill><patternFill patternType="none"/></fill>
@@ -79,10 +79,10 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cellXfs count="8">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"><alignment vertical="center"/></xf>
-<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
-<xf numFmtId="49" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="49" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
 <xf numFmtId="49" fontId="4" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>
 <xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
 </cellXfs>
@@ -116,7 +116,18 @@ function sheetXml(sh: Sheet): string {
     ? `<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="${sh.freezeRow}" topLeftCell="A${sh.freezeRow + 1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${sh.freezeRow + 1}" sqref="A${sh.freezeRow + 1}"/></sheetView></sheetViews>`
     : `<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>`;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr>${sh.tab ? `<tabColor rgb="${sh.tab}"/>` : ''}<pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="${dim}"/>${pane}<sheetFormatPr defaultRowHeight="18"/><cols>${cols}</cols><sheetData>${rows}</sheetData>${sh.filter ? `<autoFilter ref="${sh.filter}"/>` : ''}${sh.merges.length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr>${sh.tab ? `<tabColor rgb="${sh.tab}"/>` : ''}<pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="${dim}"/>${pane}<sheetFormatPr defaultRowHeight="26"/><cols>${cols}</cols><sheetData>${rows}</sheetData>${sh.filter ? `<autoFilter ref="${sh.filter}"/>` : ''}${sh.merges.length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+
+/** Column widths that fit the longest text in each column (no wrapping, rows keep one height). */
+function fitWidths(body: string[][], head: string[], n: number, hidden: number[]): { w: number; hidden?: boolean }[] {
+  const out: { w: number; hidden?: boolean }[] = [];
+  for (let c = 0; c < n; c++) {
+    let len = (head[c] || '').length * 1.15 + 3;   // bold header + filter arrow
+    body.forEach(r => { len = Math.max(len, (r[c] || '').length); });
+    out.push({ w: Math.min(120, Math.max(10, Math.round(len * 1.25 + 4))), hidden: hidden.includes(c) || undefined });
+  }
+  return out;
 }
 
 export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string): Sheet[] {
@@ -127,18 +138,18 @@ export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string):
   const sr = built.summary.rows;
   const sumRows: Sheet['rows'] = sr.map((r, i) => {
     const row = pad(r, 5);
-    if (i === 0) return { cells: row.map((v, c) => ({ v, s: c === 0 ? ST.title : ST.normal })), ht: 30 };
+    if (i === 0) return { cells: row.map((v, c) => ({ v, s: c === 0 ? ST.title : ST.normal })), ht: 36 };
     if (i === 1) return { cells: row.map((v, c) => ({ v, s: c === 0 ? ST.note : ST.normal })) };
-    if (i === 2 || i === 3) return { cells: row.map((v, c) => ({ v, s: c === 0 ? ST.note : ST.normal })), ht: 30 };
+    if (i === 2 || i === 3) return { cells: row.map((v, c) => ({ v, s: c === 0 ? ST.note : ST.normal })), ht: 22 };
     if (i === 4) return { cells: row.map(v => ({ v, s: ST.normal })) };
-    if (i === 5) return { cells: row.map(v => ({ v, s: ST.head })), ht: 24 };
+    if (i === 5) return { cells: row.map(v => ({ v, s: ST.head })), ht: 30 };
     const last = i === sr.length - 1;
-    return { cells: row.map(v => ({ v, s: last ? ST.total : (i % 2 === 0 ? ST.band : ST.cell) })) };
+    return { cells: row.map(v => ({ v, s: last ? ST.total : (i % 2 === 0 ? ST.band : ST.cell) })), ht: 26 };
   });
   sheets.push({
     name: built.summary.name, rows: sumRows,
-    widths: [{ w: 24 }, { w: 24 }, { w: 24 }, { w: 11 }, { w: 12, hidden: true }],
-    merges: ['A1:E1', 'A2:E2', 'A3:E3', 'A4:E4'], filter: undefined, tab: 'FF44403C',
+    widths: fitWidths(sr.slice(5), sr[5], 5, [4]),
+    merges: [], filter: undefined, tab: 'FF44403C',
   });
 
   // ---- one sheet per class
@@ -146,16 +157,17 @@ export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string):
     const n = c.sheet.rows.length; // header + students
     const blank = (cell: Cell): Cell[] => [cell, ...Array.from({ length: 7 }, () => ({ v: '', s: ST.normal }))];
     const rows: Sheet['rows'] = [
-      { cells: blank({ v: `${c.className}  -  ${schoolName}`, s: ST.title }), ht: 30 },
-      { cells: blank({ v: `${c.incharge ? 'Class incharge: ' + c.incharge + '    |    ' : ''}Students: ${c.students}    |    Correct any detail, add new students at the bottom, or delete a row to remove a student. Do not change the hidden ID column.`, s: ST.note }), ht: 32 },
+      { cells: blank({ v: `${c.className}  -  ${schoolName}`, s: ST.title }), ht: 36 },
+      { cells: blank({ v: `${c.incharge ? 'Class incharge: ' + c.incharge + '      |      ' : ''}Students: ${c.students}`, s: ST.sub }), ht: 26 },
+      { cells: blank({ v: 'Correct any detail, add new students at the bottom, or delete a row to remove a student. Do not change the hidden ID column.', s: ST.note }), ht: 22 },
       { cells: blank({ v: '', s: ST.normal }) },
-      { cells: c.sheet.rows[0].map(v => ({ v, s: ST.head })), ht: 26 },
+      { cells: c.sheet.rows[0].map(v => ({ v, s: ST.head })), ht: 30 },
     ];
-    for (let i = 1; i < n; i++) rows.push({ cells: pad(c.sheet.rows[i], 8).map(v => ({ v, s: i % 2 === 0 ? ST.band : ST.cell })), ht: 20 });
+    for (let i = 1; i < n; i++) rows.push({ cells: pad(c.sheet.rows[i], 8).map(v => ({ v, s: i % 2 === 0 ? ST.band : ST.cell })), ht: 26 });
     sheets.push({
       name: c.sheet.name, rows,
-      widths: [{ w: 9 }, { w: 28 }, { w: 28 }, { w: 15 }, { w: 26 }, { w: 36 }, { w: 20 }, { w: 14, hidden: true }],
-      merges: ['A1:H1', 'A2:H2'], freezeRow: 4, filter: `A4:H${Math.max(4, 3 + n)}`, tab: RED,
+      widths: fitWidths(c.sheet.rows.slice(1), c.sheet.rows[0], 8, [7]),
+      merges: [], freezeRow: 5, filter: `A5:H${Math.max(5, 4 + n)}`, tab: RED,
     });
   });
   return sheets;
