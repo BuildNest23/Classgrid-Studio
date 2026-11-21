@@ -38,7 +38,7 @@ export const SchoolExcelCard: React.FC = () => {
       const classes = await gather();
       if (!classes.length) { setMsg('There are no classes to export.'); return; }
       const built = buildSchoolSheets(classes, data.schoolName, prettyDate(todayKey()));
-      const blob = await buildSchoolWorkbookBlob(built);
+      const blob = await buildSchoolWorkbookBlob(built, data.schoolName);
       const name = `${fileTitle(data.schoolName, 'All Students', todayKey())}.xlsx`;
       const ok = await exportFileBlob(blob, name, { title: `${data.schoolName} - All Students`, dialogTitle: 'Send to principal', preferShareOnWeb: true });
       if (ok) toast(`Excel ready: ${classes.length} class${classes.length === 1 ? '' : 'es'}.`, 'success');

@@ -1,9 +1,20 @@
 // Thin Excel (SheetJS) layer for the school workbook. All the logic lives in schoolSheet.ts.
 import { BuiltSchool, SheetData } from './schoolSheet';
+import { writeStyledXlsx } from './xlsxWriter';
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-export async function buildSchoolWorkbookBlob(built: BuiltSchool): Promise<Blob> {
+/** Formatted workbook (coloured headers, striped rows, frozen header). Falls back to a plain one if anything goes wrong. */
+export async function buildSchoolWorkbookBlob(built: BuiltSchool, schoolName = ''): Promise<Blob> {
+  try {
+    const bytes = writeStyledXlsx(built, schoolName);
+    return new Blob([bytes], { type: XLSX_MIME });
+  } catch {
+    return buildPlainWorkbookBlob(built);
+  }
+}
+
+async function buildPlainWorkbookBlob(built: BuiltSchool): Promise<Blob> {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
 

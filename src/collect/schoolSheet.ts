@@ -28,7 +28,7 @@ export function safeSheetName(name: string, used: Set<string>): string {
 
 export interface BuiltSchool {
   summary: SheetData;
-  classes: { sheet: SheetData; classKey: string; students: number }[];
+  classes: { sheet: SheetData; classKey: string; students: number; className: string; incharge: string }[];
 }
 
 export function buildSchoolSheets(classes: SchoolClass[], schoolName: string, dateLabel: string): BuiltSchool {
@@ -49,7 +49,7 @@ export function buildSchoolSheets(classes: SchoolClass[], schoolName: string, da
     list.forEach(st => rows.push([
       s(st.rollNo), s(st.name), s(st.fatherName), s(st.admissionNo), s(st.phone), s(st.address), s(st.occupation), st.id,
     ]));
-    out.push({ sheet: { name, rows }, classKey: c.key, students: list.length });
+    out.push({ sheet: { name, rows }, classKey: c.key, students: list.length, className: c.name, incharge: c.data.inchargeName || '' });
     summaryRows.push([name, c.name, c.data.inchargeName || '', String(list.length), c.key]);
   });
   const total = out.reduce((a, b) => a + b.students, 0);
