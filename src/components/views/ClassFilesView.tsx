@@ -7,6 +7,7 @@ import { listShelf, loadFromShelf, saveToShelf, getActiveShelfId } from '../../u
 import { AppData } from '../../types';
 import { addSnapshot } from '../../utils/history';
 import { HistoryCard } from '../HistoryCard';
+import { SchoolExcelCard } from '../SchoolExcelCard';
 import { Send, Inbox } from 'lucide-react';
 
 const card = 'rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5';
@@ -151,6 +152,7 @@ export const ClassFilesView: React.FC = () => {
           )}
         </div>
       )}
+      <SchoolExcelCard />
       <HistoryCard refreshKey={hk} />
     </div>
   );
