@@ -12,6 +12,7 @@ import {
   isBlankClass,
   listShelf,
   loadFromShelf,
+  moveShelfEntry,
   makeNewClassData,
   readShelfRaw,
   renameShelfEntry,
@@ -22,6 +23,8 @@ import {
 import { AppData } from '../../types';
 import {
   Archive,
+  ChevronDown,
+  ChevronUp,
   BookOpen,
   Download,
   FolderOpen,
@@ -193,7 +196,7 @@ export const ClassesView: React.FC = () => {
   const [activeId, setActiveId] = useState<string | null>(getActiveShelfId());
   const [busy, setBusy] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [deleted, setDeleted] = useState<{ entry: ShelfEntry; data: AppData } | null>(null);
+  const [deleted, setDeleted] = useState<{ entry: ShelfEntry; data: AppData; position: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -294,9 +297,13 @@ export const ClassesView: React.FC = () => {
     if (raw) setDeleted(raw);
   });
 
+  const handleMove = (entry: ShelfEntry, step: -1 | 1) => run(async () => {
+    await moveShelfEntry(entry.id, step);
+  });
+
   const handleUndoDelete = () => run(async () => {
     if (!deleted) return;
-    await restoreShelfRaw(deleted.entry, deleted.data);
+    await restoreShelfRaw(deleted.entry, deleted.data, deleted.position);
     setDeleted(null);
     toast(`"${deleted.entry.name}" restored.`, 'success');
   });
@@ -407,7 +414,7 @@ export const ClassesView: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {list.map(entry => {
+            {list.map((entry, idx) => {
               const isOpen = entry.id === activeId;
               return (
                 <div
@@ -428,11 +435,31 @@ export const ClassesView: React.FC = () => {
                         <span>• saved {fmtDate(entry.savedAt)}</span>
                       </div>
                     </div>
+                    <div className="shrink-0 flex items-center gap-1">
                     {isOpen && (
                       <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900">
                         Open
                       </span>
                     )}
+                    <button
+                      type="button"
+                      aria-label="Move up"
+                      onClick={() => handleMove(entry, -1)}
+                      disabled={busy || idx === 0}
+                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
+                    >
+                      <ChevronUp className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Move down"
+                      onClick={() => handleMove(entry, 1)}
+                      disabled={busy || idx === list.length - 1}
+                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
                     <CardBtn icon={FolderOpen} label="Open" onClick={() => handleOpen(entry)} disabled={busy || isOpen} primary />

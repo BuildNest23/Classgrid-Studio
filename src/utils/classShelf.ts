@@ -17,6 +17,7 @@ import { makeBaseData, normalizeData } from './migrate';
 const INDEX_KEY = 'classgridShelfIndex';
 const CLASS_KEY = (id: string) => `classgridShelf:${id}`;
 const ACTIVE_ID_KEY = 'classgridActiveShelfId';
+const ORDERED_KEY = 'classgridShelfOrdered'; // set once the index list is the user's own order
 
 export interface ShelfEntry {
   id: string;
@@ -67,7 +68,16 @@ async function readIndex(): Promise<ShelfEntry[]> {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(e => e && typeof e.id === 'string');
+    const list: ShelfEntry[] = parsed.filter(e => e && typeof e.id === 'string');
+    // One-time: until now the list was shown newest-first. Keep that as the starting order.
+    if (await storage.getItem(ORDERED_KEY) !== '1') {
+      list.sort((a, b) => b.savedAt - a.savedAt);
+      try {
+        await storage.setItem(INDEX_KEY, JSON.stringify(list));
+        await storage.setItem(ORDERED_KEY, '1');
+      } catch { /* order is still right in memory */ }
+    }
+    return list;
   } catch {
     return [];
   }
@@ -82,8 +92,8 @@ async function writeVerified(key: string, value: string): Promise<void> {
 }
 
 export async function listShelf(): Promise<ShelfEntry[]> {
-  const list = await readIndex();
-  return list.sort((a, b) => b.savedAt - a.savedAt);
+  // The saved order IS the display order (the user can move classes up and down).
+  return readIndex();
 }
 
 function summarize(id: string, name: string, d: AppData, savedAt: number): ShelfEntry {
@@ -116,8 +126,10 @@ export async function saveToShelf(
   await writeVerified(CLASS_KEY(id), JSON.stringify(withoutLogo));
 
   const entry = summarize(id, name, d, now);
-  const nextIndex = [...index.filter(e => e.id !== id), entry];
+  // An existing class keeps its place; a new class goes to the top.
+  const nextIndex = existing ? index.map(e => (e.id === id ? entry : e)) : [entry, ...index];
   await writeVerified(INDEX_KEY, JSON.stringify(nextIndex));
+  try { (await getStorage()).setItem(ORDERED_KEY, '1'); } catch { /* ignore */ }
   return entry;
 }
 
@@ -131,6 +143,17 @@ export async function loadFromShelf(id: string): Promise<AppData | null> {
   } catch {
     return null;
   }
+}
+
+/** Moves one class a step up (-1) or down (+1) in the Classes tab. */
+export async function moveShelfEntry(id: string, step: -1 | 1): Promise<void> {
+  const index = await readIndex();
+  const i = index.findIndex(e => e.id === id);
+  const j = i + step;
+  if (i < 0 || j < 0 || j >= index.length) return;
+  const next = index.slice();
+  [next[i], next[j]] = [next[j], next[i]];
+  await writeVerified(INDEX_KEY, JSON.stringify(next));
 }
 
 export async function renameShelfEntry(id: string, name: string): Promise<void> {
@@ -147,16 +170,24 @@ export async function deleteFromShelf(id: string): Promise<void> {
 }
 
 /** Everything needed to bring one card back after Delete. */
-export async function readShelfRaw(id: string): Promise<{ entry: ShelfEntry; data: AppData } | null> {
+export async function readShelfRaw(id: string): Promise<{ entry: ShelfEntry; data: AppData; position: number } | null> {
   const index = await readIndex();
   const entry = index.find(e => e.id === id);
   const data = await loadFromShelf(id);
   if (!entry || !data) return null;
-  return { entry, data };
+  return { entry, data, position: index.findIndex(e => e.id === id) };
 }
 
-export async function restoreShelfRaw(entry: ShelfEntry, data: AppData): Promise<void> {
+export async function restoreShelfRaw(entry: ShelfEntry, data: AppData, position?: number): Promise<void> {
   await saveToShelf(data, { id: entry.id, name: entry.name });
+  if (position === undefined || position < 0) return;
+  // put it back where it was
+  const index = await readIndex();
+  const rest = index.filter(e => e.id !== entry.id);
+  const me = index.find(e => e.id === entry.id);
+  if (!me) return;
+  rest.splice(Math.min(position, rest.length), 0, me);
+  await writeVerified(INDEX_KEY, JSON.stringify(rest));
 }
 
 /**
