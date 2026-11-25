@@ -34,6 +34,10 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { PlainTextInput } from '../PlainTextInput';
+import { readWorkbookSheets } from '../../collect/schoolExcel';
+import { planSchoolImport, HEADERS as CLASS_SHEET_HEADERS } from '../../collect/schoolSheet';
+import { getActiveShelfId, defaultClassName } from '../../utils/classShelf';
+import { addSnapshot } from '../../utils/history';
 
 const STUDENTS_AI_PLACEHOLDER =
   "Attach your file (Excel, CSV, PDF, photo, or the JSON you edited) and tap Go, or type / paste names here.\n\nYou can add instructions, for example:\n• Only take the Class 5 students\n• Names are in the second column\n• Ali Khan s/o Ahmed 0300-1234567";
@@ -363,6 +367,11 @@ export const StudentsView: React.FC = () => {
       }
       let rows: ImportedRow[];
       if (kind === "sheet") {
+        // An Excel made by "Export Excel" (has the hidden ID column) is matched student by student.
+        if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+          const done = await tryClassExcel(file);
+          if (done !== null) return done;
+        }
         rows = await readSheetRows(file);
       } else {
         if (!aiReadingAvailable()) {
@@ -378,6 +387,49 @@ export const StudentsView: React.FC = () => {
       toast((err as Error).message || "Could not read the file.", "error");
       return false;
     }
+  };
+
+  /** Returns true/false when the file was one of our class Excels (handled), or null when it is some other sheet. */
+  const tryClassExcel = async (file: File): Promise<boolean | null> => {
+    let sheets;
+    try { sheets = await readWorkbookSheets(file); } catch { return null; }
+    const idHead = CLASS_SHEET_HEADERS[CLASS_SHEET_HEADERS.length - 1].toLowerCase();
+    const ours = sheets.some(sh => sh.rows.some(r => r.some(c => String(c).trim().toLowerCase() === idHead)));
+    if (!ours) return null;
+
+    const key = getActiveShelfId() || 'open';
+    const plan = planSchoolImport([{ key, name: defaultClassName(data), data }], sheets);
+    const cp = plan.classes[0];
+    const known = new Set(data.students.map(st => st.id));
+    const matched = cp ? cp.items.filter(i => i.kind !== 'add').length + plan.same : 0;
+    if (!cp || (matched === 0 && known.size > 0)) {
+      toast("This Excel is not for the open class. Open the right class first, or use Class files for a whole-school file.", "error");
+      return false;
+    }
+    if (!cp.items.length) { toast(`Nothing to update. Everything matches (${plan.same} students).`, "info"); return false; }
+
+    const changes = cp.items.filter(i => i.kind === 'change');
+    const adds = cp.items.filter(i => i.kind === 'add');
+    const removes = cp.items.filter(i => i.kind === 'remove');
+    const list = (a: typeof changes) => a.slice(0, 6).map(i => `• ${i.title}${i.detail ? ' - ' + i.detail : ''}`).join("\n") + (a.length > 6 ? `\n…and ${a.length - 6} more` : "");
+    const parts: string[] = [];
+    if (changes.length) parts.push(`${changes.length} student${changes.length === 1 ? '' : 's'} corrected:\n${list(changes)}`);
+    if (adds.length) parts.push(`${adds.length} new student${adds.length === 1 ? '' : 's'} added:\n${list(adds)}`);
+    if (!changes.length && !adds.length) parts.push("No corrections or new students.");
+    if (removes.length) parts.push(`${removes.length} student${removes.length === 1 ? ' is' : 's are'} missing from the file (asked next).`);
+    const ok = await uiConfirm(parts.join("\n\n") + "\n\nA restore point is saved first. You can Undo afterwards.", { title: "Import from Excel", yesText: changes.length || adds.length ? "Import" : "Next", icon: "warning" });
+    if (!ok) return false;
+
+    const chosen = new Set<string>([...changes, ...adds].map(i => i.id));
+    if (removes.length) {
+      const rm = await uiConfirm(`Remove ${removes.length} student${removes.length === 1 ? '' : 's'} who ${removes.length === 1 ? 'is' : 'are'} not in the Excel?\n\n${list(removes)}\n\nTheir attendance, marks and fund records are removed too. Choose "Keep" to leave them.`, { title: "Remove students?", yesText: "Remove", noText: "Keep", danger: true, icon: "warning" });
+      if (rm) removes.forEach(i => chosen.add(i.id));
+    }
+    if (!chosen.size) return false;
+    if (!(await addSnapshot(data, 'Before Excel import'))) { toast("Could not make a restore point, so nothing was changed.", "error"); return false; }
+    saveData(prev => cp.apply(prev, chosen));
+    toast(`${chosen.size} change${chosen.size === 1 ? '' : 's'} applied.`, "success");
+    return true;
   };
 
   const reviewAndApply = async (file: File, title: string): Promise<boolean> => {
@@ -668,7 +720,7 @@ export const StudentsView: React.FC = () => {
       <AiAssistCard
         title="Import & AI assistant"
         placeholder={STUDENTS_AI_PLACEHOLDER}
-        hint="Attach a file to import or update students. Excel, CSV and a JSON file edited from Export are read on your phone (no internet, no AI). PDF, photos and typed text use AI (needs internet). Typed instructions help the AI read PDFs and photos. You see a preview before anything is saved."
+        hint="Attach a file to import or update students. An Excel made with Export Excel on the View Students screen can be corrected and attached here; it is matched student by student. Excel, CSV and a JSON file edited from Export are read on your phone (no internet, no AI). PDF, photos and typed text use AI (needs internet). Typed instructions help the AI read PDFs and photos. You see a preview before anything is saved."
         accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
         onGo={handleAiGo}
         onExport={handleExportForAi}
