@@ -130,7 +130,7 @@ function fitWidths(body: string[][], head: string[], n: number, hidden: number[]
   return out;
 }
 
-export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string): Sheet[] {
+export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string, skipSummary = false): Sheet[] {
   const sheets: Sheet[] = [];
   const pad = (a: string[], n: number) => { const o = a.slice(0, n); while (o.length < n) o.push(''); return o; };
 
@@ -170,11 +170,11 @@ export function buildStyledSchoolSheets(built: BuiltSchool, schoolName: string):
       merges: [], freezeRow: 5, filter: `A5:H${Math.max(5, 4 + n)}`, tab: RED,
     });
   });
-  return sheets;
+  return skipSummary ? sheets.slice(1) : sheets;
 }
 
-export function writeStyledXlsx(built: BuiltSchool, schoolName: string): Uint8Array {
-  const sheets = buildStyledSchoolSheets(built, schoolName);
+export function writeStyledXlsx(built: BuiltSchool, schoolName: string, skipSummary = false): Uint8Array {
+  const sheets = buildStyledSchoolSheets(built, schoolName, skipSummary);
   const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
   const files: { name: string; data: Uint8Array }[] = [];
   const add = (name: string, xml: string) => files.push({ name, data: enc.encode(xml) });

@@ -8,13 +8,35 @@ import { previewPrint } from '../../utils/printPreviewBus';
 import { downloadStudentListPNG } from '../../utils/canvasExport';
 import { ActionGrid, ActionButton } from '../ActionGrid';
 import { HowItWorks } from '../HowItWorks';
-import { Printer, Share2, ArrowLeft } from 'lucide-react';
+import { Printer, Share2, ArrowLeft, FileSpreadsheet } from 'lucide-react';
+import { exportFileBlob } from '../../utils/nativeFileExport';
+import { fileTitle, prettyDate, todayKey } from '../../utils/helpers';
+import { buildSchoolSheets } from '../../collect/schoolSheet';
+import { buildSchoolWorkbookBlob } from '../../collect/schoolExcel';
+import { getActiveShelfId, defaultClassName } from '../../utils/classShelf';
 import { Capacitor } from '@capacitor/core';
 import { OPTIONAL_COLS, loadListColumns, saveListColumns, ListColumns, OptionalCol } from '../../utils/studentListColumns';
 
 export const StudentDirectoryView: React.FC = () => {
   const { data, setActiveTab, toast, buildPrintHeaderHTML, saveData } = useClassroom();
   const [downloading, setDownloading] = useState(false);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const handleExportExcel = async () => {
+    if (exportingXlsx) return;
+    if (data.students.length === 0) { toast('No students to export yet.', 'info'); return; }
+    setExportingXlsx(true);
+    try {
+      const name = defaultClassName(data);
+      const built = buildSchoolSheets([{ key: getActiveShelfId() || 'open', name, data }], data.schoolName, prettyDate(todayKey()));
+      const blob = await buildSchoolWorkbookBlob(built, data.schoolName, true);
+      const ok = await exportFileBlob(blob, `${fileTitle(name, 'Students', todayKey())}.xlsx`, { title: `${name} - Students`, dialogTitle: 'Send Excel file', preferShareOnWeb: true });
+      if (ok) toast('Excel file ready.', 'success');
+    } catch (e: any) {
+      toast(e?.message || 'Could not make the Excel file.', 'error');
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
   const [cols, setCols] = useState<ListColumns>(loadListColumns);
   const toggleCol = (k: OptionalCol) => {
     const next = { ...cols, [k]: !cols[k] };
@@ -194,7 +216,7 @@ export const StudentDirectoryView: React.FC = () => {
           </div>
         </div>
 
-        <ActionGrid cols={2}>
+        <ActionGrid cols={3}>
           <ActionButton
             variant="primary"
             icon={Printer}
@@ -209,6 +231,15 @@ export const StudentDirectoryView: React.FC = () => {
             disabled={downloading}
           >
             {downloading ? "Generating..." : "Share as Image"}
+          </ActionButton>
+          <ActionButton
+            variant="secondary"
+            icon={FileSpreadsheet}
+            onClick={handleExportExcel}
+            disabled={exportingXlsx}
+            className="col-span-2 md:col-span-1"
+          >
+            {exportingXlsx ? "Making Excel..." : "Export Excel"}
           </ActionButton>
         </ActionGrid>
       </div>

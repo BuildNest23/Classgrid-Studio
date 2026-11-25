@@ -5,9 +5,9 @@ import { writeStyledXlsx } from './xlsxWriter';
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /** Formatted workbook (coloured headers, striped rows, frozen header). Falls back to a plain one if anything goes wrong. */
-export async function buildSchoolWorkbookBlob(built: BuiltSchool, schoolName = ''): Promise<Blob> {
+export async function buildSchoolWorkbookBlob(built: BuiltSchool, schoolName = '', skipSummary = false): Promise<Blob> {
   try {
-    const bytes = writeStyledXlsx(built, schoolName);
+    const bytes = writeStyledXlsx(built, schoolName, skipSummary);
     return new Blob([bytes], { type: XLSX_MIME });
   } catch {
     return buildPlainWorkbookBlob(built);
