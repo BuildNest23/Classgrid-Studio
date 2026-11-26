@@ -34,18 +34,18 @@ export const ResultCardModal: React.FC<Props> = ({ ctx, studentId, onChange, onC
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 cursor-pointer"
+        className="w-full min-h-[44px] flex items-center justify-between gap-2 px-4 sm:px-5 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors cursor-pointer"
       >
-        <span className="flex items-center gap-1.5 min-w-0">
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+        <span className="flex items-center gap-2 min-w-0">
+          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-stone-400" />
           <span className="truncate">
             Card options · Logo {watermarkActive(wm, ctx.data.schoolLogo) ? 'watermark' : 'in corner'}
           </span>
         </span>
-        <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 shrink-0 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="px-4 pb-3">
+        <div className="px-4 sm:px-5 pb-3.5">
           <WatermarkOptions kind="result" hasLogo={hasLogo} />
         </div>
       )}

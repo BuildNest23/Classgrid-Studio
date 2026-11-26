@@ -157,10 +157,53 @@ export function parseReturn(text: string): ReturnFile {
       maxes: Object.keys(work.maxes || {}).reduce((o: Record<string, { from: string; to: string }>, k) => { o[k] = { from: '0', to: String(work.maxes[k] ?? '') }; return o; }, {}),
     };
   }
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if (a < 0 || b < a) throw new Error('No data found in this file.');
-  let d: any;
-  try { d = JSON.parse(t.slice(a, b + 1)); } catch { throw new Error('This file is damaged or cut off.'); }
+  // Locate the classgrid-collect-return JSON object cleanly even if WhatsApp headers or notes contain extra braces.
+  const extractJson = (raw: string): any => {
+    const tryParse = (s: string) => {
+      try {
+        const obj = JSON.parse(s);
+        if (obj && typeof obj === 'object' && obj.app === 'classgrid-collect-return') return obj;
+      } catch { /* try next strategy */ }
+      return null;
+    };
+    const marker = raw.indexOf('"classgrid-collect-return"');
+    const startIdx = marker >= 0 ? raw.lastIndexOf('{', marker) : raw.indexOf('{');
+    if (startIdx >= 0) {
+      // Fast path: slice from opening brace to last closing brace
+      const lastEnd = raw.lastIndexOf('}');
+      if (lastEnd > startIdx) {
+        const fast = tryParse(raw.slice(startIdx, lastEnd + 1));
+        if (fast) return fast;
+      }
+      // Balanced-brace scan respecting JSON string literals
+      let depth = 0;
+      let inStr = false;
+      let escaped = false;
+      for (let i = startIdx; i < raw.length; i++) {
+        const ch = raw[i];
+        if (inStr) {
+          if (escaped) escaped = false;
+          else if (ch === '\\') escaped = true;
+          else if (ch === '"') inStr = false;
+        } else {
+          if (ch === '"') inStr = true;
+          else if (ch === '{') depth++;
+          else if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+              const balanced = tryParse(raw.slice(startIdx, i + 1));
+              if (balanced) return balanced;
+              break;
+            }
+          }
+        }
+      }
+    }
+    const a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+    if (a < 0 || b < a) throw new Error('No data found in this file.');
+    try { return JSON.parse(raw.slice(a, b + 1)); } catch { throw new Error('This file is damaged or cut off.'); }
+  };
+  const d = extractJson(t);
   if (d.app !== 'classgrid-collect-return' || !d.requestId || !d.changes) throw new Error('This is not a file from a Classgrid form.');
   return d as ReturnFile;
 }
@@ -346,4 +389,10 @@ export function logReturn(requestId: string, ret: { revision: number; from: stri
   }
   rec.returns.push({ revision: ret.revision, from: ret.from, receivedAt: Date.now(), applied });
   saveLog(l);
+}
+export function clearLog() {
+  try { localStorage.removeItem(LOG_KEY); } catch { /* ignore */ }
+}
+export function removeLogEntry(requestId: string) {
+  saveLog(loadLog().filter(x => x.requestId !== requestId));
 }

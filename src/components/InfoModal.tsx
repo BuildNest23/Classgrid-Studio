@@ -9,7 +9,7 @@ import {
   Wallet,
   ShieldCheck,
   Printer,
-  Sparkles
+  Info,
 } from 'lucide-react';
 
 export const InfoModal: React.FC = () => {
@@ -28,40 +28,39 @@ export const InfoModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 pt-[max(1rem,calc(var(--safe-top,env(safe-area-inset-top,0px))+0.75rem))] pb-[max(1rem,calc(var(--safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem))] bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={closeInfoModal}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-5 pt-[max(1rem,calc(var(--safe-top,env(safe-area-inset-top,0px))+0.75rem))] pb-0 sm:pb-[max(1rem,calc(var(--safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem))] bg-black/55 backdrop-blur-[2px]"
+      onMouseDown={closeInfoModal}
     >
       <div
-        className="w-full max-w-2xl max-h-[calc(100dvh-var(--safe-top,env(safe-area-inset-top,0px))-var(--safe-bottom,env(safe-area-inset-bottom,0px))-2.5rem)] flex flex-col bg-white dark:bg-stone-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden animate-in zoom-in-95 duration-150"
-        onClick={e => e.stopPropagation()}
+        className="cg-sheet-up w-full sm:max-w-2xl max-h-[88dvh] flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-stone-200 dark:border-stone-800 overflow-hidden pb-safe sm:pb-0"
+        onMouseDown={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-900/70">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 rounded-xl">
-              <Sparkles className="w-5 h-5" />
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-stone-200 dark:border-stone-800">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 bg-red-50 dark:bg-red-950/50 text-red-800 dark:text-red-300 rounded-xl flex items-center justify-center shrink-0">
+              <Info className="w-4 h-4" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
-                {infoModal.title}
-              </h2>
-            </div>
+            <h2 className="text-base font-bold text-stone-900 dark:text-stone-100 truncate">
+              {infoModal.title}
+            </h2>
           </div>
           <button
             type="button"
             onClick={closeInfoModal}
-            className="p-2 -mr-2 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-full active:bg-stone-200 dark:active:bg-stone-800 transition cursor-pointer"
+            className="w-10 h-10 -mr-1.5 flex items-center justify-center text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+        <div className="flex-1 overflow-y-auto p-5 text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
           {infoModal.content}
         </div>
-        <div className="px-6 py-3.5 bg-stone-50 dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex justify-end">
+        <div className="px-5 py-3 bg-stone-50/70 dark:bg-stone-950/40 border-t border-stone-200 dark:border-stone-800 flex justify-end">
           <button
             type="button"
             onClick={closeInfoModal}
-            className="px-5 py-2 bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+            className="min-h-[42px] px-5 py-2 bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
           >
             Close
           </button>

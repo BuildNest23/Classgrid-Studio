@@ -6,10 +6,7 @@ import { fileTitle, prettyDate, todayKey } from '../utils/helpers';
 import { exportFileBlob } from '../utils/nativeFileExport';
 import { buildSchoolSheets, planSchoolImport, SchoolClass, SchoolPlan } from '../collect/schoolSheet';
 import { buildSchoolWorkbookBlob, readWorkbookSheets } from '../collect/schoolExcel';
-import { FileSpreadsheet } from 'lucide-react';
-
-const card = 'rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5';
-const btn = 'w-full min-h-[48px] rounded-2xl bg-red-800 text-white font-bold cursor-pointer active:scale-[0.98] disabled:opacity-50';
+import { FileSpreadsheet, Download, Upload, Check } from 'lucide-react';
 
 export const SchoolExcelCard: React.FC<{ onApplied?: () => void }> = ({ onApplied }) => {
   const { data, saveData, toast, uiConfirm } = useClassroom();
@@ -55,7 +52,7 @@ export const SchoolExcelCard: React.FC<{ onApplied?: () => void }> = ({ onApplie
       const classes = await gather();
       const plan = planSchoolImport(classes, sheets);
       setLoaded({ plan, classes, picked: new Set(plan.classes.flatMap(c => c.items.filter(i => i.defaultOn).map(i => i.id + '@' + c.classKey))) });
-    } catch (e: any) {
+    } catch {
       setMsg('This file could not be read. Please choose the Excel file the principal sent back.');
     } finally { setBusy(false); }
   };
@@ -99,49 +96,128 @@ export const SchoolExcelCard: React.FC<{ onApplied?: () => void }> = ({ onApplie
   const pickedCount = loaded ? loaded.picked.size : 0;
 
   return (
-    <div className={card}>
-      <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-800 flex items-center justify-center"><FileSpreadsheet className="w-6 h-6" /></div>
-      <h2 className="mt-3 text-lg font-black">School Excel for the principal</h2>
-      <p className="text-sm text-stone-500 mt-1">All classes in one Excel file, one sheet per class, with every student detail. The principal can correct details, add students or delete rows, then send it back.</p>
-      <button type="button" disabled={busy} onClick={doExport} className={`${btn} mt-4`}>{busy && !loaded ? 'Please wait…' : 'Export all classes to Excel'}</button>
-      <input ref={ref} type="file" accept=".xlsx,.xls,.xlsm,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
-      <button type="button" disabled={busy} onClick={() => ref.current?.click()} className="mt-2 w-full min-h-[48px] rounded-2xl bg-stone-100 dark:bg-stone-800 font-bold cursor-pointer active:scale-[0.98] disabled:opacity-50">Open principal's Excel (review changes)</button>
-      {msg && <div className="mt-3 text-sm font-semibold text-red-700 dark:text-red-400">{msg}</div>}
+    <section className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
+          <FileSpreadsheet className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">School Excel workbook</h2>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 leading-relaxed">
+            Export every saved class into one Excel workbook (one sheet per class), or open an edited workbook to review and apply student updates.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={doExport}
+          className="min-h-[44px] px-4 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <Download className="w-4 h-4 shrink-0" />
+          <span>{busy && !loaded ? 'Preparing workbook…' : 'Export all classes (.xlsx)'}</span>
+        </button>
+
+        <input
+          ref={ref}
+          type="file"
+          accept=".xlsx,.xls,.xlsm,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="hidden"
+          onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }}
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => ref.current?.click()}
+          className="min-h-[44px] px-4 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <Upload className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
+          <span>Import edited workbook</span>
+        </button>
+      </div>
+
+      {msg && (
+        <div className="text-xs font-semibold text-red-700 dark:text-red-400">{msg}</div>
+      )}
 
       {loaded && (
-        <div className="mt-4">
-          {loaded.plan.notes.map((n, i) => <div key={i} className="text-xs text-amber-700 dark:text-amber-400 mb-1">{n}</div>)}
-          {!loaded.plan.classes.some(c => c.items.length) && <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">No changes. Everything in this file matches the app ({loaded.plan.same} students).</div>}
-          {loaded.plan.classes.filter(c => c.items.length).map(cp => (
-            <div key={cp.classKey} className="mt-3">
-              <div className="text-xs font-black uppercase tracking-wide text-stone-500 mb-1">{cp.className}</div>
-              <div className="divide-y divide-stone-100 dark:divide-stone-800 rounded-xl border border-stone-200 dark:border-stone-800">
-                {cp.items.map(i => {
-                  const k = i.id + '@' + cp.classKey;
-                  return (
-                    <label key={k} className="flex items-start gap-3 px-3 py-2.5 cursor-pointer">
-                      <input type="checkbox" className="mt-1 w-4 h-4" checked={loaded.picked.has(k)} onChange={() => toggle(k)} />
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold">
-                          {i.title}{' '}
-                          <span className={`ml-1 text-[10px] font-black px-1.5 py-0.5 rounded ${i.kind === 'remove' ? 'bg-red-100 text-red-800' : i.kind === 'add' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{i.kind === 'remove' ? 'DELETED' : i.kind === 'add' ? 'NEW' : 'CHANGED'}</span>
-                        </div>
-                        <div className="text-xs text-stone-500 break-words">{i.detail}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
+        <div className="pt-4 border-t border-stone-200 dark:border-stone-800 space-y-3">
+          {loaded.plan.notes.map((n, i) => (
+            <div key={i} className="text-xs font-medium text-amber-700 dark:text-amber-400">{n}</div>
           ))}
-          {loaded.plan.classes.some(c => c.items.length) && (
+
+          {!loaded.plan.classes.some(c => c.items.length) ? (
+            <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+              <Check className="w-4 h-4" />
+              <span>Everything in this workbook already matches the app ({loaded.plan.same} students).</span>
+            </div>
+          ) : (
             <>
-              <p className="text-[11px] text-stone-500 mt-2">Deleted students are not ticked. Tick one only if the principal really wants that student removed.</p>
-              <button type="button" disabled={busy || !pickedCount} onClick={apply} className={`${btn} mt-3`}>Apply {pickedCount} change{pickedCount === 1 ? '' : 's'}</button>
+              <div className="space-y-3">
+                {loaded.plan.classes.filter(c => c.items.length).map(cp => (
+                  <div key={cp.classKey}>
+                    <div className="text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">{cp.className}</div>
+                    <div className="divide-y divide-stone-100 dark:divide-stone-800 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
+                      {cp.items.map(i => {
+                        const k = i.id + '@' + cp.classKey;
+                        const statusColor =
+                          i.kind === 'remove'
+                            ? 'text-red-700 dark:text-red-400'
+                            : i.kind === 'add'
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-amber-700 dark:text-amber-400';
+                        const statusLabel = i.kind === 'remove' ? 'Removed' : i.kind === 'add' ? 'New' : 'Changed';
+
+                        return (
+                          <label key={k} className="flex items-start gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 w-4 h-4 accent-red-800 dark:accent-red-500 shrink-0"
+                              checked={loaded.picked.has(k)}
+                              onChange={() => toggle(k)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">{i.title}</span>
+                                <span className={`text-[11px] font-semibold ${statusColor}`}>· {statusLabel}</span>
+                              </div>
+                              <div className="text-xs text-stone-500 dark:text-stone-400 break-words mt-0.5">{i.detail}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Removed students are unticked by default. Tick them only if you intend to delete their records.
+              </p>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoaded(null)}
+                  className="min-h-[42px] px-4 rounded-xl text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || !pickedCount}
+                  onClick={apply}
+                  className="min-h-[42px] px-4 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 transition-colors"
+                >
+                  Apply <span className="font-mono-num">{pickedCount}</span> {pickedCount === 1 ? 'change' : 'changes'}
+                </button>
+              </div>
             </>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 };

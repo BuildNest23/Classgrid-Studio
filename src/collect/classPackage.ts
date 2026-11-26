@@ -61,7 +61,7 @@ export function serializeClassPackage(p: ClassPackage): string { return JSON.str
 
 export function suggestedFileName(p: ClassPackage): string {
   const n = (p.data.className || 'class').replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '') || 'class';
-  return `Classgrid_${n}_v${p.version}.json`;
+  return `Classgrid_${n}.json`;
 }
 
 export function parseClassPackage(text: string): { pkg: ClassPackage | null; error: string } {
@@ -113,7 +113,7 @@ export function planClassPackage(current: AppData | null, pkg: ClassPackage): Pa
     return { action: 'wrongClass', message: 'This file is for a different class than the one open.', ...empty };
   }
   const have = current!.teacherLink?.version ?? 0;
-  if (pkg.version === have) return { action: 'same', message: 'You already have this version.', ...empty };
+  if (pkg.version === have) return { action: 'same', message: 'You already have this class file.', ...empty };
   if (pkg.version < have) return { action: 'older', message: 'This file is older than the one you have.', ...empty };
   const cur = new Map(current!.students.map(s => [s.id, s]));
   const nw = new Map((pkg.data.students || []).map(s => [s.id, s]));
@@ -124,7 +124,7 @@ export function planClassPackage(current: AppData | null, pkg: ClassPackage): Pa
     else if (c.name !== s.name || c.rollNo !== s.rollNo || c.fatherName !== s.fatherName || c.phone !== s.phone || c.address !== s.address || (c.occupation || '') !== (s.occupation || '') || c.admissionNo !== s.admissionNo) changed++;
   });
   cur.forEach((_, id) => { if (!nw.has(id)) removed++; });
-  return { action: 'update', message: 'Update to version ' + pkg.version, studentsAdded: added, studentsRemoved: removed, studentsChanged: changed };
+  return { action: 'update', message: 'Update class from this file', studentsAdded: added, studentsRemoved: removed, studentsChanged: changed };
 }
 
 /**

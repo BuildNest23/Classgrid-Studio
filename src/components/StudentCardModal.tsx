@@ -172,26 +172,26 @@ export const StudentCardModal: React.FC<Props> = ({
     }
   };
 
-  const iconBtn =
-    'w-12 h-12 rounded-full flex items-center justify-center border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-95 transition disabled:opacity-40 cursor-pointer';
   const navBtn =
-    'absolute top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full flex items-center justify-center bg-white/90 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-700 shadow-sm text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer';
+    'absolute top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full flex items-center justify-center bg-white/95 dark:bg-stone-900/95 border border-stone-200 dark:border-stone-700 shadow-sm text-stone-700 dark:text-stone-200 hover:bg-white dark:hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors';
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 pt-[max(1.25rem,calc(var(--safe-top,env(safe-area-inset-top,0px))+0.75rem))] pb-[max(1.25rem,calc(var(--safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem))] bg-black/60 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-5 pt-[max(1rem,calc(var(--safe-top,env(safe-area-inset-top,0px))+0.5rem))] bg-black/50 backdrop-blur-[2px]"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-xl max-h-[calc(100dvh-var(--safe-top,env(safe-area-inset-top,0px))-var(--safe-bottom,env(safe-area-inset-bottom,0px))-2.5rem)] flex flex-col bg-white dark:bg-stone-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden"
+        className="cg-sheet-up w-full sm:max-w-xl max-h-[calc(100dvh-var(--safe-top,env(safe-area-inset-top,0px))-1rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-stone-200 dark:border-stone-800 overflow-hidden"
         role="dialog"
         aria-label={label}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100 truncate">{item.name || 'Student'}</h2>
-            <p className="text-[11px] text-stone-500 dark:text-stone-400">
+            <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100 truncate">
+              {item.name || 'Student'}
+            </h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400 font-mono-num">
               Roll {item.rollNo || '—'} · {index + 1} of {list.length}
             </p>
           </div>
@@ -199,14 +199,14 @@ export const StudentCardModal: React.FC<Props> = ({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-11 h-11 -mr-1.5 flex items-center justify-center text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-full active:bg-stone-200 dark:active:bg-stone-800 cursor-pointer"
+            className="w-11 h-11 -mr-2 flex items-center justify-center text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {noticeText && (
-          <div className="flex items-start gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-semibold border-b border-amber-200/60 dark:border-amber-900/50">
+          <div className="flex items-start gap-2 px-4 sm:px-5 py-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-medium border-b border-amber-200/70 dark:border-amber-900/50">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
             <span>{noticeText}</span>
           </div>
@@ -222,7 +222,7 @@ export const StudentCardModal: React.FC<Props> = ({
           <button type="button" aria-label="Next student" className={`${navBtn} right-2`} disabled={index === list.length - 1} onClick={() => go(1)}>
             <ChevronRight className="w-5 h-5" />
           </button>
-          <div className="h-full max-h-[68vh] overflow-y-auto overflow-x-hidden p-2 sm:p-3">
+          <div className="h-full max-h-[65vh] overflow-y-auto overflow-x-hidden p-3 sm:p-4">
             <div ref={boxRef} className="mx-auto w-full" style={{ maxWidth: pageW }}>
               <div
                 className="bg-white shadow-md rounded-sm overflow-hidden"
@@ -249,16 +249,34 @@ export const StudentCardModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Actions: icons only */}
-        <div className="flex items-center justify-center gap-5 px-4 py-3 border-t border-stone-200 dark:border-stone-800 shrink-0">
-          <button type="button" className={iconBtn} onClick={handlePrint} disabled={!!busy} title="Print" aria-label="Print">
-            <Printer className="w-5 h-5" />
+        {/* Actions */}
+        <div className="grid grid-cols-3 gap-2 px-4 sm:px-5 py-3 pb-[max(0.75rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shrink-0">
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={!!busy}
+            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+          >
+            <Printer className="w-4 h-4 shrink-0" />
+            <span>Print</span>
           </button>
-          <button type="button" className={iconBtn} onClick={() => run('img')} disabled={!!busy} title="Share as image" aria-label="Share as image">
-            {busy === 'img' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+          <button
+            type="button"
+            onClick={() => run('img')}
+            disabled={!!busy}
+            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+          >
+            {busy === 'img' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <ImageIcon className="w-4 h-4 shrink-0" />}
+            <span>Image</span>
           </button>
-          <button type="button" className={iconBtn} onClick={() => run('share')} disabled={!!busy} title="Share" aria-label="Share">
-            {busy === 'share' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
+          <button
+            type="button"
+            onClick={() => run('share')}
+            disabled={!!busy}
+            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+          >
+            {busy === 'share' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Share2 className="w-4 h-4 shrink-0" />}
+            <span>Share</span>
           </button>
         </div>
       </div>

@@ -40,10 +40,10 @@ export const WatermarkOptions: React.FC<Props> = ({ kind, hasLogo, className = '
   ) => (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label htmlFor={id} className="text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+        <label htmlFor={id} className="text-xs font-medium text-stone-600 dark:text-stone-400">
           {label}
         </label>
-        <span className="text-[11px] font-bold text-stone-700 dark:text-stone-200 tabular-nums">{value}%</span>
+        <span className="text-xs font-semibold text-stone-800 dark:text-stone-200 font-mono-num">{value}%</span>
       </div>
       <input
         id={id}
@@ -53,44 +53,44 @@ export const WatermarkOptions: React.FC<Props> = ({ kind, hasLogo, className = '
         step={step}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full accent-[#0b5d46] cursor-pointer"
+        className="w-full accent-red-800 dark:accent-red-500 cursor-pointer"
       />
     </div>
   );
 
   return (
     <div
-      className={`rounded-xl border p-2.5 transition-colors ${
+      className={`rounded-xl border p-3 transition-colors ${
         on
-          ? 'border-[#0B5D45] bg-[#E8F3EC] dark:bg-[#0B5D45]/20 dark:border-[#2E9E73]'
-          : 'border-[#E7E5E4] dark:border-[#44403C]'
+          ? 'border-red-800/30 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900/50'
+          : 'border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-950/30'
       } ${className}`}
     >
-      <label className={`flex items-start gap-2.5 select-none ${hasLogo ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
+      <label className={`flex items-start gap-2.5 select-none ${hasLogo ? 'cursor-pointer' : 'cursor-not-allowed opacity-65'}`}>
         <input
           type="checkbox"
           checked={on}
           disabled={!hasLogo}
           onChange={e => updateWatermark({ enabled: e.target.checked })}
-          className="mt-0.5 w-4 h-4 accent-[#0B5D45] shrink-0"
+          className="mt-0.5 w-4 h-4 accent-red-800 dark:accent-red-500 shrink-0 rounded"
         />
-        <span className="flex flex-col leading-tight">
-          <span className="text-[13px] font-bold text-[#1C1917] dark:text-[#F5F5F4]">Logo as watermark</span>
-          <span className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5">
+        <span className="flex flex-col leading-snug">
+          <span className="text-[13px] font-semibold text-stone-900 dark:text-stone-100">Logo as watermark</span>
+          <span className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
             {hasLogo
-              ? 'Grey logo behind the paper instead of the top-left corner'
-              : 'Upload a school logo in Settings to use this'}
+              ? 'Place a subtle grey logo behind the page instead of the top-left corner'
+              : 'Upload a school logo in Settings to enable watermark'}
           </span>
         </span>
       </label>
       {on && (
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+        <div className="mt-3 pt-3 border-t border-red-900/10 dark:border-red-900/30 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2.5">
           {slider(`wm-size-${kind}`, 'Size', look.size, lim.size.min, lim.size.max, lim.size.step, n =>
             setLook({ size: n })
           )}
           {slider(
             `wm-opacity-${kind}`,
-            'Visibility (lower = more transparent)',
+            'Visibility',
             look.opacity,
             lim.opacity.min,
             lim.opacity.max,

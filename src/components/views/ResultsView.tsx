@@ -1,11 +1,9 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { SyncInput } from '../SyncInput';
 import { exportReportCardsZip } from '../../utils/reportCardImages';
-import { ActionGrid, ActionButton } from '../ActionGrid';
 import { AiAssistCard } from '../AiAssistCard';
-import { HowItWorks } from '../HowItWorks';
 import { ResultCardModal } from '../ResultCardModal';
 import { WatermarkOptions } from '../WatermarkOptions';
-import React, { useState, useMemo, useRef } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { Assessment } from '../../types';
 import {
@@ -50,6 +48,7 @@ import {
   buildMeritListHTML,
 } from '../../utils/resultPrint';
 import {
+  ArrowLeft,
   Printer,
   Edit3,
   Trash2,
@@ -57,12 +56,18 @@ import {
   Plus,
   BarChart3,
   X,
-  Sparkles,
-  Upload,
   ChevronDown,
   ChevronRight,
   Lock,
   Unlock,
+  Search,
+  FileUp,
+  FileText,
+  Award,
+  FolderArchive,
+  Table2,
+  UserCheck,
+  BookOpen,
 } from 'lucide-react';
 import {
   loadResultsCollapse,
@@ -103,6 +108,10 @@ export const ResultsView: React.FC = () => {
   const [zipProgress, setZipProgress] = useState<{ done: number; total: number } | null>(null);
   const zipCancelRef = useRef(false);
 
+  // Import & AI disclosure
+  const [importOpen, setImportOpen] = useState(false);
+  const [studentQuery, setStudentQuery] = useState("");
+
   // Print design: A = colour, B = black & white (remembered on this device)
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
 
@@ -113,6 +122,7 @@ export const ResultsView: React.FC = () => {
   const [entrySubjectId, setEntrySubjectId] = useState<string | null>(null);
   const [printStyle, setPrintStyleState] = useState<ResultPrintStyle>(loadPrintStyle);
   const [printFooter, setPrintFooterState] = useState<string>(loadPrintFooter);
+
   const changePrintFooter = (text: string) => {
     setPrintFooterState(text);
     savePrintFooter(text);
@@ -126,9 +136,9 @@ export const ResultsView: React.FC = () => {
   const sortedStudents = getSortedStudents(data.students);
 
   // Snug Name column: exact width of the longest student name (and the Average/Highest/Lowest labels).
-  // NOTE: this hook must stay ABOVE the early return below (React's rules of hooks).
   const nameColWidth = useMemo(
     () => getNameColWidth(sortedStudents.map(s => s.name || ""), ["Average →", "Highest →", "Lowest →"]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.students]
   );
 
@@ -140,6 +150,23 @@ export const ResultsView: React.FC = () => {
       return next;
     });
   };
+
+  // Reset search when changing assessments
+  useEffect(() => {
+    setStudentQuery("");
+    setCopyPickerOpen(false);
+    setImportOpen(false);
+  }, [activeAssessmentId]);
+
+  // Escape key closes Report Cards choice modal
+  useEffect(() => {
+    if (!cardChoice) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCardChoice(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cardChoice]);
 
   // 1. ASSESSMENT LIST VIEW
   if (!activeAsmt) {
@@ -171,130 +198,185 @@ export const ResultsView: React.FC = () => {
       toast("Assessment created. Now add subjects.", "success");
     };
 
-    return (
-      <div className="space-y-3">
-        <HowItWorks
-          id="results-list"
-          title="How results work"
-          steps={[
-            <>Tap <b>+ New Assessment</b> for each exam, e.g. Monthly Test or Mid-Term, and set its pass percentage.</>,
-            <>Open it, add your <b>subjects</b> with their maximum marks.</>,
-            <>Enter each student's marks. <b>Total, Result and Rank are worked out for you.</b> Tap a student's name to open their result card.</>,
-            <>Print a <b>Class Result Sheet</b>, <b>Report Cards</b> or a <b>Merit List</b>.</>
-          ]}
-        />
+    const sortedAssessments = data.assessments
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-          <div className="flex justify-between items-center gap-2 flex-wrap">
-            <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-              Assessments ({data.assessments.length})
-            </h2>
+    return (
+      <div className="cg-view-enter space-y-5">
+        {/* Masthead */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
+              {data.className || 'Class'} · <span className="font-mono-num">{data.assessments.length}</span> {data.assessments.length === 1 ? 'assessment' : 'assessments'}
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-50 mt-0.5">
+              Results
+            </h1>
+          </div>
+          {sortedAssessments.length > 0 && (
             <button
               type="button"
-              onClick={() => setNewFormOpen(!newFormOpen)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer"
+              onClick={() => setNewFormOpen(o => !o)}
+              className={`min-h-[44px] px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0 ${
+                newFormOpen
+                  ? 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700'
+                  : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white'
+              }`}
             >
-              {newFormOpen ? "Cancel" : "+ New Assessment"}
+              {newFormOpen ? (
+                <>
+                  <X className="w-4 h-4" />
+                  <span>Cancel</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>New assessment</span>
+                </>
+              )}
             </button>
-          </div>
-
-          {newFormOpen && (
-            <form onSubmit={handleCreateAsmt} className="mt-3.5 p-4 bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl space-y-3">
-              <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Create New Assessment</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
-                    Assessment Name *
-                  </label>
-                  <PlainTextInput
-                                        value={newAsmtName}
-                    placeholder="e.g. First Term / Monthly Test 1 / Final Exam"
-                    onChange={e => setNewAsmtName(e.target.value)}
-                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
-                    Pass Percentage (%) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newAsmtPass}
-                    onChange={e => setNewAsmtPass(Number(e.target.value))}
-                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
-                  />
-                </div>
-              </div>
-              <ActionGrid cols={2}>
-                <ActionButton
-                  type="submit"
-                  variant="primary"
-                  icon={Plus}
-                >
-                  Create Assessment
-                </ActionButton>
-                <ActionButton
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setNewFormOpen(false)}
-                >
-                  Cancel
-                </ActionButton>
-              </ActionGrid>
-            </form>
           )}
         </div>
 
-        {/* Assessment Card List */}
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-          {data.assessments.length === 0 ? (
-            <div className="text-center py-8 text-[#78716C] dark:text-[#A8A29E] bg-[#FAFAF9] dark:bg-[#0C0A09] border border-dashed border-[#D6D3D1] dark:border-[#44403C] rounded-2xl flex flex-col items-center justify-center">
-              <BarChart3 className="w-10 h-10 mb-2 text-stone-400 dark:text-stone-600" />
-              <span>No assessments created yet. Tap <b>+ New Assessment</b> to create your first exam or test.</span>
+        {/* Inline Creation Surface */}
+        {newFormOpen && (
+          <form
+            onSubmit={handleCreateAsmt}
+            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 space-y-4"
+          >
+            <div>
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Create assessment</h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                Set the exam name and passing percentage. You can add subjects next.
+              </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {data.assessments.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(a => {
-                const totalMax = a.subjects.reduce((sum, s) => sum + (Number(s.max) || 0), 0);
-                const entered = assessmentEntryCount(a.id);
-                const total = data.students.length;
-                const pct = total ? Math.round((entered / total) * 100) : 0;
-                const complete = entered >= total && total > 0;
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                  Assessment name
+                </label>
+                <PlainTextInput
+                  value={newAsmtName}
+                  placeholder="e.g. First Term, Monthly Test 1, Final Exam"
+                  onChange={e => setNewAsmtName(e.target.value)}
+                  className="w-full min-h-[44px] px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                  Pass percentage (%)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={newAsmtPass}
+                  onChange={e => setNewAsmtPass(Number(e.target.value))}
+                  className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-num rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setNewFormOpen(false)}
+                className="min-h-[44px] px-4 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create assessment</span>
+              </button>
+            </div>
+          </form>
+        )}
 
-                return (
-                  <div
-                    key={a.id}
-                    onClick={() => setActiveAssessmentId(a.id)}
-                    className="p-4 rounded-2xl border border-[#E7E5E4] dark:border-[#44403C] hover:border-[#D6D3D1] hover:-translate-y-0.5 transition-all cursor-pointer bg-white dark:bg-[#1C1917] shadow-xs"
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-2">
-                      <b className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4] truncate">
-                        {a.name}
-                      </b>
-                      <span className="text-[11px] font-bold text-[#78716C] dark:text-[#A8A29E] shrink-0">
-                        {a.subjects.length} sub • Max {totalMax}
-                      </span>
+        {/* Assessments Grid */}
+        {sortedAssessments.length === 0 ? (
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl px-6 py-12 text-center flex flex-col items-center">
+            <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-400 dark:text-stone-500 mb-3">
+              <BarChart3 className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">No assessments yet</h2>
+            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1 max-w-sm">
+              Create your first exam or monthly test to enter marks, compute ranks, and print report cards.
+            </p>
+            {!newFormOpen && (
+              <button
+                type="button"
+                onClick={() => setNewFormOpen(true)}
+                className="mt-5 min-h-[44px] px-4 rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New assessment</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sortedAssessments.map(a => {
+              const totalMax = a.subjects.reduce((sum, s) => sum + (Number(s.max) || 0), 0);
+              const entered = assessmentEntryCount(a.id);
+              const total = data.students.length;
+              const pct = total ? Math.round((entered / total) * 100) : 0;
+              const complete = entered >= total && total > 0;
+
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setActiveAssessmentId(a.id)}
+                  className="group text-left p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-700 transition-colors cursor-pointer flex flex-col justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="text-[15px] font-bold text-stone-900 dark:text-stone-100 truncate">
+                          {a.name}
+                        </span>
+                        {a.locked && (
+                          <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" aria-label="Locked" />
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 shrink-0 mt-0.5 transition-transform group-hover:translate-x-0.5" />
                     </div>
+                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-mono-num">
+                      {a.subjects.length} {a.subjects.length === 1 ? 'subject' : 'subjects'} · Max {totalMax} · Pass {a.passPercent}%
+                    </p>
+                  </div>
 
-                    <div className="w-full h-2 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden my-2">
+                  <div className="space-y-1.5">
+                    <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all ${complete ? 'bg-[#065F46]' : 'bg-[#B4791F]'}`}
+                        className={`h-full rounded-full transition-all ${
+                          complete
+                            ? 'bg-emerald-700 dark:bg-emerald-500'
+                            : entered > 0
+                            ? 'bg-red-800 dark:bg-red-500'
+                            : 'bg-stone-300 dark:bg-stone-700'
+                        }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-
-                    <div className="flex justify-between text-xs text-[#78716C] dark:text-[#A8A29E] mt-2">
-                      <span><b>{entered}</b> / {total} entered</span>
-                      <span>Pass: <b>{a.passPercent}%</b></span>
+                    <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-mono-num">
+                      <span>
+                        <strong className="font-semibold text-stone-800 dark:text-stone-200">{entered}</strong> / {total} entered
+                      </span>
+                      <span className={complete ? 'font-semibold text-emerald-700 dark:text-emerald-400' : ''}>
+                        {pct}%
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
@@ -305,6 +387,19 @@ export const ResultsView: React.FC = () => {
   const entered = assessmentEntryCount(activeAsmt.id);
   const progressPct = data.students.length ? Math.round((entered / data.students.length) * 100) : 0;
 
+  const evaluatedCount = ranked.filter(item => item.r.maxTotal > 0).length;
+  const passedCount = ranked.filter(item => item.r.maxTotal > 0 && item.r.passed).length;
+  const passRatePct = evaluatedCount ? Math.round((passedCount / evaluatedCount) * 100) : null;
+
+  const trimmedQuery = studentQuery.trim().toLowerCase();
+  const visibleRanked = trimmedQuery
+    ? ranked.filter(
+        ({ s }) =>
+          (s.name || '').toLowerCase().includes(trimmedQuery) ||
+          (s.rollNo || '').toLowerCase().includes(trimmedQuery)
+      )
+    : ranked;
+
   const isLocked = !!activeAsmt.locked;
   const handleToggleLock = () => {
     const nextLocked = !isLocked;
@@ -314,6 +409,10 @@ export const ResultsView: React.FC = () => {
         a.id === activeAsmt.id ? { ...a, locked: nextLocked } : a
       ),
     }));
+    if (nextLocked) {
+      setStudentEntryOn(false);
+      setSubjectEntryOn(false);
+    }
     toast(nextLocked ? "Assessment grid locked." : "Assessment grid unlocked.", "info");
   };
 
@@ -380,7 +479,6 @@ export const ResultsView: React.FC = () => {
   const handleAddSubject = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newSubName.trim();
-    // Max marks is optional: a subject can be added now and its max set later
     const max = Math.max(0, Number(newSubMax) || 0);
     if (!name) {
       toast("Enter a subject name.", "error");
@@ -408,7 +506,7 @@ export const ResultsView: React.FC = () => {
   // Rename Subject Inline
   const handleRenameSubject = (subId: string, rawName: string) => {
     const name = rawName.trim();
-    if (!name) return; // keep old name (the input re-syncs automatically)
+    if (!name) return;
     saveData(prev => ({
       ...prev,
       assessments: prev.assessments.map(a => {
@@ -513,7 +611,6 @@ export const ResultsView: React.FC = () => {
       } else if (/^a$/i.test(trimmed)) {
         row[subId] = 'A';
       } else {
-        // plain numbers only (no 1e3 / Infinity / negatives); rejected input re-syncs to the saved value
         if (!/^(\d+\.?\d*|\.\d+)$/.test(trimmed)) return prev;
         const num = Number(trimmed);
         if (!isFinite(num)) return prev;
@@ -579,8 +676,6 @@ export const ResultsView: React.FC = () => {
     toast("Pass status updated.", "success");
   };
 
-  // Vertical keyboard navigation on Enter key
-
   // Subject Stats (Average, High, Low)
   const subjectStats = activeAsmt.subjects.map(sub => {
     let sum = 0;
@@ -610,7 +705,7 @@ export const ResultsView: React.FC = () => {
 
   const otherAsmts = data.assessments.filter(a => a.id !== activeAsmt.id);
 
-  // Print Handlers (design A / B is chosen with the checkboxes in Print Options)
+  // Print Handlers
   const printCtx = () => ({
     style: printStyle,
     data,
@@ -625,7 +720,6 @@ export const ResultsView: React.FC = () => {
       toast("Add subjects first.", "error");
       return;
     }
-    // Fit every subject heading: smaller heading font first, then landscape if needed
     const layout = planResultPrintLayout(
       ranked.map(item => item.s.name || ""),
       activeAsmt.subjects.map(sub => sub.name),
@@ -636,7 +730,6 @@ export const ResultsView: React.FC = () => {
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
-  // "Report Cards" asks first: one PDF with every card, or a ZIP of one picture per student
   const handlePrintReportCards = () => {
     if (!activeAsmt.subjects.length) {
       toast("Add subjects first.", "error");
@@ -710,7 +803,7 @@ export const ResultsView: React.FC = () => {
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
-  // Edit with AI: export this assessment as a small JSON file, then import the edited file back (remarks only)
+  // Export results JSON for AI / editing
   const handleExportForAi = async () => {
     if (!activeAsmt.subjects.length) {
       toast("Add subjects first.", "error");
@@ -718,17 +811,11 @@ export const ResultsView: React.FC = () => {
     }
     const file = buildResultsAiFile(data, activeAsmt, ranked);
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
-    const safe = activeAsmt.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 40) || "results";
     const ok = await exportFileBlob(blob, `${fileTitle(data.className, activeAsmt.name, "Results for AI")}.json`, { title: "Results for AI" });
     if (!ok) toast("Could not export the file.", "error");
   };
 
-  // ---- One AI assistant for Results ----
-  // Attach a file (Excel / CSV / PDF / photo / JSON) and/or type instructions, then tap Go:
-  //  - file with subject columns  -> marks are filled
-  //  - file with a Remarks column -> remarks are imported
-  //  - no file                    -> remarks are written from the marks already in the app
-
+  // AI & File Import
   const ensureAiConsent = async (what: string): Promise<boolean> => {
     if (hasAiConsent()) return true;
     const ok = await uiConfirm(
@@ -739,7 +826,6 @@ export const ResultsView: React.FC = () => {
     return ok;
   };
 
-  // Marks from a file: preview, then save. Returns true when saved.
   const applyMarksFromRows = async (rows: MarkRow[], ignored: string[]): Promise<boolean> => {
     if (isLocked) {
       toast("Grid is locked. Unlock it to import marks.", "info");
@@ -777,8 +863,6 @@ export const ResultsView: React.FC = () => {
     return true;
   };
 
-  // Remarks from the marks already in the app. Only marks are sent (no names).
-  // Only students with an empty remark are filled, so remarks you wrote yourself are never replaced.
   const writeRemarksFromMarks = async (instructions: string): Promise<boolean> => {
     if (!aiReadingAvailable()) {
       toast("AI is not set up yet.", "error");
@@ -819,7 +903,6 @@ export const ResultsView: React.FC = () => {
         return false;
       }
       if (kind === "json") {
-        // A results file exported with "Export file" and filled in by an AI (remarks)
         return await reviewAndApplyRemarks(file, "Import remarks from file");
       }
 
@@ -887,180 +970,217 @@ export const ResultsView: React.FC = () => {
     }
   };
 
+  const entryMode: 'grid' | 'student' | 'subject' = studentEntryOn ? 'student' : subjectEntryOn ? 'subject' : 'grid';
+  const setEntryMode = (mode: 'grid' | 'student' | 'subject') => {
+    if (mode !== 'grid' && isLocked) {
+      toast("Grid is locked. Unlock it to enter marks.", "info");
+      return;
+    }
+    setStudentEntryOn(mode === 'student');
+    setSubjectEntryOn(mode === 'subject');
+  };
+
   return (
-    <div className="space-y-3">
-      <HowItWorks
-        id="results-detail"
-        title="How to enter results"
-        steps={[
-          <>Add <b>subjects</b> with their maximum marks. <b>Copy Subjects</b> reuses them from another assessment.</>,
-          <>Type each student's marks in the table. Tap <b>A</b> if the student was absent in that subject.</>,
-          <><b>Total, Result and Rank update automatically.</b> The pass percentage is set for this assessment.</>,
-          <>A student who just missed can be passed manually with <b>Pass anyway</b>. Tap <b>Undo</b> to remove it.</>,
-          <>Tap a <b>student's name</b> to open their <b>result card</b>. Use the arrows to move between students, then <b>Print</b>, <b>Share as image</b> or <b>Share</b> it.</>,
-          <>Choose <b>Colour</b> or <b>Black &amp; White</b> under Print Options (it also changes the card), then print the Class Result Sheet, Report Cards or Merit List.</>
-        ]}
-        note="Marks save automatically as you type."
-      />
+    <div className="cg-view-enter space-y-5">
+      {/* Assessment Detail Masthead */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setActiveAssessmentId(null)}
+          className="min-h-[40px] -ml-1.5 px-1.5 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold text-red-800 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>All assessments</span>
+        </button>
 
-      {/* Assessment Header Card */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-2">
-        <div className="flex justify-between items-center gap-2 pb-1 border-b border-[#E7E5E4] dark:border-[#44403C]">
-          <button
-            type="button"
-            onClick={() => setActiveAssessmentId(null)}
-            className="text-xs font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
-          >
-            ← All Assessments
-          </button>
-          <button
-            type="button"
-            onClick={() => toggleCollapse('asmtDetails')}
-            className="text-xs font-bold text-[#78716C] dark:text-[#A8A29E] hover:text-[#1C1917] dark:hover:text-[#F5F5F4] flex items-center gap-1 cursor-pointer"
-            aria-expanded={!collapse.asmtDetails}
-          >
-            <span>{collapse.asmtDetails ? "Show details" : "Collapse"}</span>
-            {collapse.asmtDetails ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-
-        {collapse.asmtDetails ? (
-          <div
-            onClick={() => toggleCollapse('asmtDetails')}
-            className="pt-1 flex items-center justify-between gap-2 flex-wrap cursor-pointer select-none"
-          >
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-50 truncate">
                 {activeAsmt.name}
-              </h2>
+              </h1>
+              {isLocked && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  <Lock className="w-3.5 h-3.5" />
+                  Locked
+                </span>
+              )}
             </div>
-            <span className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">
-              Pass: <b>{activeAsmt.passPercent}%</b> • Entered: <b>{entered}/{data.students.length}</b> • Total max: <b>{totalMax}</b>
-            </span>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 font-mono-num">
+              {data.className || 'Class'} · {activeAsmt.subjects.length} {activeAsmt.subjects.length === 1 ? 'subject' : 'subjects'} · Max {totalMax}
+            </p>
           </div>
-        ) : (
-          <>
-            <ActionGrid cols={2}>
-              <ActionButton
-                variant="secondary"
-                icon={Edit3}
-                onClick={handleRename}
-              >
-                Rename
-              </ActionButton>
-              <ActionButton
-                variant="danger"
-                icon={Trash2}
-                onClick={handleDelete}
-              >
-                Delete
-              </ActionButton>
-            </ActionGrid>
 
-            <div className="flex items-center gap-2 mt-1">
-              <h2 className="text-xl font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-                {activeAsmt.name}
-              </h2>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {activeAsmt.subjects.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrintClassResults}
+                  className="min-h-[42px] px-3.5 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Class sheet</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintReportCards}
+                  className="min-h-[42px] px-3.5 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileText className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+                  <span>Report cards</span>
+                </button>
+              </>
+            )}
 
-            <div className="flex items-center gap-3 text-xs flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[#78716C] dark:text-[#A8A29E] font-semibold">Pass mark:</span>
-                <SyncInput
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={activeAsmt.passPercent}
-                  onCommit={handleUpdatePassPercent}
-                  disabled={isLocked}
-                  className="w-16 p-1 text-center font-bold text-xs rounded-lg border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit disabled:opacity-50"
-                />
-                <span className="text-[#78716C] dark:text-[#A8A29E] font-semibold">%</span>
-              </div>
+            <button
+              type="button"
+              onClick={handleToggleLock}
+              title={isLocked ? "Unlock grid to edit marks" : "Lock grid to prevent accidental changes"}
+              className={`min-h-[42px] px-3 rounded-xl text-xs font-semibold border inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isLocked
+                  ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                  : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800'
+              }`}
+            >
+              {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5 text-stone-400" />}
+              <span>{isLocked ? 'Unlock' : 'Lock'}</span>
+            </button>
 
-              <span className="text-[#78716C] dark:text-[#A8A29E]">
-                Entered: <b>{entered}</b> of <b>{data.students.length}</b> • Total max: <b>{totalMax}</b>
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={handleRename}
+              aria-label="Rename assessment"
+              title="Rename assessment"
+              className="min-h-[42px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-stone-400" />
+              <span className="hidden sm:inline">Rename</span>
+            </button>
 
-            <div className="w-full h-2 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden mt-1">
-              <div
-                className="h-full bg-[#065F46] transition-all"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </>
-        )}
+            <button
+              type="button"
+              onClick={handleDelete}
+              aria-label="Delete assessment"
+              title="Delete assessment"
+              className="min-h-[42px] w-[42px] rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-500 hover:text-red-700 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/60 hover:bg-red-50/50 dark:hover:bg-red-950/30 inline-flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Subjects Card */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div
-          onClick={() => toggleCollapse('subjects')}
-          className="flex justify-between items-center gap-2 cursor-pointer select-none"
-        >
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-              Subjects ({activeAsmt.subjects.length})
-            </h3>
-            {collapse.subjects && activeAsmt.subjects.length > 0 && (
-              <span className="text-[11px] text-[#78716C] dark:text-[#A8A29E] font-medium hidden sm:inline">
-                Total max: {totalMax} marks
+      {/* Unified Assessment Pulse Bar */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-stone-200 dark:divide-stone-800">
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Entered</div>
+            <div className="mt-1 flex items-baseline gap-1.5 font-mono-num">
+              <span className="text-lg font-bold text-stone-900 dark:text-stone-50">
+                {entered}/{data.students.length}
               </span>
-            )}
+              <span className="text-xs text-stone-500 dark:text-stone-400">{progressPct}%</span>
+            </div>
           </div>
-          <button
-            type="button"
-            className="text-xs font-bold text-[#78716C] dark:text-[#A8A29E] hover:text-[#1C1917] dark:hover:text-[#F5F5F4] flex items-center gap-1 cursor-pointer"
-            aria-expanded={!collapse.subjects}
-          >
-            <span>{collapse.subjects ? "Edit subjects" : "Collapse"}</span>
-            {collapse.subjects ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
 
-        {collapse.subjects ? (
-          <div
-            onClick={() => toggleCollapse('subjects')}
-            className="pt-1 text-xs text-[#78716C] dark:text-[#A8A29E] cursor-pointer flex items-center justify-between gap-2 flex-wrap"
-          >
-            {activeAsmt.subjects.length === 0 ? (
-              <span>No subjects added yet. Click to add subjects.</span>
-            ) : (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {activeAsmt.subjects.slice(0, 6).map(sub => (
-                  <span
-                    key={sub.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C] text-[11px] font-semibold max-w-[140px] truncate"
-                    title={`${sub.name} (Max: ${sub.max})`}
-                  >
-                    <span className="truncate">{sub.name}</span>
-                    <span className="text-[#A8A29E] shrink-0">({sub.max || '?'})</span>
-                  </span>
-                ))}
-                {activeAsmt.subjects.length > 6 && (
-                  <span className="text-[11px] font-bold text-[#78716C] dark:text-[#A8A29E]">
-                    +{activeAsmt.subjects.length - 6} more
-                  </span>
-                )}
-              </div>
-            )}
-            <span className="text-[11px] text-[#2E5A8A] dark:text-[#9CC3EA] font-semibold shrink-0">
-              {activeAsmt.subjects.length} configured (Max: {totalMax})
-            </span>
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Pass rate</div>
+            <div className="mt-1 flex items-baseline gap-1.5 font-mono-num">
+              <span className={`text-lg font-bold ${
+                passRatePct === null
+                  ? 'text-stone-400 dark:text-stone-500'
+                  : passRatePct >= 80
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : passRatePct >= 50
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : 'text-red-700 dark:text-red-400'
+              }`}>
+                {passRatePct === null ? '—' : `${passRatePct}%`}
+              </span>
+              {evaluatedCount > 0 && (
+                <span className="text-xs text-stone-500 dark:text-stone-400">
+                  {passedCount}/{evaluatedCount} passed
+                </span>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
+
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Pass mark</div>
+            <div className="mt-0.5 flex items-center gap-1">
+              <SyncInput
+                type="number"
+                min="1"
+                max="100"
+                value={activeAsmt.passPercent}
+                onCommit={handleUpdatePassPercent}
+                disabled={isLocked}
+                aria-label="Pass percentage"
+                className="w-16 px-2 py-0.5 text-base font-bold font-mono-num rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 text-center focus:outline-none focus:border-red-700 dark:focus:border-red-500 disabled:opacity-50"
+              />
+              <span className="text-sm font-semibold text-stone-500 dark:text-stone-400">%</span>
+            </div>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Total max marks</div>
+            <div className="mt-1 flex items-baseline gap-1.5 font-mono-num">
+              <span className="text-lg font-bold text-stone-900 dark:text-stone-50">{totalMax}</span>
+              <span className="text-xs text-stone-500 dark:text-stone-400">
+                across {activeAsmt.subjects.length} {activeAsmt.subjects.length === 1 ? 'subject' : 'subjects'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="h-1 bg-stone-100 dark:bg-stone-800">
+          <div
+            className={`h-full transition-all ${progressPct >= 100 ? 'bg-emerald-700 dark:bg-emerald-500' : 'bg-red-800 dark:bg-red-500'}`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Subjects Section */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleCollapse('subjects')}
+          aria-expanded={!collapse.subjects}
+          className="w-full min-h-[52px] px-4 sm:px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-stone-50/70 dark:hover:bg-stone-800/40 transition-colors cursor-pointer"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                Subjects <span className="font-mono-num text-stone-500 dark:text-stone-400 font-semibold">({activeAsmt.subjects.length})</span>
+              </h2>
+            </div>
+            {collapse.subjects && (
+              <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                {activeAsmt.subjects.length === 0
+                  ? "No subjects yet — tap to add subjects"
+                  : activeAsmt.subjects.map(sub => `${sub.name} (${sub.max || '?'})`).join(' · ')}
+              </p>
+            )}
+          </div>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-stone-500 dark:text-stone-400 shrink-0">
+            <span>{collapse.subjects ? "Edit" : "Hide"}</span>
+            {collapse.subjects ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </button>
+
+        {!collapse.subjects && (
+          <div className="px-4 sm:px-5 pb-4 pt-1 space-y-4 border-t border-stone-100 dark:border-stone-800">
             {activeAsmt.subjects.length === 0 ? (
-              <p className="text-xs text-[#78716C] dark:text-[#A8A29E]">
-                No subjects configured yet. Add subjects below to start recording marks.
+              <p className="text-xs text-stone-500 dark:text-stone-400 pt-2">
+                Add subjects below (or copy them from another assessment) to unlock the marks sheet.
               </p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2">
                 {activeAsmt.subjects.map(sub => (
                   <div
                     key={sub.id}
-                    className="min-w-0 flex items-center justify-between gap-1.5 p-2 rounded-xl border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#0C0A09] text-xs font-bold"
+                    className="min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50/60 dark:bg-stone-950/40"
                   >
                     <div className="min-w-0 flex-1" title={sub.name}>
                       <SyncInput
@@ -1068,12 +1188,12 @@ export const ResultsView: React.FC = () => {
                         value={sub.name}
                         onCommit={v => handleRenameSubject(sub.id, v)}
                         disabled={isLocked}
-                        className="w-full bg-transparent border-0 font-bold focus:outline-none text-inherit truncate"
+                        className="w-full bg-transparent border-0 text-xs font-semibold text-stone-900 dark:text-stone-100 focus:outline-none truncate"
                         placeholder="Subject"
                       />
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[#78716C] dark:text-[#A8A29E] text-[10px]">max</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] text-stone-400 dark:text-stone-500">max</span>
                       <SyncInput
                         type="number"
                         min="0"
@@ -1081,20 +1201,21 @@ export const ResultsView: React.FC = () => {
                         value={sub.max || ''}
                         onCommit={v => handleChangeSubjectMax(sub.id, v)}
                         disabled={isLocked}
-                        className="w-11 text-center bg-white dark:bg-[#1C1917] border border-[#D6D3D1] dark:border-[#44403C] rounded-md px-1 py-0.5 text-xs text-inherit"
+                        className="w-12 text-center font-mono-num bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg px-1 py-1 text-xs font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:border-red-700 dark:focus:border-red-500 disabled:opacity-50"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemoveSubject(sub.id, sub.name)}
                         disabled={isLocked}
-                        className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] ml-0.5 ${
-                          isLocked
-                            ? 'opacity-30 cursor-not-allowed bg-stone-200 dark:bg-stone-800 text-stone-500'
-                            : 'bg-[#F8E4E1] text-[#7F1D1D] hover:bg-[#FCA5A5] cursor-pointer'
-                        }`}
+                        aria-label={`Remove ${sub.name}`}
                         title={isLocked ? "Unlock grid to edit subjects" : "Remove subject"}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                          isLocked
+                            ? 'opacity-30 cursor-not-allowed text-stone-400'
+                            : 'text-stone-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer'
+                        }`}
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1102,161 +1223,204 @@ export const ResultsView: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleAddSubject} className="space-y-2.5 pt-2 border-t border-[#E7E5E4] dark:border-[#44403C]">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <PlainTextInput
-                                    value={newSubName}
-                  placeholder="Subject name"
-                  disabled={isLocked}
-                  onChange={e => setNewSubName(e.target.value)}
-                  className="w-full p-2.5 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit disabled:opacity-50"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={newSubMax}
-                  placeholder="Max marks (optional)"
-                  disabled={isLocked}
-                  onChange={e => setNewSubMax(e.target.value)}
-                  className="w-full p-2.5 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit disabled:opacity-50"
-                />
-              </div>
-              <ActionGrid cols={2}>
-                <ActionButton
-                  type="submit"
-                  variant="primary"
-                  icon={Plus}
-                  disabled={isLocked}
-                  fullWidth={otherAsmts.length === 0}
-                >
-                  Add Subject
-                </ActionButton>
-                {otherAsmts.length > 0 && (
-                  <ActionButton
-                    type="button"
-                    variant="secondary"
-                    icon={Copy}
+            {/* Inline Add Subject Form */}
+            <form onSubmit={handleAddSubject} className="pt-3 border-t border-stone-100 dark:border-stone-800 space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <div className="sm:col-span-5">
+                  <PlainTextInput
+                    value={newSubName}
+                    placeholder="Subject name (e.g. Mathematics)"
                     disabled={isLocked}
-                    onClick={() => setCopyPickerOpen(!copyPickerOpen)}
+                    onChange={e => setNewSubName(e.target.value)}
+                    className="w-full min-h-[42px] px-3 py-2 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500 disabled:opacity-50"
+                  />
+                </div>
+                <div className="sm:col-span-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={newSubMax}
+                    placeholder="Max marks"
+                    disabled={isLocked}
+                    onChange={e => setNewSubMax(e.target.value)}
+                    className="w-full min-h-[42px] px-3 py-2 text-xs font-mono-num rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500 disabled:opacity-50"
+                  />
+                </div>
+                <div className={`${otherAsmts.length > 0 ? 'sm:col-span-4' : 'sm:col-span-4'} flex items-center gap-2`}>
+                  <button
+                    type="submit"
+                    disabled={isLocked}
+                    className="flex-1 min-h-[42px] px-3 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Copy Subjects
-                  </ActionButton>
-                )}
-              </ActionGrid>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add subject</span>
+                  </button>
+                  {otherAsmts.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => setCopyPickerOpen(o => !o)}
+                      className="min-h-[42px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-stone-400" />
+                      <span>Copy</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </form>
 
             {copyPickerOpen && (
-              <div className="p-3.5 rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C] space-y-2">
-                <span className="text-xs font-bold block text-[#78716C] dark:text-[#A8A29E]">
-                  Copy subjects from other assessment:
-                </span>
+              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-stone-600 dark:text-stone-400">
+                    Copy subjects from another assessment:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCopyPickerOpen(false)}
+                    className="text-xs font-semibold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
                 <div className="flex gap-2 flex-wrap">
                   {otherAsmts.map(o => (
                     <button
                       key={o.id}
                       type="button"
                       onClick={() => handleCopySubjects(o.id)}
-                      className="px-3 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-[#1C1917] border border-[#D6D3D1] dark:border-[#44403C] hover:border-[#B91C1C] cursor-pointer"
+                      className="min-h-[38px] px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 hover:border-red-700 dark:hover:border-red-500 transition-colors cursor-pointer"
                     >
-                      {o.name} ({o.subjects.length})
+                      {o.name} <span className="text-stone-400 font-mono-num">({o.subjects.length})</span>
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setCopyPickerOpen(false)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-xl bg-transparent text-[#78716C] hover:underline cursor-pointer"
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* Marks Sheet Table */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex justify-between items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-              Marks Sheet
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={handleToggleLock}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${
-              isLocked
-                ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40'
-                : 'bg-white dark:bg-[#1C1917] text-[#1C1917] dark:text-[#F5F5F4] border-[#D6D3D1] dark:border-[#44403C] hover:bg-[#FAFAF9] dark:hover:bg-[#292524]'
-            }`}
-            title={isLocked ? "Unlock grid to edit marks" : "Lock grid to prevent accidental changes"}
-          >
-            {isLocked ? (
-              <>
-                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>Locked</span>
-              </>
-            ) : (
-              <>
-                <Unlock className="w-3.5 h-3.5 text-stone-500" />
-                <span>Lock Grid</span>
-              </>
+      {/* Marks Sheet Surface */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        {/* Marks Toolbar */}
+        <div className="px-4 sm:px-5 py-3.5 border-b border-stone-200 dark:border-stone-800 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Marks sheet</h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                {isLocked
+                  ? "Grid is locked. Unlock above to edit marks or remarks."
+                  : studentEntryOn
+                  ? "Tap any student's name to enter all their subjects at once."
+                  : subjectEntryOn
+                  ? "Tap any subject column header to enter marks by roll number."
+                  : "Type marks directly, tap A for absent, or tap a student's name for their report card."}
+              </p>
+            </div>
+
+            {activeAsmt.subjects.length > 0 && (
+              <div
+                className="inline-flex p-1 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200/70 dark:border-stone-700/70 shrink-0 self-start sm:self-auto"
+                role="tablist"
+                aria-label="Marks entry mode"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={entryMode === 'grid'}
+                  onClick={() => setEntryMode('grid')}
+                  className={`min-h-[34px] px-2.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    entryMode === 'grid'
+                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-50 shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  <Table2 className="w-3.5 h-3.5" />
+                  <span>Grid</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={entryMode === 'student'}
+                  onClick={() => setEntryMode('student')}
+                  className={`min-h-[34px] px-2.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    entryMode === 'student'
+                      ? 'bg-red-800 dark:bg-red-700 text-white shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>By student</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={entryMode === 'subject'}
+                  onClick={() => setEntryMode('subject')}
+                  className={`min-h-[34px] px-2.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    entryMode === 'subject'
+                      ? 'bg-red-800 dark:bg-red-700 text-white shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>By subject</span>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
+
+          {activeAsmt.subjects.length > 0 && sortedStudents.length >= 8 && (
+            <div className="relative max-w-xs">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={studentQuery}
+                onChange={e => setStudentQuery(e.target.value)}
+                placeholder="Filter by student name or roll…"
+                className="w-full min-h-[38px] pl-9 pr-8 py-1.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+              />
+              {studentQuery && (
+                <button
+                  type="button"
+                  onClick={() => setStudentQuery("")}
+                  aria-label="Clear filter"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {activeAsmt.subjects.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <EntryToggle
-              on={studentEntryOn}
-              onChange={v => {
-                if (isLocked) {
-                  toast("Grid is locked. Unlock it to enter marks.", "info");
-                  return;
-                }
-                setStudentEntryOn(v);
-                if (v) setSubjectEntryOn(false);
-              }}
-              title="Student-wise entry"
-              hint="Tap a student's name to enter all their subjects"
-            />
-            <EntryToggle
-              on={subjectEntryOn}
-              onChange={v => {
-                if (isLocked) {
-                  toast("Grid is locked. Unlock it to enter marks.", "info");
-                  return;
-                }
-                setSubjectEntryOn(v);
-                if (v) setStudentEntryOn(false);
-              }}
-              title="Subject-wise entry"
-              hint="Tap a subject heading to enter marks by Roll No"
-            />
-          </div>
-        )}
+        {/* Marks Table Body */}
         {activeAsmt.subjects.length === 0 ? (
-          <div className="text-center py-8 text-[#78716C] dark:text-[#A8A29E]">
-            Add at least one subject above to record student marks.
+          <div className="px-6 py-10 text-center text-sm text-stone-500 dark:text-stone-400">
+            Add at least one subject above to start recording student marks.
+          </div>
+        ) : visibleRanked.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm text-stone-500 dark:text-stone-400">
+            No students match "{studentQuery}".
           </div>
         ) : (
-          <div className="res-wrap overflow-x-auto border border-[#E7E5E4] dark:border-[#44403C] rounded-xl max-h-[75vh]">
+          <div className="res-wrap overflow-x-auto max-h-[72vh]">
             <table
               className="res-table w-full text-xs text-center border-separate border-spacing-0"
               style={{ '--name-col-w': `${nameColWidth}px` } as React.CSSProperties}
             >
-              <thead className="sticky top-0 z-20 bg-[#FAFAF9] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]">
+              <thead className="sticky top-0 z-20 bg-stone-50 dark:bg-stone-900 text-stone-700 dark:text-stone-200">
                 <tr>
-                  <th className="sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#292524]">
+                  <th className="sc1 px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 font-semibold">
                     Roll
                   </th>
-                  <th className="sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#292524] text-left">
+                  <th className="sc2 px-2.5 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 text-left font-semibold">
                     Name
                   </th>
                   {activeAsmt.subjects.map(sub => (
-                    <th key={sub.id} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[70px]">
+                    <th key={sub.id} className="px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 min-w-[78px] font-semibold">
                       {subjectEntryOn ? (
                         <button
                           type="button"
@@ -1268,66 +1432,65 @@ export const ResultsView: React.FC = () => {
                             setEntrySubjectId(sub.id);
                           }}
                           title={isLocked ? "Grid is locked" : "Enter marks for this subject"}
-                          className={`w-full rounded-lg px-1.5 py-1 bg-[#E8F0F8] dark:bg-[#1E3550] text-[#2E5A8A] dark:text-[#9CC3EA] border border-[#2E5A8A]/40 font-bold ${
-                            isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                          className={`w-full rounded-lg px-2 py-1 bg-red-50 dark:bg-red-950/50 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900 font-semibold transition-colors ${
+                            isLocked ? 'opacity-60 cursor-not-allowed' : 'hover:bg-red-100 dark:hover:bg-red-950 cursor-pointer'
                           }`}
                         >
-                          {sub.name}
-                          <span className="block text-[10px] font-semibold opacity-80">({sub.max || '?'}) ✎</span>
+                          <span className="block truncate">{sub.name}</span>
+                          <span className="block text-[10px] font-mono-num opacity-80">/{sub.max || '?'}</span>
                         </button>
                       ) : (
                         <>
-                          {sub.name}
-                          <span className="block text-[10px] text-[#A8A29E]">({sub.max || '?'})</span>
+                          <span className="block truncate">{sub.name}</span>
+                          <span className="block text-[10px] font-mono-num font-normal text-stone-400 dark:text-stone-500">
+                            /{sub.max || '?'}
+                          </span>
                         </>
                       )}
                     </th>
                   ))}
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#292524] font-bold min-w-[70px]">
+                  <th className="px-2.5 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 font-semibold min-w-[76px]">
                     Total
                   </th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[50px] font-bold">
+                  <th className="px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[54px] font-semibold">
                     %
                   </th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[100px] font-bold">
+                  <th className="px-2.5 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[104px] font-semibold">
                     Result
                   </th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[50px] font-bold">
+                  <th className="px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[52px] font-semibold">
                     Rank
                   </th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[140px] text-left">
+                  <th className="px-2.5 py-2.5 border-b border-stone-200 dark:border-stone-800 min-w-[150px] text-left font-semibold">
                     Remarks
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {ranked.map((item, sIdx) => {
+                {visibleRanked.map((item, sIdx) => {
                   const { s, r } = item;
                   const asmtRes = (data.assessmentResults[activeAsmt.id] || {})[s.id] || {};
                   const remarksVal = (data.assessmentRemarks[activeAsmt.id] || {})[s.id] || "";
                   const rowFail = !r.passed && r.maxTotal > 0;
                   const isEven = sIdx % 2 === 1;
                   const stickyBg = rowFail
-                    ? 'bg-[#FDF6F5] dark:bg-[#2B1414]'
+                    ? 'bg-red-50/70 dark:bg-red-950/25'
                     : isEven
-                    ? 'bg-[#FAFAF9] dark:bg-[#0C0A09]'
+                    ? 'bg-stone-50/60 dark:bg-stone-950/40'
+                    : 'bg-white dark:bg-stone-900';
+                  // Solid opaque sticky background so scrolled columns never bleed behind Roll & Name
+                  const solidStickyBg = rowFail
+                    ? 'bg-[#FDF5F4] dark:bg-[#231414]'
+                    : isEven
+                    ? 'bg-[#FAFAF9] dark:bg-[#141210]'
                     : 'bg-white dark:bg-[#1C1917]';
 
                   return (
-                    <tr
-                      key={s.id}
-                      className={
-                        rowFail
-                          ? 'bg-[#FDF6F5] dark:bg-[#2B1414]'
-                          : isEven
-                          ? 'bg-[#FAFAF9] dark:bg-[#0C0A09]'
-                          : 'bg-white dark:bg-[#1C1917]'
-                      }
-                    >
-                      <td className={`sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold ${stickyBg}`}>
+                    <tr key={s.id} className={stickyBg}>
+                      <td className={`sc1 px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-mono-num font-semibold text-stone-600 dark:text-stone-300 ${solidStickyBg}`}>
                         {s.rollNo || "—"}
                       </td>
-                      <td className={`sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold truncate ${stickyBg}`}>
+                      <td className={`sc2 px-2.5 py-2 border-b border-r border-stone-200 dark:border-stone-800 text-left font-semibold truncate ${solidStickyBg}`}>
                         <button
                           type="button"
                           onClick={() => {
@@ -1341,9 +1504,11 @@ export const ResultsView: React.FC = () => {
                               setCardStudentId(s.id);
                             }
                           }}
-                          title={studentEntryOn ? (isLocked ? "Grid is locked" : "Enter marks") : "Open result card"}
+                          title={studentEntryOn ? (isLocked ? "Grid is locked" : "Enter marks") : "Open report card"}
                           className={`max-w-full truncate text-left font-semibold cursor-pointer hover:underline decoration-dotted underline-offset-2 ${
-                            studentEntryOn ? 'text-[#2E5A8A] dark:text-[#9CC3EA]' : ''
+                            studentEntryOn
+                              ? 'text-red-800 dark:text-red-400'
+                              : 'text-stone-900 dark:text-stone-100'
                           }`}
                         >
                           {s.name || "(no name)"}
@@ -1360,8 +1525,8 @@ export const ResultsView: React.FC = () => {
                         return (
                           <td
                             key={sub.id}
-                            className={`p-1 border border-[#E7E5E4] dark:border-[#44403C] ${
-                              below33 ? 'border-l-2 border-l-[#B4791F]' : ''
+                            className={`px-1 py-1 border-b border-r border-stone-200 dark:border-stone-800 ${
+                              below33 ? 'bg-amber-50/70 dark:bg-amber-950/20' : ''
                             }`}
                           >
                             <div className="flex items-center justify-center gap-1">
@@ -1374,12 +1539,12 @@ export const ResultsView: React.FC = () => {
                                 onCommit={v => handleMarkChange(s.id, sub.id, v)}
                                 disabled={isLocked}
                                 enterKeyHint="next"
-                                tabIndex={isLocked ? -1 : gridTabIndex(sIdx, subIdx, sortedStudents.length)}
-                                onKeyDown={e => !isLocked && gridNavKeyDown(e, 'data-coord', sIdx, subIdx, sortedStudents.length, activeAsmt.subjects.length)}
-                                className={`w-10 p-1 text-center font-bold font-mono text-xs rounded border border-transparent focus:border-[#2E5A8A] focus:bg-white dark:focus:bg-[#0C0A09] bg-transparent text-inherit ${
-                                  isAbsent ? 'text-[#7F1D1D] font-extrabold' : ''
-                                } ${isOverMax ? 'ring-2 ring-[#B4791F]' : ''} ${
-                                  isLocked ? 'cursor-not-allowed opacity-80' : ''
+                                tabIndex={isLocked ? -1 : gridTabIndex(sIdx, subIdx, visibleRanked.length)}
+                                onKeyDown={e => !isLocked && gridNavKeyDown(e, 'data-coord', sIdx, subIdx, visibleRanked.length, activeAsmt.subjects.length)}
+                                className={`w-11 py-1 text-center font-semibold font-mono-num text-xs rounded-md border border-transparent focus:border-red-700 dark:focus:border-red-500 focus:bg-white dark:focus:bg-stone-950 bg-transparent text-inherit ${
+                                  isAbsent ? 'text-red-700 dark:text-red-400 font-bold' : ''
+                                } ${isOverMax ? 'ring-2 ring-amber-500' : ''} ${
+                                  isLocked ? 'cursor-not-allowed opacity-75' : ''
                                 }`}
                                 placeholder="—"
                               />
@@ -1389,12 +1554,12 @@ export const ResultsView: React.FC = () => {
                                 disabled={isLocked}
                                 onClick={() => handleToggleAbsent(s.id, sub.id)}
                                 title={isLocked ? "Grid is locked" : "Toggle Absent"}
-                                className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center transition-colors ${
+                                className={`w-6 h-6 rounded-md text-[10px] font-bold flex items-center justify-center transition-colors shrink-0 ${
                                   isLocked
-                                    ? 'opacity-40 cursor-not-allowed ' + (isAbsent ? 'bg-[#F8E4E1] text-[#7F1D1D]' : 'bg-[#FAFAF9] dark:bg-[#292524] text-[#A8A29E]')
+                                    ? 'opacity-40 cursor-not-allowed ' + (isAbsent ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' : 'text-stone-400')
                                     : isAbsent
-                                    ? 'bg-[#F8E4E1] text-[#7F1D1D] border border-[#B23A32] cursor-pointer'
-                                    : 'bg-[#FAFAF9] dark:bg-[#292524] text-[#A8A29E] border border-[#E7E5E4] dark:border-[#44403C] hover:bg-[#F5F5F4] cursor-pointer'
+                                    ? 'bg-red-100 dark:bg-red-950/80 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800 cursor-pointer'
+                                    : 'bg-stone-100/80 dark:bg-stone-800 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/70 dark:hover:bg-stone-700 cursor-pointer'
                                 }`}
                               >
                                 A
@@ -1404,38 +1569,40 @@ export const ResultsView: React.FC = () => {
                         );
                       })}
 
-                      <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-bold bg-[#FAFAF9] dark:bg-[#292524]">
-                        {r.total} / {totalMax}
+                      <td className="px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-mono-num font-semibold text-stone-800 dark:text-stone-200 bg-stone-50/70 dark:bg-stone-800/40">
+                        {r.total}/{totalMax}
                       </td>
 
                       <td
-                        className={`p-2 border border-[#E7E5E4] dark:border-[#44403C] font-bold ${
+                        className={`px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-mono-num font-bold ${
                           r.maxTotal > 0
                             ? r.pct >= 80
-                              ? 'bg-[#D1FAE5] dark:bg-[#064E3B] text-[#065F46] dark:text-[#A7F3D0]'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
                               : r.pct >= activeAsmt.passPercent
-                              ? 'bg-[#FBF0D9] dark:bg-[#3A2E14] text-[#7A5515] dark:text-[#F8E0A0]'
-                              : 'bg-[#F8E4E1] dark:bg-[#4A1A18] text-[#7F1D1D] dark:text-[#F0C8C0]'
-                            : ''
+                              ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'
+                              : 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300'
+                            : 'text-stone-400'
                         }`}
                       >
                         {r.maxTotal > 0 ? `${r.pct}%` : "—"}
                       </td>
 
-                      <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-bold">
+                      <td className="px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-semibold">
                         {r.maxTotal === 0 ? (
-                          <span className="text-[#A8A29E]">—</span>
+                          <span className="text-stone-400">—</span>
                         ) : r.passed ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-[#065F46] dark:text-[#A7F3D0]">PASS</span>
-                            {r.manual && !r.computedPass && <span title="Manually passed" className="text-amber-600">✱</span>}
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold">Pass</span>
+                            {r.manual && !r.computedPass && (
+                              <span title="Manually passed" className="text-amber-600 dark:text-amber-400">✱</span>
+                            )}
                             {r.manual && (
                               <button
                                 type="button"
                                 disabled={isLocked}
                                 onClick={() => handleToggleManualPass(s.id)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] bg-[#F5F5F4] dark:bg-[#292524] text-[#78716C] dark:text-[#D6D3D1] ${
-                                  isLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#E7E5E4] cursor-pointer'
+                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 ${
+                                  isLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-200 dark:hover:bg-stone-700 cursor-pointer'
                                 }`}
                               >
                                 Undo
@@ -1443,14 +1610,14 @@ export const ResultsView: React.FC = () => {
                             )}
                           </div>
                         ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-[#7F1D1D] dark:text-[#F0C8C0]">FAIL</span>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="text-red-700 dark:text-red-400 font-bold">Fail</span>
                             <button
                               type="button"
                               disabled={isLocked}
                               onClick={() => handleToggleManualPass(s.id)}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FBF0D9] dark:bg-[#3A2E14] text-[#7A5515] dark:text-[#F8E0A0] border border-[#B4791F] ${
-                                isLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#F5E4C0] cursor-pointer'
+                              className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 ${
+                                isLocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-amber-100 dark:hover:bg-amber-900/50 cursor-pointer'
                               }`}
                             >
                               Pass anyway
@@ -1459,11 +1626,11 @@ export const ResultsView: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-bold bg-[#FAFAF9] dark:bg-[#292524]">
+                      <td className="px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-mono-num font-semibold text-stone-700 dark:text-stone-200 bg-stone-50/70 dark:bg-stone-800/40">
                         {r.maxTotal > 0 ? ordinal(item.rank) : "—"}
                       </td>
 
-                      <td className="p-1 border border-[#E7E5E4] dark:border-[#44403C]">
+                      <td className="px-1.5 py-1 border-b border-stone-200 dark:border-stone-800">
                         <SyncInput
                           type="text"
                           inputMode="text"
@@ -1472,8 +1639,8 @@ export const ResultsView: React.FC = () => {
                           disabled={isLocked}
                           onLive={v => handleRemarkChange(s.id, v)}
                           onCommit={() => flushSave()}
-                          className={`w-full p-1 text-xs bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-[#0C0A09] rounded ${
-                            isLocked ? 'cursor-not-allowed opacity-80' : ''
+                          className={`w-full px-1.5 py-1 text-xs bg-transparent border border-transparent focus:border-red-700 dark:focus:border-red-500 focus:outline-none focus:bg-white dark:focus:bg-stone-950 rounded-md ${
+                            isLocked ? 'cursor-not-allowed opacity-75' : ''
                           }`}
                         />
                       </td>
@@ -1481,42 +1648,42 @@ export const ResultsView: React.FC = () => {
                   );
                 })}
               </tbody>
-              <tfoot className="sticky bottom-0 z-20 bg-white! dark:bg-[#1C1917]! text-[#1C1917] dark:text-[#F5F5F4] font-bold shadow-[0_-3px_10px_rgba(0,0,0,0.12)]">
+              <tfoot className="sticky bottom-0 z-20 bg-white! dark:bg-[#1C1917]! text-stone-900 dark:text-stone-100 font-semibold shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
                 <tr className="bg-white! dark:bg-[#1C1917]!">
-                  <td className="sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
-                  <td className="sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] text-right pr-2 font-bold bg-white! dark:bg-[#1C1917]!">
+                  <td className="sc1 px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
+                  <td className="sc2 px-2.5 py-2 border-t border-r border-stone-200 dark:border-stone-800 text-right font-semibold text-stone-600 dark:text-stone-300 bg-white! dark:bg-[#1C1917]!">
                     Average →
                   </td>
                   {subjectStats.map(st => (
-                    <td key={st.subId} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-mono text-center font-bold bg-white! dark:bg-[#1C1917]!">
+                    <td key={st.subId} className="px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 font-mono-num text-center font-semibold bg-white! dark:bg-[#1C1917]!">
                       {st.avg}
                     </td>
                   ))}
-                  <td colSpan={5} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
+                  <td colSpan={5} className="px-2 py-2 border-t border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
                 </tr>
                 <tr className="bg-white! dark:bg-[#1C1917]!">
-                  <td className="sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
-                  <td className="sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] text-right pr-2 font-bold bg-white! dark:bg-[#1C1917]!">
+                  <td className="sc1 px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
+                  <td className="sc2 px-2.5 py-2 border-t border-r border-stone-200 dark:border-stone-800 text-right font-semibold text-stone-600 dark:text-stone-300 bg-white! dark:bg-[#1C1917]!">
                     Highest →
                   </td>
                   {subjectStats.map(st => (
-                    <td key={st.subId} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-mono text-center font-bold bg-white! dark:bg-[#1C1917]!">
+                    <td key={st.subId} className="px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 font-mono-num text-center font-semibold text-emerald-700 dark:text-emerald-400 bg-white! dark:bg-[#1C1917]!">
                       {st.cnt ? st.hi : "—"}
                     </td>
                   ))}
-                  <td colSpan={5} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
+                  <td colSpan={5} className="px-2 py-2 border-t border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
                 </tr>
                 <tr className="bg-white! dark:bg-[#1C1917]!">
-                  <td className="sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
-                  <td className="sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] text-right pr-2 font-bold bg-white! dark:bg-[#1C1917]!">
+                  <td className="sc1 px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
+                  <td className="sc2 px-2.5 py-2 border-t border-r border-stone-200 dark:border-stone-800 text-right font-semibold text-stone-600 dark:text-stone-300 bg-white! dark:bg-[#1C1917]!">
                     Lowest →
                   </td>
                   {subjectStats.map(st => (
-                    <td key={st.subId} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-mono text-center font-bold bg-white! dark:bg-[#1C1917]!">
+                    <td key={st.subId} className="px-2 py-2 border-t border-r border-stone-200 dark:border-stone-800 font-mono-num text-center font-semibold text-red-700 dark:text-red-400 bg-white! dark:bg-[#1C1917]!">
                       {st.cnt ? st.lo : "—"}
                     </td>
                   ))}
-                  <td colSpan={5} className="p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-white! dark:bg-[#1C1917]!"></td>
+                  <td colSpan={5} className="px-2 py-2 border-t border-stone-200 dark:border-stone-800 bg-white! dark:bg-[#1C1917]!"></td>
                 </tr>
               </tfoot>
             </table>
@@ -1524,155 +1691,244 @@ export const ResultsView: React.FC = () => {
         )}
       </div>
 
-      <AiAssistCard
-        title="Import & AI assistant"
-        placeholder={RESULTS_AI_PLACEHOLDER}
-        hint="Attach a file to import marks or remarks. Excel, CSV and an edited Export JSON are read on your phone (no AI). PDF and photos use AI. Marks are filled from subject columns, remarks from a Remarks column. With no file, remarks are written from the marks (names are not sent). You see a preview before anything is saved."
-        accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
-        onGo={handleAiGo}
-        onExport={handleExportForAi}
-        exportLabel="Export file (to edit or use with AI)"
-      />
-
-      {/* Print Actions Section */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <div
+      {/* Print & Export Studio */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        <button
+          type="button"
           onClick={() => toggleCollapse('printOptions')}
-          className="flex justify-between items-center gap-2 cursor-pointer select-none"
+          aria-expanded={!collapse.printOptions}
+          className="w-full min-h-[52px] px-4 sm:px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-stone-50/70 dark:hover:bg-stone-800/40 transition-colors cursor-pointer"
         >
-          <div>
-            <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Print Options</h3>
-            {collapse.printOptions && (
-              <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5 leading-snug">
-                {printStyle === 'a' ? 'Design A — Colour' : 'Design B — Black & White'}
-                {printFooter ? ` • Footer: "${printFooter.slice(0, 24)}${printFooter.length > 24 ? '...' : ''}"` : ''} • Click to expand
-              </p>
-            )}
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Print &amp; report cards</h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+              {printStyle === 'a' ? 'Design A · Colour' : 'Design B · Black & white'}
+              {printFooter ? ` · Footer: "${printFooter.slice(0, 28)}${printFooter.length > 28 ? '…' : ''}"` : ''}
+            </p>
           </div>
-          <button
-            type="button"
-            className="text-xs font-bold text-[#78716C] dark:text-[#A8A29E] hover:text-[#1C1917] dark:hover:text-[#F5F5F4] flex items-center gap-1 cursor-pointer"
-            aria-expanded={!collapse.printOptions}
-          >
-            <span>{collapse.printOptions ? "Show options" : "Collapse"}</span>
-            {collapse.printOptions ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-stone-500 dark:text-stone-400 shrink-0">
+            <span>{collapse.printOptions ? "Options" : "Hide"}</span>
+            {collapse.printOptions ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </button>
 
         {!collapse.printOptions && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="px-4 sm:px-5 pb-5 pt-3 border-t border-stone-100 dark:border-stone-800 space-y-4">
+            {/* Design Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {([
-                { key: 'a', title: 'Design A — Colour', desc: 'Green & yellow, medals, progress bars' },
-                { key: 'b', title: 'Design B — Black & White', desc: 'Saves ink, clean photocopies' },
+                { key: 'a', title: 'Design A · Colour', desc: 'Accent colour, medals, and progress bars' },
+                { key: 'b', title: 'Design B · Black & white', desc: 'Ink-saving monochrome for clean photocopies' },
               ] as Array<{ key: ResultPrintStyle; title: string; desc: string }>).map(opt => {
                 const checked = printStyle === opt.key;
                 return (
                   <label
                     key={opt.key}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer select-none transition-colors ${
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer select-none transition-colors ${
                       checked
-                        ? 'border-[#0B5D45] bg-[#E8F3EC] dark:bg-[#0B5D45]/20 dark:border-[#2E9E73]'
-                        : 'border-[#E7E5E4] dark:border-[#44403C] hover:bg-[#FAFAF9] dark:hover:bg-[#292524]'
+                        ? 'border-red-800/40 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900/60'
+                        : 'border-stone-200 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800/50'
                     }`}
                   >
                     <input
-                      type="checkbox"
+                      type="radio"
+                      name="result-print-style"
                       checked={checked}
                       onChange={() => choosePrintStyle(opt.key)}
-                      className="mt-0.5 w-4 h-4 accent-[#0B5D45] shrink-0"
+                      className="mt-0.5 w-4 h-4 accent-red-800 dark:accent-red-500 shrink-0"
                     />
-                    <span className="flex flex-col leading-tight">
-                      <span className="text-[13px] font-bold text-[#1C1917] dark:text-[#F5F5F4]">{opt.title}</span>
-                      <span className="text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-0.5">{opt.desc}</span>
+                    <span className="flex flex-col leading-snug">
+                      <span className="text-[13px] font-semibold text-stone-900 dark:text-stone-100">{opt.title}</span>
+                      <span className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{opt.desc}</span>
                     </span>
                   </label>
                 );
               })}
             </div>
+
             <WatermarkOptions kind="result" hasLogo={!!data.schoolLogo} />
-            <PlainTextInput
-                            value={printFooter}
-              onChange={e => changePrintFooter(e.target.value)}
-              maxLength={80}
-              placeholder="Footer text for prints (optional)"
-              className="w-full px-3 py-2 text-[13px] rounded-xl border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-[#1C1917] dark:text-[#F5F5F4] placeholder:text-[#A8A29E] focus:outline-none focus:border-[#0B5D45]"
-            />
-            <ActionGrid cols={5}>
-              <ActionButton
-                variant="primary"
-                icon={Printer}
+
+            <div>
+              <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                Print footer text (optional)
+              </label>
+              <PlainTextInput
+                value={printFooter}
+                onChange={e => changePrintFooter(e.target.value)}
+                maxLength={80}
+                placeholder="e.g. Parent signature required on report card"
+                className="w-full min-h-[42px] px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+              />
+            </div>
+
+            {/* Print Actions Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+              <button
+                type="button"
                 onClick={handlePrintClassResults}
-                fullWidth="mobile-only"
+                className="col-span-2 sm:col-span-1 min-h-[44px] px-3 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Class Result Sheet
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
-                icon={Printer}
+                <Printer className="w-4 h-4 shrink-0" />
+                <span>Class sheet</span>
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintReportCards}
+                className="min-h-[44px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Report Cards
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
-                icon={Printer}
+                <FileText className="w-4 h-4 text-stone-400 shrink-0" />
+                <span>Report cards</span>
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintMeritList}
+                className="min-h-[44px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Merit List
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
-                icon={Printer}
+                <Award className="w-4 h-4 text-stone-400 shrink-0" />
+                <span>Merit list</span>
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintBlankCard}
+                className="min-h-[44px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Blank Card
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
-                icon={Printer}
+                <Printer className="w-4 h-4 text-stone-400 shrink-0" />
+                <span>Blank card</span>
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintBlankSheet}
+                className="min-h-[44px] px-3 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Blank Sheet
-              </ActionButton>
-            </ActionGrid>
-          </>
+                <Printer className="w-4 h-4 text-stone-400 shrink-0" />
+                <span>Blank sheet</span>
+              </button>
+            </div>
+          </div>
         )}
       </div>
-      {cardChoice && (
-        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setCardChoice(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">Report Cards</div>
-            <button type="button" onClick={handleCardsPdf}
-              className="w-full text-left p-3 rounded-xl bg-[#B91C1C] text-white cursor-pointer">
-              <div className="text-sm font-bold">One PDF for printing</div>
-              <div className="text-[11px] opacity-90">Every student's card in a single file, one card per page.</div>
-            </button>
-            <button type="button" onClick={handleCardsZip}
-              className="w-full text-left p-3 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 cursor-pointer">
-              <div className="text-sm font-bold">ZIP of pictures</div>
-              <div className="text-[11px] opacity-80">One picture per student, named by Roll # and name. Good for sending on WhatsApp.</div>
-            </button>
-            <button type="button" onClick={() => setCardChoice(false)}
-              className="w-full py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
-          </div>
-        </div>
-      )}
 
-      {zipProgress && (
-        <div className="fixed inset-0 z-[310] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3 text-center">
-            <div className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">Making result cards…</div>
-            <div className="text-xs text-[#78716C] dark:text-[#A8A29E]">{zipProgress.done} of {zipProgress.total}</div>
-            <div className="h-2 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-              <div className="h-full bg-[#B91C1C] transition-all" style={{ width: `${zipProgress.total ? Math.round((zipProgress.done * 100) / zipProgress.total) : 0}%` }} />
+      {/* Collapsible Import & Remarks Assistant */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setImportOpen(o => !o)}
+          aria-expanded={importOpen}
+          className="w-full min-h-[52px] px-4 sm:px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-stone-50/70 dark:hover:bg-stone-800/40 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <FileUp className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                Import marks or draft remarks
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
+                Import from Excel, CSV, PDF, photo, or JSON — or generate remarks from marks
+              </p>
             </div>
-            <button type="button" onClick={() => { zipCancelRef.current = true; }}
-              className="text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
+          </div>
+          {importOpen ? (
+            <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-stone-400 shrink-0" />
+          )}
+        </button>
+
+        {importOpen && (
+          <div className="px-4 sm:px-5 pb-5 pt-3 border-t border-stone-100 dark:border-stone-800">
+            <AiAssistCard
+              embedded
+              title="Import marks or remarks"
+              placeholder={RESULTS_AI_PLACEHOLDER}
+              hint="Excel, CSV and exported JSON are read locally on your device. PDFs, photos, and remark generation use AI (names are never sent when drafting remarks). You always preview before saving."
+              accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp,.json,image/*,application/pdf,application/json"
+              onGo={handleAiGo}
+              onExport={handleExportForAi}
+              exportLabel="Export results JSON"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Report Cards Export Choice Modal */}
+      {cardChoice && (
+        <div
+          className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setCardChoice(false)}
+        >
+          <div
+            className="cg-sheet-up w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-stone-900 border-t sm:border border-stone-200 dark:border-stone-800 p-5 pb-[max(1.25rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] space-y-3 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-label="Report cards export format"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Export report cards</h3>
+              <button
+                type="button"
+                onClick={() => setCardChoice(false)}
+                aria-label="Close"
+                className="w-10 h-10 -mr-2 rounded-xl flex items-center justify-center text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleCardsPdf}
+              className="w-full text-left p-3.5 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer flex items-start gap-3"
+            >
+              <Printer className="w-5 h-5 shrink-0 mt-0.5 opacity-90" />
+              <div>
+                <div className="text-sm font-semibold">One PDF for printing</div>
+                <div className="text-xs opacity-85 mt-0.5">
+                  Every student's report card in a single print-ready file, one card per page.
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={handleCardsZip}
+              className="w-full text-left p-3.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700/80 transition-colors cursor-pointer flex items-start gap-3"
+            >
+              <FolderArchive className="w-5 h-5 shrink-0 mt-0.5 text-stone-500 dark:text-stone-400" />
+              <div>
+                <div className="text-sm font-semibold">ZIP of PNG images</div>
+                <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                  One image per student, named by Roll # and name — ideal for sharing with parents.
+                </div>
+              </div>
+            </button>
           </div>
         </div>
       )}
 
+      {/* ZIP Generation Progress Modal */}
+      {zipProgress && (
+        <div className="fixed inset-0 z-[310] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5 space-y-3 text-center shadow-2xl">
+            <div className="text-sm font-bold text-stone-900 dark:text-stone-100">Preparing report cards…</div>
+            <div className="text-xs text-stone-500 dark:text-stone-400 font-mono-num">
+              {zipProgress.done} of {zipProgress.total}
+            </div>
+            <div className="h-2 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden">
+              <div
+                className="h-full bg-red-800 dark:bg-red-500 transition-all"
+                style={{ width: `${zipProgress.total ? Math.round((zipProgress.done * 100) / zipProgress.total) : 0}%` }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { zipCancelRef.current = true; }}
+              className="min-h-[40px] px-4 rounded-xl text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Student-wise Quick Entry Modal */}
       {entryStudentId && activeAsmt.subjects.length > 0 && (() => {
         const idx = sortedStudents.findIndex(x => x.id === entryStudentId);
         const st = sortedStudents[idx];
@@ -1694,6 +1950,8 @@ export const ResultsView: React.FC = () => {
           />
         );
       })()}
+
+      {/* Subject-wise Quick Entry Modal */}
       {entrySubjectId && (() => {
         const sub = activeAsmt.subjects.find(x => x.id === entrySubjectId);
         if (!sub) return null;
@@ -1712,6 +1970,8 @@ export const ResultsView: React.FC = () => {
           />
         );
       })()}
+
+      {/* Report Card Preview Modal */}
       {cardStudentId && activeAsmt.subjects.length > 0 && (
         <ResultCardModal
           ctx={printCtx()}
@@ -1748,70 +2008,55 @@ function fieldState(text: string, max: number): FieldState {
   return 'ok';
 }
 
-const EntryToggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; title: string; hint: string }> = ({
-  on,
-  onChange,
-  title,
-  hint
-}) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={on}
-    onClick={() => onChange(!on)}
-    className={`flex items-center gap-3 text-left rounded-xl border px-3 py-2 cursor-pointer transition-colors ${
-      on
-        ? 'bg-[#E8F0F8] dark:bg-[#1E3550] border-[#2E5A8A]'
-        : 'bg-[#FAFAF9] dark:bg-[#292524] border-[#E7E5E4] dark:border-[#44403C]'
-    }`}
-  >
-    <span
-      className={`relative shrink-0 w-10 h-6 rounded-full transition-colors ${on ? 'bg-[#2E5A8A]' : 'bg-[#D6D3D1] dark:bg-[#57534E]'}`}
-    >
-      <span
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : ''}`}
-      />
-    </span>
-    <span className="min-w-0">
-      <span className="block text-xs font-bold text-[#1C1917] dark:text-[#F5F5F4]">{title}</span>
-      <span className="block text-[11px] leading-snug text-[#78716C] dark:text-[#A8A29E]">{hint}</span>
-    </span>
-  </button>
-);
-
 const EntryShell: React.FC<{
   title: string;
   subtitle: string;
   onClose: () => void;
   footer: React.ReactNode;
   children: React.ReactNode;
-}> = ({ title, subtitle, onClose, footer, children }) => (
-  <div
-    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
-    onMouseDown={e => {
-      if (e.target === e.currentTarget) onClose();
-    }}
-  >
-    <div className="w-full sm:max-w-md max-h-[92vh] flex flex-col bg-white dark:bg-[#1C1917] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-[#E7E5E4] dark:border-[#44403C]">
-      <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-[#E7E5E4] dark:border-[#44403C]">
-        <div className="min-w-0">
-          <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] truncate">{title}</h3>
-          <p className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">{subtitle}</p>
+}> = ({ title, subtitle, onClose, footer, children }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:p-4"
+      onMouseDown={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="cg-sheet-up w-full sm:max-w-md max-h-[92dvh] flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-stone-200 dark:border-stone-800 overflow-hidden"
+        role="dialog"
+        aria-label={title}
+      >
+        <div className="flex items-start justify-between gap-2 px-5 py-3.5 border-b border-stone-200 dark:border-stone-800">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 truncate">{title}</h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-11 h-11 -mr-2 -mt-1 rounded-xl flex items-center justify-center text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="p-1.5 rounded-lg text-[#78716C] hover:bg-[#F5F5F4] dark:hover:bg-[#292524] cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="overflow-y-auto px-5 py-3.5 flex-1">{children}</div>
+        <div className="px-5 py-3.5 pb-[max(0.875rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] border-t border-stone-200 dark:border-stone-800 flex gap-2">
+          {footer}
+        </div>
       </div>
-      <div className="overflow-y-auto px-4 py-3 flex-1">{children}</div>
-      <div className="px-4 py-3 border-t border-[#E7E5E4] dark:border-[#44403C] flex gap-2">{footer}</div>
     </div>
-  </div>
-);
+  );
+};
 
 /** One marks box (with Absent button). Shared by both popups. */
 const MarkBox: React.FC<{
@@ -1829,7 +2074,7 @@ const MarkBox: React.FC<{
     <div className="flex items-center gap-2">
       <PlainTextInput
         ref={inputRef}
-                inputMode="decimal"
+        inputMode="decimal"
         autoComplete="off"
         autoFocus={autoFocus}
         enterKeyHint="next"
@@ -1843,29 +2088,29 @@ const MarkBox: React.FC<{
             onEnter();
           }
         }}
-        className={`w-20 p-2 text-center text-base font-bold font-mono rounded-lg border-2 bg-white dark:bg-[#0C0A09] text-inherit focus:outline-none ${
+        className={`w-20 min-h-[42px] p-2 text-center text-base font-bold font-mono-num rounded-xl border bg-white dark:bg-stone-950 text-inherit focus:outline-none ${
           st === 'invalid'
-            ? 'border-[#B23A32]'
+            ? 'border-red-600 dark:border-red-500 ring-2 ring-red-500/20'
             : st === 'over'
-            ? 'border-[#B4791F]'
-            : 'border-[#D6D3D1] dark:border-[#44403C] focus:border-[#2E5A8A]'
-        } ${absent ? 'text-[#7F1D1D]' : ''}`}
+            ? 'border-amber-500 ring-2 ring-amber-500/20'
+            : 'border-stone-200 dark:border-stone-700 focus:border-red-700 dark:focus:border-red-500'
+        } ${absent ? 'text-red-700 dark:text-red-400' : ''}`}
       />
       <button
         type="button"
         tabIndex={-1}
         onClick={() => onText(absent ? "" : "A")}
         title="Toggle Absent"
-        className={`w-8 h-8 rounded-lg text-xs font-bold cursor-pointer border ${
+        className={`w-10 h-10 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
           absent
-            ? 'bg-[#F8E4E1] text-[#7F1D1D] border-[#B23A32]'
-            : 'bg-[#FAFAF9] dark:bg-[#292524] text-[#A8A29E] border-[#E7E5E4] dark:border-[#44403C]'
+            ? 'bg-red-50 dark:bg-red-950/70 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
+            : 'bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-700'
         }`}
       >
         A
       </button>
-      {!hideMsg && st === 'over' && <span className="text-[11px] font-semibold text-[#B4791F]">max {max}</span>}
-      {!hideMsg && st === 'invalid' && <span className="text-[11px] font-semibold text-[#B23A32]">numbers or A only</span>}
+      {!hideMsg && st === 'over' && <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 font-mono-num">max {max}</span>}
+      {!hideMsg && st === 'invalid' && <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">numbers or A</span>}
     </div>
   );
 };
@@ -1919,7 +2164,7 @@ const StudentEntryModal: React.FC<{
   return (
     <EntryShell
       title={student.name || "(no name)"}
-      subtitle={`Roll ${student.rollNo || "—"} · type marks, or A for absent`}
+      subtitle={`Roll ${student.rollNo || "—"} · Type marks or tap A for absent`}
       onClose={onClose}
       footer={
         <>
@@ -1927,7 +2172,7 @@ const StudentEntryModal: React.FC<{
             ref={saveRef}
             type="button"
             onClick={() => submit(false)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[#2E5A8A] text-white cursor-pointer"
+            className="flex-1 min-h-[44px] rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer"
           >
             Save
           </button>
@@ -1935,20 +2180,22 @@ const StudentEntryModal: React.FC<{
             <button
               type="button"
               onClick={() => submit(true)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[#E8F0F8] dark:bg-[#1E3550] text-[#2E5A8A] dark:text-[#9CC3EA] border border-[#2E5A8A]/40 cursor-pointer"
+              className="flex-1 min-h-[44px] rounded-xl text-sm font-semibold bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
             >
-              Save &amp; Next →
+              Save &amp; next →
             </button>
           )}
         </>
       }
     >
-      <div className="space-y-2">
+      <div className="divide-y divide-stone-100 dark:divide-stone-800">
         {subjects.map((sub, i) => (
-          <div key={sub.id} className="flex items-center justify-between gap-3">
+          <div key={sub.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-[#1C1917] dark:text-[#F5F5F4] truncate">{sub.name}</div>
-              <div className="text-[11px] text-[#A8A29E]">{sub.max ? `out of ${sub.max}` : 'max marks not set'}</div>
+              <div className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{sub.name}</div>
+              <div className="text-xs text-stone-500 dark:text-stone-400 font-mono-num">
+                {sub.max ? `Out of ${sub.max}` : 'Max marks not set'}
+              </div>
             </div>
             <MarkBox
               text={draft[sub.id] ?? ""}
@@ -1995,30 +2242,30 @@ const SubjectEntryModal: React.FC<{
           ref={saveRef}
           type="button"
           onClick={submit}
-          className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[#2E5A8A] text-white cursor-pointer"
+          className="flex-1 min-h-[44px] rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer"
         >
           Save {subject.name} marks
         </button>
       }
     >
-      <div className="space-y-1.5">
+      <div className="divide-y divide-stone-100 dark:divide-stone-800">
         {students.map((s, i) => {
           const st = fieldState(draft[s.id] ?? "", subject.max);
           const nm = s.name || "(no name)";
           return (
             <div
               key={s.id}
-              className="flex items-center gap-3 border-b border-[#F5F5F4] dark:border-[#292524] pb-1.5"
+              className="py-2 first:pt-0 last:pb-0 flex items-center gap-3"
             >
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <span className="shrink-0 w-8 font-mono font-bold text-sm text-[#1C1917] dark:text-[#F5F5F4]">
+              <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                <span className="shrink-0 w-8 font-mono-num font-semibold text-xs text-stone-500 dark:text-stone-400">
                   {s.rollNo || "—"}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div
-                    className="font-semibold text-[#1C1917] dark:text-[#F5F5F4] leading-tight break-words"
+                    className="font-semibold text-stone-900 dark:text-stone-100 leading-snug break-words"
                     style={{
-                      fontSize: nm.length > 34 ? 11 : 14,
+                      fontSize: nm.length > 34 ? 12 : 14,
                       display: '-webkit-box',
                       WebkitBoxOrient: 'vertical',
                       WebkitLineClamp: 2,
@@ -2027,8 +2274,8 @@ const SubjectEntryModal: React.FC<{
                   >
                     {nm}
                   </div>
-                  {st === 'over' && <div className="text-[10px] font-semibold text-[#B4791F]">above max {subject.max}</div>}
-                  {st === 'invalid' && <div className="text-[10px] font-semibold text-[#B23A32]">numbers or A only</div>}
+                  {st === 'over' && <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 font-mono-num">Above max {subject.max}</div>}
+                  {st === 'invalid' && <div className="text-[11px] font-semibold text-red-700 dark:text-red-400">Numbers or A only</div>}
                 </div>
               </div>
               <div className="shrink-0">

@@ -73,22 +73,73 @@ html.dark, html.dark body {
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   background: #F5F5F4;
   color: #1C1917;
-  transition: background 0.2s, color 0.2s;
+  transition: background-color 0.18s ease, color 0.18s ease;
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
+html.dark body {
+  letter-spacing: 0.005em;
+}
+
 h1, h2, h3, h4 {
   font-family: inherit;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.font-mono,
+.font-mono-num {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes cgViewEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cgSheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cg-view-enter {
+  animation: cgViewEnter 160ms ease-out;
+}
+
+.cg-sheet-up {
+  animation: cgSheetUp 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-view-enter,
+  .cg-sheet-up {
+    animation: none !important;
+  }
 }
 
 /* Frozen Table Columns & Sticky Stacking Order */

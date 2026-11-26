@@ -3,25 +3,27 @@ import { useClassroom } from '../../context/ClassroomContext';
 import { getStorage } from '../../storage';
 import {
   todayKey,
+  dateKey,
   prettyDate,
   timeAgo,
-  getSortedStudents,
   fmtMoney,
-  dateKey
+  getSortedStudents,
 } from '../../utils/helpers';
 import {
-  Sparkles,
+  X,
+  ClipboardCheck,
   BarChart3,
-  ClipboardList,
-  Sun,
-  Lock,
-  XCircle,
-  CheckCircle2,
   Wallet,
+  Sun,
+  CheckCircle2,
+  XCircle,
+  Lock,
   AlertTriangle,
   GraduationCap,
-  X,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft,
+  SlidersHorizontal,
+  Printer,
 } from 'lucide-react';
 import { MyToolsCard } from '../MyToolsCard';
 
@@ -37,16 +39,11 @@ export const DashboardView: React.FC = () => {
     classFundsSummary,
     classAverageForAssessment,
     assessmentEntryCount,
-    computeFundStats
+    computeFundStats,
   } = useClassroom();
 
-  const [hideGS, setHideGS] = useState(() => {
-    try { return localStorage.getItem("classroomHideGS") === "1"; } catch { return false; }
-  });
-  const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const [lastSavedTime, setLastSavedTime] = useState<string>('');
 
-  // Read the last-saved time from the real storage engine (SQLite on Android, local storage on web).
-  // Small delay so it runs after the debounced save has been written.
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
@@ -54,15 +51,15 @@ export const DashboardView: React.FC = () => {
         const storage = await getStorage();
         const ts = await storage.getLastSaved();
         if (!cancelled && ts) setLastSavedTime(timeAgo(ts));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 700);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [data]);
-
-  const dismissGS = () => {
-    try { localStorage.setItem("classroomHideGS", "1"); } catch { /* ignore */ }
-    setHideGS(true);
-  };
 
   const totalStudents = data.students.length;
   const todayK = todayKey();
@@ -70,30 +67,37 @@ export const DashboardView: React.FC = () => {
   const c = countDay(todayK);
   const sortedStudents = getSortedStudents(data.students);
 
-  // Snapshot calculations
   const attThisMonth = classAttendanceThisMonth();
-  // countDay() reports "everyone present" for a day without a roll call, so only count a taken, non-holiday day
   const todayDenom = c.taken && !c.holiday ? c.present + c.absent : 0;
   const todayPct = todayDenom > 0 ? Math.round((c.present / todayDenom) * 100) : 0;
 
-  const latestAsmt = data.assessments.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  const latestAsmt = data.assessments
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
   const asmtStats = latestAsmt ? classAverageForAssessment(latestAsmt.id) : null;
   const fundsSummary = classFundsSummary();
 
-  // Compare month attendance to previous month
-  const parts = todayK.slice(0, 7).split("-").map(Number);
+  const parts = todayK.slice(0, 7).split('-').map(Number);
   const lastMonthDate = new Date(parts[0], parts[1] - 2, 1);
-  const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, "0")}`;
+  const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(
+    lastMonthDate.getMonth() + 1
+  ).padStart(2, '0')}`;
   const lastMonthAtt = classAttendanceForMonth(lastMonthKey);
 
-  let trendIndicator = <span className="text-[#78716C] dark:text-[#A8A29E] text-xs">— steady vs last month</span>;
+  let trendText = 'Steady vs last month';
+  let trendTone = 'text-stone-400 dark:text-stone-500';
   if (lastMonthAtt.denom > 0 && attThisMonth.denom > 0) {
     const diff = attThisMonth.pct - lastMonthAtt.pct;
     if (diff >= 2) {
-      trendIndicator = <span className="text-[#065F46] dark:text-[#A7F3D0] text-xs font-bold">▲ +{diff}% vs last month</span>;
+      trendText = `+${diff}% vs last month`;
+      trendTone = 'text-emerald-700 dark:text-emerald-400 font-semibold';
     } else if (diff <= -2) {
-      trendIndicator = <span className="text-[#B23A32] dark:text-[#FCA5A5] text-xs font-bold">▼ {diff}% vs last month</span>;
+      trendText = `${diff}% vs last month`;
+      trendTone = 'text-red-700 dark:text-red-400 font-semibold';
     }
+  } else if (todayDenom > 0) {
+    trendText = `Today ${todayPct}%`;
+    trendTone = 'text-stone-500 dark:text-stone-400';
   }
 
   const tools = data.tools || {
@@ -115,80 +119,136 @@ export const DashboardView: React.FC = () => {
   const dismissNextStep = () => {
     try {
       sessionStorage.setItem('classgrid_dismiss_next_step', '1');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setHintDismissed(true);
   };
 
   const getNextStep = () => {
     if (hintDismissed) return null;
 
-    // 1. no students -> Add students
     if (totalStudents === 0) {
       return {
         icon: GraduationCap,
-        title: "Add your students",
-        desc: "Enroll students with their names and roll numbers to begin.",
-        buttonText: "Add Students",
-        action: () => setActiveTab("students")
+        title: 'Add your students',
+        desc: 'Enroll students with names and roll numbers to begin.',
+        buttonText: 'Add students',
+        action: () => setActiveTab('students'),
       };
     }
 
-    // 2. attendance on and not taken today -> Take attendance
     if (tools.attendance && (!day || (!day.holiday && !c.taken))) {
       return {
-        icon: ClipboardList,
+        icon: ClipboardCheck,
         title: "Take today's attendance",
-        desc: `Mark present, absent, or leave for today (${prettyDate(todayK)}).`,
-        buttonText: "Take Attendance",
-        action: () => setActiveTab("attendance")
+        desc: `Mark present, absent, or leave for ${prettyDate(todayK)}.`,
+        buttonText: 'Take attendance',
+        action: () => setActiveTab('attendance'),
       };
     }
 
-    // 3. results on and no assessment -> Create assessment
     if (tools.results && data.assessments.length === 0) {
       return {
         icon: BarChart3,
-        title: "Create an assessment",
-        desc: "Add an examination or test with subjects to record marks.",
-        buttonText: "Create Assessment",
-        action: () => setActiveTab("results")
+        title: 'Create an assessment',
+        desc: 'Add an examination or test with subjects to record marks.',
+        buttonText: 'Create assessment',
+        action: () => setActiveTab('results'),
       };
     }
 
-    // 4. results on and marks missing -> Enter marks
     if (tools.results && data.assessments.length > 0) {
       const anyMissing = data.assessments.some(a => {
         if (!a.subjects || a.subjects.length === 0) return true;
-        const entered = assessmentEntryCount(a.id);
-        return entered < totalStudents;
+        return assessmentEntryCount(a.id) < totalStudents;
       });
       if (anyMissing) {
         return {
           icon: BarChart3,
-          title: "Enter marks",
-          desc: "Some student marks or subjects are incomplete in Results.",
-          buttonText: "Enter Marks",
-          action: () => setActiveTab("results")
+          title: 'Finish entering marks',
+          desc: 'Some student marks or subjects are still incomplete in Results.',
+          buttonText: 'Enter marks',
+          action: () => setActiveTab('results'),
         };
       }
     }
 
-    // 5. funds on and no fund -> Add a fund
     if (tools.funds && data.funds.length === 0) {
       return {
         icon: Wallet,
-        title: "Add a fund",
-        desc: "Create a fee or fund collection to track student payments.",
-        buttonText: "Add a Fund",
-        action: () => setActiveTab("funds")
+        title: 'Add a fund',
+        desc: 'Create a fee or fund collection to track student payments.',
+        buttonText: 'Add fund',
+        action: () => setActiveTab('funds'),
       };
     }
 
     return null;
   };
+
   const nextStep = getNextStep();
 
-  // 30-day heatmap matching ClassGrid sample colors
+  // Dynamic KPI cells based on enabled class tools
+  const pulseItems: {
+    key: string;
+    label: string;
+    value: string;
+    sub: string;
+    subClass?: string;
+    onClick: () => void;
+  }[] = [
+    {
+      key: 'students',
+      label: 'Students',
+      value: String(totalStudents),
+      sub: totalStudents === 1 ? 'Enrolled student' : 'Enrolled students',
+      onClick: () => setActiveTab('students'),
+    },
+    ...(tools.attendance
+      ? [
+          {
+            key: 'attendance',
+            label: 'Month attendance',
+            value: attThisMonth.denom ? `${attThisMonth.pct}%` : '—',
+            sub: attThisMonth.denom ? trendText : 'No roll calls yet',
+            subClass: attThisMonth.denom ? trendTone : undefined,
+            onClick: () => setActiveTab('attendance'),
+          },
+        ]
+      : []),
+    ...(tools.results
+      ? [
+          {
+            key: 'results',
+            label: 'Latest test avg',
+            value: asmtStats && asmtStats.entered ? `${asmtStats.avg}%` : '—',
+            sub:
+              asmtStats && asmtStats.entered
+                ? `${asmtStats.passRate}% pass · ${latestAsmt?.name || 'Latest'}`
+                : latestAsmt
+                ? `${latestAsmt.name} (no marks)`
+                : 'No exams yet',
+            onClick: () => setActiveTab('results'),
+          },
+        ]
+      : []),
+    ...(tools.funds
+      ? [
+          {
+            key: 'funds',
+            label: 'Funds collected',
+            value: fundsSummary.fundCount ? `${fundsSummary.pct}%` : '—',
+            sub: fundsSummary.fundCount
+              ? `${fmtMoney(fundsSummary.collected)} / ${fmtMoney(fundsSummary.target)}`
+              : 'No funds yet',
+            onClick: () => setActiveTab('funds'),
+          },
+        ]
+      : []),
+  ];
+
+  // 30-day attendance rhythm strip
   const renderHeatmap = () => {
     if (!totalStudents) return null;
     const now = new Date();
@@ -200,124 +260,138 @@ export const DashboardView: React.FC = () => {
     }
 
     return (
-      <div className="mt-3">
-        <div className="flex gap-1 flex-wrap">
+      <div className="pt-4 mt-4 border-t border-stone-100 dark:border-stone-800/80">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-xs font-semibold text-stone-600 dark:text-stone-300">
+            Last 30 days
+          </span>
+          <div className="flex items-center gap-3 text-[11px] text-stone-400 dark:text-stone-500">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[2px] bg-emerald-700" /> Taken
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[2px] bg-red-700" /> Missed
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-[2px] bg-sky-700" /> Holiday
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
           {days.map(d => {
             const k = dateKey(d);
             const curDay = data.attendance[k];
             const wd = d.getDay();
             const isWeekend = wd === 0 || wd === 6;
 
-            let bgClass = "bg-[#F5F5F4] dark:bg-[#292524]";
+            let bgClass = 'bg-stone-200 dark:bg-stone-800';
             if (k > todayK) {
-              bgClass = "bg-[#FAFAF9] dark:bg-[#0C0A09] border border-dashed border-[#D6D3D1] dark:border-[#44403C]";
+              bgClass = 'bg-stone-100 dark:bg-stone-900 border border-dashed border-stone-300 dark:border-stone-700';
             } else if (curDay && curDay.holiday) {
-              bgClass = "bg-[#2E5A8A]";
+              bgClass = 'bg-sky-700';
             } else if (curDay) {
-              bgClass = "bg-[#065F46]"; // Emerald green for taken days
+              bgClass = 'bg-emerald-700';
             } else if (k === todayK) {
-              bgClass = "bg-[#B4791F]"; // Amber for today pending
+              bgClass = 'bg-amber-600';
             } else {
-              bgClass = "bg-[#B23A32]"; // Red for missing
+              bgClass = 'bg-red-700/85';
             }
 
             return (
               <div
                 key={k}
-                title={`${k} (${prettyDate(k)})`}
-                className={`w-3.5 h-3.5 rounded-xs shrink-0 ${bgClass} ${isWeekend ? 'opacity-55' : ''}`}
+                title={`${prettyDate(k)}`}
+                className={`w-3.5 h-3.5 rounded-[3px] shrink-0 ${bgClass} ${
+                  isWeekend ? 'opacity-45' : ''
+                }`}
               />
             );
           })}
-        </div>
-        <div className="flex gap-3 flex-wrap text-[11px] text-[#78716C] dark:text-[#A8A29E] mt-2">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#065F46]" /> Taken
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#B23A32]" /> Not taken
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#B4791F]" /> Today (pending)
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-xs bg-[#2E5A8A]" /> Holiday
-          </span>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-3">
-      {/* Quick Start Guide Banner */}
-      {!hideGS && (
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 relative shadow-xs">
-          <button
-            type="button"
-            onClick={dismissGS}
-            title="Dismiss"
-            className="absolute top-3 right-3 text-[#78716C] dark:text-[#A8A29E] hover:text-black dark:hover:text-white font-bold text-sm p-1 cursor-pointer flex items-center justify-center rounded-lg"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <h3 className="text-base font-bold text-[#B91C1C] dark:text-[#FCA5A5] mb-2 font-serif-academic flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Welcome — Quick Start</span>
-          </h3>
-          <ol className="list-decimal pl-5 space-y-1 text-xs md:text-sm text-[#1C1917] dark:text-[#F5F5F4] leading-relaxed">
-            <li>Go to <b>Settings</b> — set your <b>Class Name</b> and <b>School Name</b>.</li>
-            <li>Open <b>Students</b> and enroll your students.</li>
-            <li>Take daily <b>Attendance</b>.</li>
-            <li>Create <b>Assessments</b> (First Term, Monthly Test, Final Exam) and record marks.</li>
-            <li>Track <b>Funds</b> for collections and fees.</li>
-            <li>Use <b>Settings → Backup</b> to export a `.json` backup file.</li>
-          </ol>
-        </div>
-      )}
+    <div className="space-y-5">
+      {/* Clean Class Masthead */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setActiveTab('board')}
+              className="inline-flex items-center gap-1 font-semibold text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>All classes</span>
+            </button>
+            <span aria-hidden="true">·</span>
+            <span className="truncate">{data.schoolName || 'My School'}</span>
+            {data.academicYear && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">{data.academicYear}</span>
+              </>
+            )}
+          </div>
 
-      {/* School Header Card */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-        <h2 className="text-xl font-bold font-serif-academic text-[#1C1917] dark:text-[#F5F5F4] mb-1">
-          {data.schoolName}
-        </h2>
-        <div className="text-sm text-[#78716C] dark:text-[#A8A29E]">
-          {data.academicYear ? `${data.academicYear} • ` : ""}
-          {data.className ? (
-            <span>Class: <b>{data.className}</b>{data.inchargeName ? ` • Incharge: ${data.inchargeName}` : ""}</span>
-          ) : (
-            <span className="text-[#B91C1C] dark:text-[#F87171] font-semibold">No class configured yet. Go to Settings to enter it.</span>
-          )}
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100 mt-1 truncate">
+            {data.className || 'Unnamed Class'}
+          </h1>
+
+          <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
+            {data.inchargeName ? (
+              <span>Incharge: {data.inchargeName}</span>
+            ) : (
+              <span className="text-red-700 dark:text-red-400 font-medium">
+                Add class &amp; teacher details in Settings
+              </span>
+            )}
+            <span aria-hidden="true">·</span>
+            <span>{prettyDate(todayK)}</span>
+            {lastSavedTime && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>Saved {lastSavedTime}</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="text-xs text-[#A8A29E] mt-2">
-          {lastSavedTime ? `Last edited: ${lastSavedTime}` : "No changes saved yet."}
-        </div>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('settings')}
+          className="self-start sm:self-end min-h-[42px] px-3.5 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 text-xs font-semibold text-stone-700 dark:text-stone-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 text-stone-500" />
+          <span>Class details</span>
+        </button>
       </div>
 
-      {/* Next-Step Hint Banner (Dismissible for session) */}
+      {/* Contextual Next-Step Banner (Dismissible for Session) */}
       {nextStep && (
-        <div className="relative bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 flex-wrap border-l-4 border-l-[#991B1B]">
-          <div className="flex items-center gap-3 min-w-0 pr-6 sm:pr-0">
-            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/70 text-[#991B1B] dark:text-[#F87171] flex items-center justify-center shrink-0">
+        <div className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
               <nextStep.icon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#F87171] block">
-                Next Step
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4] truncate">
+              <div className="text-[11px] font-semibold text-red-800 dark:text-red-400">
+                Suggested next step
+              </div>
+              <div className="text-sm font-bold text-stone-900 dark:text-stone-100">
                 {nextStep.title}
-              </h4>
-              <p className="text-xs text-[#78716C] dark:text-[#A8A29E]">
-                {nextStep.desc}
-              </p>
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400">{nextStep.desc}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={nextStep.action}
-              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-[#991B1B] hover:bg-[#7F1D1D] text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
             >
               <span>{nextStep.buttonText}</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -325,8 +399,9 @@ export const DashboardView: React.FC = () => {
             <button
               type="button"
               onClick={dismissNextStep}
-              title="Dismiss hint for this session"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-xl cursor-pointer"
+              title="Dismiss for this session"
+              aria-label="Dismiss hint"
+              className="w-11 h-11 flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -334,330 +409,395 @@ export const DashboardView: React.FC = () => {
         </div>
       )}
 
-      {/* Top 2 Stat Boxes */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 text-center shadow-xs">
-          <b className="block text-2xl md:text-3xl text-[#B91C1C] dark:text-[#FCA5A5]">{totalStudents}</b>
-          <span className="text-xs md:text-sm font-semibold text-[#78716C] dark:text-[#A8A29E]">Total Students</span>
-        </div>
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 text-center shadow-xs">
-          <b className="block text-xl md:text-2xl text-[#1C1917] dark:text-[#F5F5F4]">
-            {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-          </b>
-          <span className="text-xs md:text-sm font-semibold text-[#78716C] dark:text-[#A8A29E]">Today</span>
+      {/* Unified Class Pulse KPI Strip (Single Flat Divided Surface) */}
+      <div className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 overflow-hidden">
+        <div
+          className={`grid divide-y sm:divide-y-0 divide-x divide-stone-200 dark:divide-stone-800 ${
+            pulseItems.length === 1
+              ? 'grid-cols-1'
+              : pulseItems.length === 2
+              ? 'grid-cols-2'
+              : pulseItems.length === 3
+              ? 'grid-cols-1 sm:grid-cols-3'
+              : 'grid-cols-2 lg:grid-cols-4'
+          }`}
+        >
+          {pulseItems.map(item => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={item.onClick}
+              className="text-left p-4 sm:p-5 hover:bg-stone-50/80 dark:hover:bg-stone-800/40 transition-colors cursor-pointer group"
+            >
+              <div className="text-xs font-medium text-stone-500 dark:text-stone-400">
+                {item.label}
+              </div>
+              <div className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-1 font-mono-num group-hover:text-red-800 dark:group-hover:text-red-400 transition-colors">
+                {item.value}
+              </div>
+              <div
+                className={`text-xs truncate mt-0.5 tabular-nums ${
+                  item.subClass || 'text-stone-400 dark:text-stone-500'
+                }`}
+              >
+                {item.sub}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Class Snapshot */}
-      {totalStudents > 0 && (tools.attendance || tools.results || tools.funds) && (
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] border-l-4 border-l-[#B91C1C] dark:border-l-[#F87171] rounded-2xl p-4 shadow-xs">
-          <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] mb-1 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-red-800 dark:text-red-400" />
-            <span>Class Snapshot</span>
-          </h3>
-          <p className="text-xs text-[#78716C] dark:text-[#A8A29E] mb-3">How your class is doing right now.</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {tools.attendance && (
-              <div className="p-3.5 rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C]">
-                <b className="block text-xl text-[#1C1917] dark:text-[#F5F5F4]">
-                  {attThisMonth.denom ? `${attThisMonth.pct}%` : "—"}
-                </b>
-                <span className="text-xs font-semibold block text-[#78716C] dark:text-[#A8A29E]">Month Attendance</span>
-                <div className="mt-1">{trendIndicator}</div>
-                <div className="text-[11px] font-bold text-[#2E5A8A] dark:text-[#8AB4DC] mt-1">
-                  Today: {todayDenom ? `${todayPct}%` : "—"}
+      {/* Main Two-Column Asymmetric Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Primary Column: Today's Attendance & Recent Assessments */}
+        <div className="lg:col-span-7 space-y-5">
+          {tools.attendance && totalStudents > 0 && (
+            <section className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                    Today&apos;s attendance
+                  </h2>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                    {prettyDate(todayK)}
+                    {c.locked && (
+                      <span className="inline-flex items-center gap-1 ml-2 text-stone-600 dark:text-stone-300 font-medium">
+                        <Lock className="w-3 h-3" /> Locked
+                      </span>
+                    )}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('attendance')}
+                  className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer shrink-0 active:scale-[0.98]"
+                >
+                  {!day ? 'Take attendance' : 'Open register'}
+                </button>
               </div>
-            )}
 
-            {tools.results && (
-              <>
-                <div className="p-3.5 rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C]">
-                  <b className="block text-xl text-[#1C1917] dark:text-[#F5F5F4]">
-                    {asmtStats && asmtStats.entered ? `${asmtStats.avg}%` : "—"}
-                  </b>
-                  <span className="text-xs font-semibold block text-[#78716C] dark:text-[#A8A29E]">Latest Test Avg</span>
-                  <span className="text-[11px] text-[#A8A29E] block truncate mt-1">
-                    {latestAsmt ? latestAsmt.name : "No tests yet"}
-                  </span>
-                </div>
+              <div className="mt-4">
+                {!day ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200/80 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-medium">
+                    Attendance has not been recorded for today yet.
+                  </div>
+                ) : day.holiday ? (
+                  <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/25 border border-sky-200/80 dark:border-sky-900/60 text-sky-900 dark:text-sky-200 text-xs font-medium flex items-center gap-2">
+                    <Sun className="w-4 h-4 shrink-0" />
+                    <span>Marked as a class holiday (excluded from averages).</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center rounded-xl bg-stone-50 dark:bg-stone-950/50 border border-stone-200/70 dark:border-stone-800 p-3">
+                      <div>
+                        <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 font-mono-num">
+                          {c.present}
+                        </div>
+                        <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                          Present
+                        </div>
+                      </div>
+                      <div className="border-x border-stone-200 dark:border-stone-800">
+                        <div
+                          className={`text-lg font-bold font-mono-num ${
+                            c.absent > 0
+                              ? 'text-red-700 dark:text-red-400'
+                              : 'text-stone-900 dark:text-stone-100'
+                          }`}
+                        >
+                          {c.absent}
+                        </div>
+                        <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                          Absent
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-amber-700 dark:text-amber-400 font-mono-num">
+                          {c.leave}
+                        </div>
+                        <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                          Leave
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="p-3.5 rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C]">
-                  <b className="block text-xl text-[#1C1917] dark:text-[#F5F5F4]">
-                    {asmtStats && asmtStats.entered ? `${asmtStats.passRate}%` : "—"}
-                  </b>
-                  <span className="text-xs font-semibold block text-[#78716C] dark:text-[#A8A29E]">Pass Rate</span>
-                  <span className="text-[11px] text-[#A8A29E] block mt-1">
-                    {asmtStats && asmtStats.entered ? `${asmtStats.passed} of ${asmtStats.entered} passed` : "—"}
-                  </span>
-                </div>
-              </>
-            )}
+                    {c.absent > 0 && (
+                      <div className="p-3 rounded-xl bg-red-50/70 dark:bg-red-950/30 border border-red-200/70 dark:border-red-900/60 text-xs text-red-900 dark:text-red-200 flex items-start gap-2">
+                        <XCircle className="w-4 h-4 shrink-0 text-red-700 dark:text-red-400 mt-0.5" />
+                        <div>
+                          <span className="font-semibold">Absent:</span>{' '}
+                          {sortedStudents
+                            .filter(s => day.status[s.id] === 'A')
+                            .map(s => `${s.rollNo ? `#${s.rollNo} ` : ''}${s.name}`)
+                            .join(', ')}
+                        </div>
+                      </div>
+                    )}
 
-            {tools.funds && (
-              <div className="p-3.5 rounded-xl bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C]">
-                <b className="block text-xl text-[#1C1917] dark:text-[#F5F5F4]">
-                  {fundsSummary.fundCount ? `${fundsSummary.pct}%` : "—"}
-                </b>
-                <span className="text-xs font-semibold block text-[#78716C] dark:text-[#A8A29E]">Funds Collected</span>
-                <span className="text-[11px] text-[#A8A29E] block truncate mt-1">
-                  {fundsSummary.fundCount ? `${fmtMoney(fundsSummary.collected)} / ${fmtMoney(fundsSummary.target)}` : "No funds yet"}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                    {c.leave > 0 && (
+                      <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200/70 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                        <Sun className="w-4 h-4 shrink-0 text-amber-700 dark:text-amber-400 mt-0.5" />
+                        <div>
+                          <span className="font-semibold">Leave:</span>{' '}
+                          {sortedStudents
+                            .filter(s => day.status[s.id] === 'L')
+                            .map(s => `${s.rollNo ? `#${s.rollNo} ` : ''}${s.name}`)
+                            .join(', ')}
+                        </div>
+                      </div>
+                    )}
 
-      {/* Today's Attendance Card */}
-      {tools.attendance && totalStudents > 0 && (
-        <div className={`bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs border-l-4 ${
-          !day ? 'border-l-[#B4791F]' : day.holiday ? 'border-l-[#2E5A8A]' : (c.absent ? 'border-l-[#B23A32]' : 'border-l-[#065F46]')
-        }`}>
-          <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] mb-1 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-red-800 dark:text-red-400" />
-            <span>Today's Attendance</span>
-          </h3>
-          <p className="text-xs text-[#78716C] dark:text-[#A8A29E] mb-2">{prettyDate(todayK)}</p>
-
-          {!day ? (
-            <div className="p-3 bg-[#FBF0D9] dark:bg-[#3A2E14] border border-[#B4791F] rounded-xl text-[#7A5515] dark:text-[#F8E0A0] text-xs font-medium mb-3">
-              Attendance not taken yet for today.
-            </div>
-          ) : day.holiday ? (
-            <div className="p-3 bg-[#E8F0F7] dark:bg-[#1A2B3A] border border-[#2E5A8A] rounded-xl text-[#1E4D6B] dark:text-[#8AB4DC] text-xs font-medium mb-3 flex items-center gap-1.5">
-              <Sun className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
-              <span>Today is marked as a Class Holiday (not counted).</span>
-            </div>
-          ) : (
-            <div className="space-y-2 mb-3">
-              <div className="text-xs font-medium text-[#78716C] dark:text-[#A8A29E] flex items-center gap-1 flex-wrap">
-                <b className="text-[#065F46] dark:text-[#6EE7B7]">{c.present}</b> present,{" "}
-                <b className={c.absent > 0 ? "text-[#7F1D1D] dark:text-[#F0C8C0]" : "text-[#065F46] dark:text-[#6EE7B7]"}>{c.absent}</b> absent,{" "}
-                <b className="text-[#7A5515] dark:text-[#F8E0A0]">{c.leave}</b> on leave, of {c.total} students
-                {c.locked && (
-                  <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-[#F5F5F4] dark:bg-[#292524] font-bold">
-                    <Lock className="w-3 h-3" /> Locked
-                  </span>
+                    {c.absent === 0 && c.leave === 0 && (
+                      <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-900/60 text-xs text-emerald-900 dark:text-emerald-200 font-medium flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                        <span>Full attendance today — every student is present.</span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {c.absent > 0 && (
-                <div className="p-2.5 bg-[#F8E4E1] dark:bg-[#3A211E] border border-[#B23A32] dark:border-[#E06A5F] rounded-xl text-xs text-[#7F1D1D] dark:text-[#F0C8C0] flex items-start gap-1.5">
-                  <XCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
-                  <div>
-                    <b>Absent:</b>{" "}
-                    {sortedStudents
-                      .filter(s => day.status[s.id] === 'A')
-                      .map(s => `Roll ${s.rollNo || "—"} — ${s.name}`)
-                      .join(" • ")}
-                  </div>
-                </div>
-              )}
+              {renderHeatmap()}
+            </section>
+          )}
 
-              {c.leave > 0 && (
-                <div className="p-2.5 bg-[#FBF0D9] dark:bg-[#3A2E14] border border-[#B4791F] rounded-xl text-xs text-[#7A5515] dark:text-[#F8E0A0] flex items-start gap-1.5">
-                  <Sun className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                  <div>
-                    <b>Leave (excused):</b>{" "}
-                    {sortedStudents
-                      .filter(s => day.status[s.id] === 'L')
-                      .map(s => `Roll ${s.rollNo || "—"} — ${s.name}`)
-                      .join(" • ")}
-                  </div>
-                </div>
-              )}
+          {/* Recent Assessments */}
+          {tools.results && data.assessments.length > 0 && (
+            <section className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                  Recent assessments
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('results')}
+                  className="text-xs font-semibold text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+                >
+                  All ({data.assessments.length}) →
+                </button>
+              </div>
 
-              {c.absent === 0 && c.leave === 0 && (
-                <div className="p-2.5 bg-[#D1FAE5] dark:bg-[#064E3B] border border-[#065F46] dark:border-[#34D399] rounded-xl text-xs text-[#065F46] dark:text-[#A7F3D0] font-medium flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>Everyone is present today.</span>
+              <div className="divide-y divide-stone-100 dark:divide-stone-800/80">
+                {data.assessments
+                  .slice(-4)
+                  .reverse()
+                  .map(a => {
+                    const entered = assessmentEntryCount(a.id);
+                    const progressPct = totalStudents
+                      ? Math.round((entered / totalStudents) * 100)
+                      : 0;
+                    const complete = entered >= totalStudents && totalStudents > 0;
+
+                    return (
+                      <div
+                        key={a.id}
+                        className="py-3 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
+                            {a.name}
+                          </div>
+                          <div className="text-xs text-stone-500 dark:text-stone-400 tabular-nums mt-0.5">
+                            {entered}/{totalStudents} entered · {a.subjects.length}{' '}
+                            {a.subjects.length === 1 ? 'subject' : 'subjects'}
+                          </div>
+                          <div className="w-full max-w-[180px] h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden mt-2">
+                            <div
+                              className="h-full bg-emerald-700 dark:bg-emerald-500 transition-all"
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveAssessmentId(a.id);
+                            setActiveTab('results');
+                          }}
+                          className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
+                            complete
+                              ? 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700'
+                              : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white'
+                          }`}
+                        >
+                          {complete ? 'Open' : 'Continue'}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Secondary Column: Active Funds & Students Preview */}
+        <div className="lg:col-span-5 space-y-5">
+          {tools.funds && data.funds.length > 0 && (
+            <section className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                  Active funds
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('funds')}
+                  className="text-xs font-semibold text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+                >
+                  All ({data.funds.length}) →
+                </button>
+              </div>
+
+              <div className="divide-y divide-stone-100 dark:divide-stone-800/80">
+                {data.funds
+                  .slice(-3)
+                  .reverse()
+                  .map(f => {
+                    const st = computeFundStats(f.id);
+                    const overdue = f.dueDate && f.dueDate < todayK && st.pct < 100;
+
+                    return (
+                      <div
+                        key={f.id}
+                        className="py-3 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
+                              {f.name}
+                            </span>
+                            {overdue && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 shrink-0">
+                                <AlertTriangle className="w-3 h-3" />
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-stone-500 dark:text-stone-400 tabular-nums mt-0.5">
+                            Collected{' '}
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                              {fmtMoney(st.collected)}
+                            </span>
+                            {!st.variable && st.pending > 0 && (
+                              <>
+                                {' '}· Due{' '}
+                                <span className="font-semibold text-red-700 dark:text-red-400">
+                                  {fmtMoney(st.pending)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <div className="w-full max-w-[160px] h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden mt-2">
+                            <div
+                              className="h-full bg-emerald-700 dark:bg-emerald-500 transition-all"
+                              style={{ width: `${Math.min(100, st.pct)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveFundId(f.id);
+                            setActiveTab('funds');
+                          }}
+                          className="min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 shrink-0 transition-colors cursor-pointer"
+                        >
+                          Open
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </section>
+          )}
+
+          {/* Compact Roster Preview */}
+          <section className="rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                  Students
+                </h2>
+                <span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
+                  {totalStudents}
+                </span>
+              </div>
+              {totalStudents > 0 && (
+                <div className="flex items-center gap-3 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('view')}
+                    className="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 inline-flex items-center gap-1 cursor-pointer"
+                    title="Open printable roster"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('students')}
+                    className="text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+                  >
+                    Manage →
+                  </button>
                 </div>
               )}
             </div>
-          )}
 
-          {renderHeatmap()}
-
-          <div className="mt-3.5">
-            <button
-              type="button"
-              onClick={() => setActiveTab("attendance")}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#B91C1C] text-white hover:bg-[#991B1B] transition-colors cursor-pointer"
-            >
-              {!day ? "Take Attendance →" : "Open Attendance →"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Recent Assessments Card */}
-      {tools.results && data.assessments.length > 0 && (
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs border-l-4 border-l-[#2E5A8A]">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-sky-700 dark:text-sky-400" />
-              <span>Results</span>
-            </h3>
-            <button
-              type="button"
-              onClick={() => setActiveTab("results")}
-              className="text-xs font-bold text-[#B91C1C] dark:text-[#FCA5A5] hover:underline cursor-pointer"
-            >
-              See all ({data.assessments.length}) →
-            </button>
-          </div>
-
-          <div className="divide-y divide-[#E7E5E4] dark:divide-[#44403C]">
-            {data.assessments.slice(-3).reverse().map(a => {
-              const entered = assessmentEntryCount(a.id);
-              const progressPct = totalStudents ? Math.round((entered / totalStudents) * 100) : 0;
-              const complete = entered >= totalStudents && totalStudents > 0;
-
-              return (
-                <div key={a.id} className="py-2.5 flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <b className="block text-sm text-[#1C1917] dark:text-[#F5F5F4] truncate">{a.name}</b>
-                    <span className="text-xs text-[#78716C] dark:text-[#A8A29E]">
-                      {entered}/{totalStudents} entered • {a.subjects.length} subj
-                    </span>
-                    <div className="w-24 md:w-36 h-1.5 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden mt-1">
-                      <div className="h-full bg-[#065F46] transition-all" style={{ width: `${progressPct}%` }} />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveAssessmentId(a.id);
-                      setActiveTab("results");
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 cursor-pointer ${
-                      complete
-                        ? 'bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]'
-                        : 'bg-[#B91C1C] text-white hover:bg-[#991B1B]'
-                    }`}
+            {totalStudents === 0 ? (
+              <div className="py-6 text-center">
+                <GraduationCap className="w-8 h-8 mx-auto text-stone-400 dark:text-stone-600" />
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-2">
+                  No students enrolled in this class yet.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('students')}
+                  className="mt-3 min-h-[42px] px-4 py-2 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Add students
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-100 dark:divide-stone-800/80">
+                {sortedStudents.slice(0, 6).map(s => (
+                  <div
+                    key={s.id}
+                    className="py-2.5 first:pt-1 last:pb-0 flex items-center gap-3 text-xs"
                   >
-                    {complete ? "Open" : "Continue"} →
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Funds Card */}
-      {tools.funds && data.funds.length > 0 && (
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs border-l-4 border-l-[#B4791F]">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4] flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Funds</span>
-            </h3>
-            <button
-              type="button"
-              onClick={() => setActiveTab("funds")}
-              className="text-xs font-bold text-[#B91C1C] dark:text-[#FCA5A5] hover:underline cursor-pointer"
-            >
-              See all ({data.funds.length}) →
-            </button>
-          </div>
-
-          <div className="divide-y divide-[#E7E5E4] dark:divide-[#44403C]">
-            {data.funds.slice(-3).reverse().map(f => {
-              const st = computeFundStats(f.id);
-              const overdue = f.dueDate && f.dueDate < todayKey() && st.pct < 100;
-
-              return (
-                <div key={f.id} className="py-2.5 flex justify-between items-center gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <b className="text-sm text-[#1C1917] dark:text-[#F5F5F4] truncate">{f.name}</b>
-                      {overdue && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F8E4E1] text-[#7F1D1D]">
-                          <AlertTriangle className="w-3 h-3" /> Overdue
-                        </span>
+                    <span className="w-9 text-center font-mono-num font-semibold text-stone-500 dark:text-stone-400 shrink-0">
+                      {s.rollNo || '—'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-stone-900 dark:text-stone-100 truncate">
+                        {s.name || '—'}
+                      </div>
+                      {s.fatherName && (
+                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                          {s.fatherName}
+                        </div>
                       )}
                     </div>
-                    <span className="text-xs text-[#78716C] dark:text-[#A8A29E]">
-                      {st.variable ? "Variable" : `${fmtMoney(f.amount)}/student`} • Collected:{" "}
-                      <b className="text-[#065F46] dark:text-[#6EE7B7]">{fmtMoney(st.collected)}</b>
-                      {!st.variable && st.pending > 0 && (
-                        <span> • Pending: <b className="text-[#7F1D1D] dark:text-[#F0C8C0]">{fmtMoney(st.pending)}</b></span>
-                      )}
-                    </span>
-                    <div className="w-24 md:w-36 h-1.5 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden mt-1">
-                      <div className="h-full bg-[#065F46] transition-all" style={{ width: `${Math.min(100, st.pct)}%` }} />
-                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveFundId(f.id);
-                      setActiveTab("funds");
-                    }}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] dark:hover:bg-[#44403C] shrink-0 cursor-pointer"
-                  >
-                    Open →
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Students Preview Table */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-            Students Preview
-          </h3>
-          {totalStudents > 5 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("view")}
-              className="text-xs font-bold text-[#B91C1C] dark:text-[#FCA5A5] hover:underline cursor-pointer"
-            >
-              View All ({totalStudents}) →
-            </button>
-          )}
-        </div>
-
-        {totalStudents === 0 ? (
-          <div className="text-center py-8 text-[#78716C] dark:text-[#A8A29E] bg-[#FAFAF9] dark:bg-[#0C0A09] border border-dashed border-[#D6D3D1] dark:border-[#44403C] rounded-2xl flex flex-col items-center justify-center">
-            <GraduationCap className="w-10 h-10 mb-2 text-stone-400 dark:text-stone-600" />
-            <span>No students enrolled yet. Go to Students tab to add them.</span>
-          </div>
-        ) : (
-          <div className="overflow-x-auto border border-[#E7E5E4] dark:border-[#44403C] rounded-xl">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="bg-[#FAFAF9] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]">
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] w-12 text-center">#</th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] w-16 text-center">Roll</th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C]">Name</th>
-                  <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C]">Father Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedStudents.slice(0, 5).map((s, idx) => (
-                  <tr key={s.id} className="even:bg-[#FAFAF9] dark:even:bg-[#0C0A09]">
-                    <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] text-center font-bold">{idx + 1}</td>
-                    <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] text-center font-mono font-bold">{s.rollNo || "—"}</td>
-                    <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] font-semibold">{s.name || "—"}</td>
-                    <td className="p-2 border border-[#E7E5E4] dark:border-[#44403C] text-[#78716C] dark:text-[#A8A29E]">{s.fatherName || "—"}</td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                {totalStudents > 6 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('students')}
+                    className="w-full pt-3 text-center text-xs font-semibold text-red-800 dark:text-red-400 hover:underline cursor-pointer"
+                  >
+                    View all {totalStudents} students →
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
 
-      {/* My Tools Card at the very bottom of Home */}
-      <MyToolsCard className="mt-1" />
+      {/* My Tools Card Anchored at the Bottom of Home */}
+      <MyToolsCard />
     </div>
   );
 };

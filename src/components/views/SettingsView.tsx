@@ -3,22 +3,24 @@ import { ModeCard } from '../teacher/ModeCard';
 import { useClassroom } from '../../context/ClassroomContext';
 import { PrintSizeKey } from '../../types';
 import { PRINT_SIZES, todayKey } from '../../utils/helpers';
-import { ActionGrid, ActionButton } from '../ActionGrid';
-import { HowItWorks } from '../HowItWorks';
 import { WatermarkOptions } from '../WatermarkOptions';
 import {
   Printer,
-  Image,
+  Image as ImageIcon,
   Database,
   Moon,
+  Sun,
   HelpCircle,
   AlertTriangle,
   ArrowLeft,
   X,
   Upload,
   Download,
-  Sparkles,
-  Share2
+  Share2,
+  PlusCircle,
+  FlaskConical,
+  Save,
+  RotateCcw,
 } from 'lucide-react';
 import { generateSampleClassData } from '../../utils/sampleData';
 import { exportFileBlob } from '../../utils/nativeFileExport';
@@ -33,13 +35,8 @@ import { useClassgridPrefs, savePrefs } from '../../utils/prefs';
 import { PlainTextInput } from '../PlainTextInput';
 
 const LAST_BACKUP_KEY = 'classgrid_last_backup';
-const STORAGE_LIMIT_CHARS = 5 * 1024 * 1024; // browsers allow roughly 5 MB of local storage
+const STORAGE_LIMIT_CHARS = 5 * 1024 * 1024;
 
-/**
- * Approximate local-storage use of everything EXCEPT the main records
- * (the records are measured separately from the live data, because on Android
- * they live in the SQLite database, not in local storage).
- */
 function readOtherLocalChars(): number {
   let total = 0;
   try {
@@ -68,6 +65,7 @@ export const SettingsView: React.FC = () => {
     toast,
     uiConfirm,
     setActiveTab,
+    darkMode,
     toggleDarkMode,
     openHelp
   } = useClassroom();
@@ -97,7 +95,6 @@ export const SettingsView: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Size of the real records, measured from the live data (works for SQLite and web storage)
   const isSqlite = storageStatus?.engine === 'sqlite';
   const recordsSize = React.useMemo(() => {
     try {
@@ -116,12 +113,12 @@ export const SettingsView: React.FC = () => {
   const daysSinceBackup = lastBackup ? Math.floor((Date.now() - lastBackup) / 86400000) : null;
   const daysSinceAutoBackup = autoBackupTimestamp ? Math.floor((Date.now() - autoBackupTimestamp) / 86400000) : null;
   const backupOld = daysSinceBackup === null || daysSinceBackup > 30;
-  const barColor = usedPct >= 80 ? 'bg-red-600' : usedPct >= 50 ? 'bg-amber-500' : 'bg-emerald-600';
+  const barColor = usedPct >= 80 ? 'bg-red-700 dark:bg-red-500' : usedPct >= 50 ? 'bg-amber-600 dark:bg-amber-500' : 'bg-emerald-700 dark:bg-emerald-500';
+
   const [emisCode, setEmisCode] = useState(data.emisCode || '');
   const [section, setSection] = useState(data.section || '');
   const [printNote, setPrintNote] = useState(data.printNote);
 
-  // Keep the form in sync when data changes from outside (Undo / Redo / Import)
   useEffect(() => {
     setClassName(data.className);
     setInchargeName(data.inchargeName);
@@ -149,7 +146,6 @@ export const SettingsView: React.FC = () => {
     toast("Classroom setup saved.", "success");
   };
 
-  // Shrinks the picked image (longest side max 300 px) so the logo stays small in storage, undo history, backups and prints.
   const shrinkLogo = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -239,13 +235,12 @@ export const SettingsView: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [backupChoice]);
 
-  // Export JSON Backup. `full` = every saved class too; otherwise only the open class.
   const handleExportBackup = async (full: boolean) => {
     setBackupChoice(false);
     let classes: Awaited<ReturnType<typeof exportAllClasses>> = [];
     if (full) try {
       classes = await exportAllClasses(data);
-    } catch (e) {
+    } catch {
       const goOn = await uiConfirm("Could not read your saved classes, so this backup would only contain the open class. Export anyway?", {
         title: "Saved classes unavailable",
         yesText: "Export anyway",
@@ -287,7 +282,6 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  // Import JSON Backup
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -300,7 +294,6 @@ export const SettingsView: React.FC = () => {
 
         let importedData = null;
         if (parsed && parsed.app === "ClassgridAI") {
-          // An "Edit with AI" file is not a backup: restoring it would replace the whole class with a short student list
           throw new Error("This is an Edit with AI file, not a backup. Import it in the Students tab instead.");
         }
         if (parsed.app === "ClassroomManager" && parsed.data) {
@@ -323,7 +316,7 @@ export const SettingsView: React.FC = () => {
         if (!ok) return;
 
         replaceAllData(importedData);
-        setActiveShelfId(null); // the open class is now the file's class, not the one linked to a Classes card
+        setActiveShelfId(null);
         let restored = 0;
         if (classCount) {
           try {
@@ -348,10 +341,9 @@ export const SettingsView: React.FC = () => {
     e.target.value = "";
   };
 
-  // Load 50 Sample Students Demo Data
   const handleLoadSampleData = async () => {
     const ok = await uiConfirm(
-      "Load 50 Sample Students & Complete Demo Data?\n\nThis will replace current records with a complete sample dataset to test attendance, daily quick tests, Punjab SED register printing, results, and fund tracking.",
+      "Load 50 Sample Students & Complete Demo Data?\n\nThis will replace current records with a complete sample dataset to test attendance, daily quick tests, register printing, results, and fund tracking.",
       {
         title: "Load 50 Sample Students",
         yesText: "Load Demo Data",
@@ -367,7 +359,6 @@ export const SettingsView: React.FC = () => {
     setActiveTab("dailytest");
   };
 
-  // Reset Everything
   const handleResetEverything = async () => {
     const ok1 = await uiConfirm("This will erase ALL data (students, attendance, assessments, funds) and reset the app. Continue?", {
       title: "Reset Everything?",
@@ -385,10 +376,9 @@ export const SettingsView: React.FC = () => {
     });
     if (!ok2) return;
 
-    // Safety net: put the open class on the Classes shelf first, so an accidental wipe is recoverable.
     try {
       await shelveOpenClass(data);
-    } catch (e) {
+    } catch {
       const goOn = await uiConfirm("Could not save a copy of the open class to Classes (storage may be full). Erase everything anyway?", {
         title: "No safety copy",
         yesText: "Erase anyway",
@@ -399,502 +389,526 @@ export const SettingsView: React.FC = () => {
     }
     setActiveShelfId(null);
 
-    // resetEverything() already shows its own confirmation toast
     await resetEverything();
     setActiveTab("dashboard");
   };
 
+  const cardCls = 'rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5';
+  const inputCls =
+    'w-full min-h-[42px] px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500';
+  const labelCls = 'block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1';
+
   return (
-    <div className="space-y-3">
-      <ModeCard />
-      <HowItWorks
-        id="settings"
-        title="How settings work"
-        steps={[
-          <>Fill in <b>Class Name</b> and your <b>School Name</b> first. They appear at the top of every printout. EMIS Code and Section are optional.</>,
-          <>Tap <b>Save Setup</b> after changing these details. They are not saved until you do.</>,
-          <>If a printout runs onto a second page, choose a smaller <b>Print Size</b>. You can also add your <b>School Logo</b>.</>,
-          <>Tap <b>Backup to file</b> regularly and keep the file safe, for example on WhatsApp or Google Drive. <b>Restore from file</b> restores it on any phone or computer.</>
-        ]}
-        note="Careful: Load Demo Data and Reset Everything both replace your real records. Export a backup first."
-      />
-
-      {/* My Tools Configuration Card */}
-      <MyToolsCard />
-
-      {backupChoice && (
-        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setBackupChoice(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] p-4 space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">What do you want to back up?</div>
-            <button type="button" onClick={() => handleExportBackup(true)}
-              className="w-full text-left p-3 rounded-xl bg-[#B91C1C] text-white cursor-pointer">
-              <div className="text-sm font-bold">Full backup</div>
-              <div className="text-[11px] opacity-90">The open class and all classes saved in the Classes tab.</div>
-            </button>
-            <button type="button" onClick={() => handleExportBackup(false)}
-              className="w-full text-left p-3 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 cursor-pointer">
-              <div className="text-sm font-bold">This class only</div>
-              <div className="text-[11px] opacity-80">Only the class that is open now{data.className ? ` (${data.className})` : ''}.</div>
-            </button>
-            <button type="button" onClick={() => setBackupChoice(false)}
-              className="w-full min-h-[44px] py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
-          </div>
+    <div className="cg-view-enter space-y-5">
+      {/* Masthead */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
+            {data.schoolName || 'School'} · {data.className || 'Class'}
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-50 mt-0.5">
+            Settings &amp; backup
+          </h1>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('dashboard')}
+          className="min-h-[40px] px-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center gap-1.5 self-start sm:self-auto transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to class</span>
+        </button>
+      </div>
 
-      {/* Classroom Setup Form */}
-      <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs">
-        <h2 className="text-base font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] mb-3">
-          Classroom Setup
-        </h2>
+      {/* Classroom & School Details */}
+      <section className={cardCls}>
+        <div className="mb-4">
+          <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">Classroom &amp; school details</h2>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+            Appears in the header of printed attendance registers, marks sheets, report cards, and fee receipts.
+          </p>
+        </div>
 
-        <form onSubmit={handleSaveInfo} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <form onSubmit={handleSaveInfo} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Class Name *
-              </label>
+              <label className={labelCls}>Class name</label>
               <PlainTextInput
-                                value={className}
+                value={className}
                 placeholder="e.g. 6th Jinnah"
                 onChange={e => setClassName(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                className={inputCls}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Incharge / Teacher Name
-              </label>
+              <label className={labelCls}>Incharge / teacher name</label>
               <PlainTextInput
-                                value={inchargeName}
+                value={inchargeName}
                 placeholder="e.g. Mr. Waqas"
                 onChange={e => setInchargeName(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                className={inputCls}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                School Name
-              </label>
+              <label className={labelCls}>School name</label>
               <PlainTextInput
-                                value={schoolName}
-                placeholder="School Name"
+                value={schoolName}
+                placeholder="School name"
                 onChange={e => setSchoolName(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                className={inputCls}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Academic Year / Session
-              </label>
+              <label className={labelCls}>Academic year / session</label>
               <PlainTextInput
-                                value={academicYear}
+                value={academicYear}
                 placeholder="e.g. 2026-27"
                 onChange={e => setAcademicYear(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
-              />
-              <div className="mt-2 text-[10.5px] font-bold text-[#6E6656] dark:text-[#A79B85] uppercase">On prints, show the session</div>
-              <div className="mt-1 flex rounded-lg overflow-hidden border border-[#DAD3C3] dark:border-[#3A3527]">
-                {([['line', 'On its own line'], ['withClass', 'With the class'], ['off', 'Don\'t show']] as const).map(([v, label]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setSessionDisplay(v)}
-                    className={`flex-1 px-2 py-1.5 text-[11px] font-bold cursor-pointer ${sessionDisplay === v ? 'bg-[#B91C1C] text-white' : 'bg-[#F8F5EE] dark:bg-[#1F1C17] text-[#1C1917] dark:text-[#F5F5F4]'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-1 text-[10.5px] text-[#6E6656] dark:text-[#A79B85]">
-                {sessionDisplay === 'withClass' ? `Prints show: Class: ${className.trim() || '10th Iqbal'} - ${academicYear.trim() || '2026-27'}` : sessionDisplay === 'off' ? 'The session is not printed.' : 'The session is printed under the class line.'}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                EMIS Code (Optional)
-              </label>
-              <PlainTextInput
-                                value={emisCode}
-                placeholder="e.g. 35210123"
-                onChange={e => setEmisCode(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Section (Optional)
-              </label>
-              <PlainTextInput
-                                value={section}
-                placeholder="e.g. A"
-                onChange={e => setSection(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                className={inputCls}
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Additional Print Line (Optional)
-              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-medium text-stone-600 dark:text-stone-400">Session placement on printouts</span>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                    {sessionDisplay === 'withClass'
+                      ? `Shows: Class: ${className.trim() || '10th Iqbal'} - ${academicYear.trim() || '2026-27'}`
+                      : sessionDisplay === 'off'
+                      ? 'Session is hidden on printed headers.'
+                      : 'Session is printed on its own line below the class name.'}
+                  </p>
+                </div>
+                <div className="inline-flex p-0.5 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shrink-0 self-start">
+                  {([
+                    ['line', 'Own line'],
+                    ['withClass', 'With class'],
+                    ['off', 'Hide'],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setSessionDisplay(v)}
+                      className={`min-h-[34px] px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        sessionDisplay === v
+                          ? 'bg-red-800 dark:bg-red-700 text-white'
+                          : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>EMIS code (optional)</label>
               <PlainTextInput
-                                value={printNote}
-                placeholder="e.g. Principal: Mr. XYZ"
+                value={emisCode}
+                placeholder="e.g. 35210123"
+                onChange={e => setEmisCode(e.target.value)}
+                className={`${inputCls} font-mono-num`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Section (optional)</label>
+              <PlainTextInput
+                value={section}
+                placeholder="e.g. A"
+                onChange={e => setSection(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Additional header line (optional)</label>
+              <PlainTextInput
+                value={printNote}
+                placeholder="e.g. Principal: Mr. Ahmad"
                 onChange={e => setPrintNote(e.target.value)}
-                className="w-full p-2.5 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                className={inputCls}
               />
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-2">
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
-              className="min-h-[44px] py-2.5 px-4 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
+              className="min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-2 transition-colors cursor-pointer"
             >
-              Save Setup
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("dashboard")}
-              className="text-xs font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Dashboard</span>
+              <Save className="w-4 h-4" />
+              <span>Save setup</span>
             </button>
           </div>
         </form>
-      </div>
+      </section>
 
-      {/* Print Settings Card */}
-      <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] flex items-center gap-2">
-          <Printer className="w-4 h-4 text-red-800 dark:text-red-400" />
-          <span>Print Settings</span>
-        </h3>
-        <p className="text-xs text-[#6E6656] dark:text-[#A79B85]">
-          Controls document formatting across all printed sheets. If reports overflow to a second page, pick a smaller size.
-        </p>
-
-        <div className={`grid gap-3 ${prefs.showAdvanced ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-          <div>
-            <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-              Print Size Scaling
-            </label>
-            <select
-              value={data.printSize}
-              onChange={e => handlePrintSizeChange(e.target.value as PrintSizeKey)}
-              className="w-full p-2 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
-            >
-              {(Object.keys(PRINT_SIZES) as PrintSizeKey[]).map(k => (
-                <option key={k} value={k}>
-                  {PRINT_SIZES[k].label}
-                </option>
-              ))}
-            </select>
+      {/* Print Layout & School Logo */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className={`${cardCls} space-y-4`}>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
+              <Printer className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Print layout</h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                Pick a smaller print scale if wide sheets spill onto a second page.
+              </p>
+            </div>
           </div>
 
-          {prefs.showAdvanced && (
+          <div className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-[#6E6656] dark:text-[#A79B85] uppercase mb-1">
-                Orientation Override
-              </label>
+              <label className={labelCls}>Print size scaling</label>
               <select
-                value={data.forceOrientation}
-                onChange={e => handleForceOrientationChange(e.target.value as '' | 'portrait' | 'landscape')}
-                className="w-full p-2 text-xs rounded-lg border border-[#DAD3C3] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] text-inherit"
+                value={data.printSize}
+                onChange={e => handlePrintSizeChange(e.target.value as PrintSizeKey)}
+                className={inputCls}
               >
-                <option value="">Auto (Recommended)</option>
-                <option value="portrait">Force Portrait</option>
-                <option value="landscape">Force Landscape</option>
+                {(Object.keys(PRINT_SIZES) as PrintSizeKey[]).map(k => (
+                  <option key={k} value={k}>
+                    {PRINT_SIZES[k].label}
+                  </option>
+                ))}
               </select>
             </div>
-          )}
-        </div>
 
-        {prefs.showAdvanced && (
-          <>
-            <div className="pt-2 border-t border-[#E5DFD0] dark:border-[#3A3527]">
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={capsPrint}
-                  onChange={e => {
-                    saveCapsPrint(e.target.checked);
-                    toast(e.target.checked ? "Capitalize text on prints enabled" : "Capitalize text on prints disabled", "info");
-                  }}
-                  className="mt-0.5 rounded border-[#DAD3C3] text-red-800 focus:ring-red-800 dark:border-[#3A3527] dark:bg-[#1F1C17] w-4 h-4 cursor-pointer"
-                />
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-[#232019] dark:text-[#EFE9DD]">
-                    Capitalize text on prints
-                  </span>
-                  <p className="text-[11px] text-[#6E6656] dark:text-[#A79B85]">
-                    Prints names, subjects and headings in CAPITAL letters. Remarks and notes stay as typed.
-                  </p>
+            {prefs.showAdvanced && (
+              <>
+                <div>
+                  <label className={labelCls}>Orientation override</label>
+                  <select
+                    value={data.forceOrientation}
+                    onChange={e => handleForceOrientationChange(e.target.value as '' | 'portrait' | 'landscape')}
+                    className={inputCls}
+                  >
+                    <option value="">Auto (recommended)</option>
+                    <option value="portrait">Force portrait</option>
+                    <option value="landscape">Force landscape</option>
+                  </select>
                 </div>
-              </label>
+
+                <label className="flex items-start gap-2.5 pt-2 border-t border-stone-100 dark:border-stone-800 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={capsPrint}
+                    onChange={e => {
+                      saveCapsPrint(e.target.checked);
+                      toast(e.target.checked ? "Capitalize text on prints enabled" : "Capitalize text on prints disabled", "info");
+                    }}
+                    className="mt-0.5 w-4 h-4 accent-red-800 dark:accent-red-500 cursor-pointer shrink-0"
+                  />
+                  <span className="leading-snug">
+                    <span className="block text-xs font-semibold text-stone-900 dark:text-stone-100">
+                      Capitalize text on prints
+                    </span>
+                    <span className="block text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                      Prints names, subjects, and headings in uppercase while keeping remarks as typed.
+                    </span>
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleResetPrintSettings}
+                  className="min-h-[38px] px-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Reset print defaults</span>
+                </button>
+              </>
+            )}
+          </div>
+        </section>
+
+        <section className={`${cardCls} space-y-4`}>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
+              <ImageIcon className="w-5 h-5" />
             </div>
-
             <div>
-              <button
-                type="button"
-                onClick={handleResetPrintSettings}
-                className="py-1.5 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0]"
-              >
-                Reset Print Settings
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* School Logo Upload Card */}
-      <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] flex items-center gap-2">
-          <Image className="w-4 h-4 text-red-800 dark:text-red-400" />
-          <span>School Logo</span>
-        </h3>
-        <p className="text-xs text-[#6E6656] dark:text-[#A79B85]">
-          Upload a PNG or JPG (recommended under 500 KB). This appears in the top header of all printed slips and merit lists.
-        </p>
-
-        <div className="border border-dashed border-[#DAD3C3] dark:border-[#3A3527] rounded-xl p-4 flex items-center justify-center min-h-[100px] bg-[#F8F5EE] dark:bg-[#1F1C17]">
-          {data.schoolLogo ? (
-            <img src={data.schoolLogo} alt="School Logo" className="max-h-20 max-w-40 object-contain" />
-          ) : (
-            <span className="text-xs text-[#8A8270] dark:text-[#A79B85]">No logo uploaded yet</span>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <label className="min-h-[44px] py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer flex items-center gap-1.5">
-            <Upload className="w-3.5 h-3.5" />
-            <span>Choose Logo…</span>
-            <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-          </label>
-          {data.schoolLogo && (
-            <button
-              type="button"
-              onClick={handleRemoveLogo}
-              className="min-h-[44px] py-2 px-3 text-xs font-bold rounded-lg bg-red-100 text-[#991B1B] hover:bg-red-200 flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Remove Logo</span>
-            </button>
-          )}
-        </div>
-
-        <WatermarkOptions kind="result" hasLogo={!!data.schoolLogo} />
-        <p className="text-[11px] text-[#6E6656] dark:text-[#A79B85]">
-          The watermark applies to Report Cards and Fee Receipts. Receipt size and visibility are set inside the receipt popup.
-        </p>
-      </div>
-
-      {/* Example Demo Data (50 Students) Card - Hidden when showAdvanced is OFF */}
-      {prefs.showAdvanced && (
-        <div className="bg-white dark:bg-[#232019] border border-emerald-300 dark:border-emerald-800/80 rounded-xl p-4 shadow-xs space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-bold font-serif-academic text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <span>Example Demo Data (50 Students)</span>
-              </h3>
-              <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">
-                Populate a complete, realistic dataset of 50 students with full Attendance roll calls, Daily Quick Tests, SBA and Term Examinations, and Class Funds to test all features and print registers.
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">School logo &amp; watermark</h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                PNG or JPG automatically resized for crisp headers and report card watermarks.
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLoadSampleData}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Load 50 Sample Students &amp; Demo Records</span>
-          </button>
-        </div>
-      )}
-
-      {/* Backup & Restore Card */}
-      <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] flex items-center gap-2">
-          <Database className="w-4 h-4 text-red-800 dark:text-red-400" />
-          <span>Backup & Restore</span>
-        </h3>
-        <p className="text-xs text-[#6E6656] dark:text-[#A79B85]">
-          Export all class records, attendance history, assessments, and funds to a JSON backup file. Import it on another computer or browser to restore everything.
-        </p>
-
-        {/* Storage meter + backup status */}
-        <div className="rounded-xl border border-[#E5DFD0] dark:border-[#3A3527] bg-[#F8F5EE] dark:bg-[#1F1C17] p-3 space-y-2">
-          {storageStatus && (
-            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-[#E5DFD0] dark:border-[#3A3527]">
-              <span className="text-[#6E6656] dark:text-[#A79B85] font-semibold">Database Engine</span>
-              <span className="font-bold text-[#232019] dark:text-[#EFE9DD] flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${storageStatus.engine === 'sqlite' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-                {storageStatus.details}
-              </span>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 flex items-center justify-center p-2 shrink-0">
+              {data.schoolLogo ? (
+                <img src={data.schoolLogo} alt="School Logo" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-[11px] text-stone-400 text-center">No logo</span>
+              )}
             </div>
-          )}
+            <div className="flex flex-wrap gap-2">
+              <label className="min-h-[42px] px-3.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors">
+                <Upload className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
+                <span>{data.schoolLogo ? 'Replace logo' : 'Upload logo'}</span>
+                <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+              </label>
+              {data.schoolLogo && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="min-h-[42px] px-3.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100/70 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+          </div>
 
-          {storageStatus && isSqlite && (
-            <>
-              <div className="flex justify-between items-baseline text-xs font-bold text-[#232019] dark:text-[#EFE9DD]">
-                <span>Records size</span>
-                <span>{usedLabel}</span>
-              </div>
-              <p className="text-[11px] font-semibold text-[#6E6656] dark:text-[#A79B85]">
-                Stored in the phone's database. There is no 5 MB browser limit here.
-              </p>
-            </>
-          )}
+          <WatermarkOptions kind="result" hasLogo={!!data.schoolLogo} />
+        </section>
+      </div>
+
+      {/* Backup & Storage */}
+      <section className={`${cardCls} space-y-4`}>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">Backup &amp; restore</h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Export your classes to a JSON backup file to keep on Google Drive or move to another device.
+            </p>
+          </div>
+        </div>
+
+        {/* Clean Storage & Backup Summary */}
+        <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-950/50 p-3.5 space-y-2.5">
           {storageStatus && !isSqlite && (
-            <>
-              <div className="flex justify-between items-baseline text-xs font-bold text-[#232019] dark:text-[#EFE9DD]">
-                <span>Storage used</span>
-                <span>{usedLabel} of about 5 MB ({usedPct}%)</span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-baseline text-xs font-semibold text-stone-800 dark:text-stone-200 font-mono-num">
+                <span>Browser storage used</span>
+                <span>{usedLabel} of ~5 MB ({usedPct}%)</span>
               </div>
               <div
-                className="h-2 rounded-full bg-[#E5DFD0] dark:bg-[#3A3527] overflow-hidden"
+                className="h-1.5 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden"
                 role="progressbar"
                 aria-valuenow={usedPct}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-label="Storage used"
               >
-                <div className={`h-full ${barColor}`} style={{ width: `${Math.max(usedPct, 1)}%` }} />
+                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(usedPct, 1)}%` }} />
               </div>
-            </>
+            </div>
           )}
+
+          {storageStatus && isSqlite && (
+            <div className="flex justify-between items-baseline text-xs font-semibold text-stone-800 dark:text-stone-200 font-mono-num">
+              <span>Device database size</span>
+              <span>{usedLabel}</span>
+            </div>
+          )}
+
           {logoKB > (isSqlite ? 1000 : 200) && (
-            <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
-              Your school logo uses {logoKB} KB. A smaller logo will free up space.
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              Your school logo uses {logoKB} KB. Uploading a smaller logo frees up space.
             </p>
           )}
           {!isSqlite && usedPct >= 80 && (
-            <p className="text-[11px] font-semibold text-red-700 dark:text-red-400">
-              Storage is almost full. Export a backup now, and remove the logo if it is large.
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400">
+              Browser storage is nearly full. Export a backup now.
             </p>
           )}
-          <div className="pt-1 space-y-1">
-            <p className={`text-[11px] font-semibold ${backupOld ? 'text-amber-800 dark:text-amber-300' : 'text-[#6E6656] dark:text-[#A79B85]'}`}>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs pt-1 border-t border-stone-200/70 dark:border-stone-800">
+            <span className={backupOld ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-stone-600 dark:text-stone-400'}>
               {daysSinceBackup === null
-                ? 'Manual backup: No file exported yet from this device.'
+                ? 'Manual backup: Not exported yet on this device'
                 : daysSinceBackup === 0
-                ? 'Last manual backup: today'
-                : `Last manual backup: ${daysSinceBackup} day${daysSinceBackup === 1 ? '' : 's'} ago${backupOld ? '. Time for a new one.' : ''}`}
-            </p>
-            <p className="text-[11px] font-semibold text-[#6E6656] dark:text-[#A79B85]">
-              {!Capacitor.isNativePlatform()
-                ? 'Auto-backup: Runs automatically on the Android app. On a browser, use Backup to file.'
-                : daysSinceAutoBackup === null
-                ? 'Last auto-backup: Scheduled on save (max once every 24h in app storage).'
-                : daysSinceAutoBackup === 0
-                ? 'Last auto-backup: today (saved in app storage)'
-                : `Last auto-backup: ${daysSinceAutoBackup} day${daysSinceAutoBackup === 1 ? '' : 's'} ago (saved in app storage)`}
-            </p>
+                ? 'Last manual backup: Today'
+                : `Last manual backup: ${daysSinceBackup} day${daysSinceBackup === 1 ? '' : 's'} ago`}
+            </span>
+            {Capacitor.isNativePlatform() && (
+              <span className="text-stone-500 dark:text-stone-400">
+                {daysSinceAutoBackup === null
+                  ? 'Auto-backup: Scheduled daily'
+                  : daysSinceAutoBackup === 0
+                  ? 'Auto-backup: Today'
+                  : `Auto-backup: ${daysSinceAutoBackup}d ago`}
+              </span>
+            )}
           </div>
         </div>
 
-        <ActionGrid cols={2}>
-          <ActionButton
-            variant="primary"
-            icon={Capacitor.isNativePlatform() ? Share2 : Download}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            type="button"
             onClick={() => setBackupChoice(true)}
+            className="min-h-[44px] px-4 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            Backup to file
-          </ActionButton>
-          <label className="w-full min-h-12 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors select-none cursor-pointer bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-800 border border-stone-200 dark:bg-stone-800/90 dark:hover:bg-stone-700/90 dark:text-stone-200 dark:border-stone-700">
-            <Upload className="w-4 h-4 shrink-0" />
-            <span className="truncate">Restore from file</span>
+            {Capacitor.isNativePlatform() ? <Share2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            <span>Backup to file</span>
+          </button>
+          <label className="min-h-[44px] px-4 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer">
+            <Upload className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+            <span>Restore from file</span>
             <input type="file" accept=".json,application/json" onChange={handleImportBackup} className="hidden" />
           </label>
-        </ActionGrid>
+        </div>
+      </section>
+
+      {/* Mode & PIN + My Tools */}
+      <ModeCard />
+      <MyToolsCard />
+
+      {/* Quick Utilities: Appearance, Guide, Start New Class */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          className={`${cardCls} text-left hover:border-stone-300 dark:hover:border-stone-700 transition-colors cursor-pointer flex items-start gap-3`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 flex items-center justify-center shrink-0">
+            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+          </div>
+          <div>
+            <div className="text-sm font-bold text-stone-900 dark:text-stone-100">
+              {darkMode ? 'Light mode' : 'Dark mode'}
+            </div>
+            <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Switch app appearance
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={openHelp}
+          className={`${cardCls} text-left hover:border-stone-300 dark:hover:border-stone-700 transition-colors cursor-pointer flex items-start gap-3`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 flex items-center justify-center shrink-0">
+            <HelpCircle className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-stone-900 dark:text-stone-100">User guide</div>
+            <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Tips &amp; keyboard shortcuts
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowNewClass(true)}
+          className={`${cardCls} text-left hover:border-stone-300 dark:hover:border-stone-700 transition-colors cursor-pointer flex items-start gap-3`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 text-red-800 dark:text-red-400 flex items-center justify-center shrink-0">
+            <PlusCircle className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-stone-900 dark:text-stone-100">Start new class</div>
+            <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Shelve current &amp; start fresh
+            </div>
+          </div>
+        </button>
       </div>
 
-      {/* Appearance & User Guide */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs space-y-2">
-          <h3 className="text-sm font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] flex items-center gap-2">
-            <Moon className="w-4 h-4 text-red-800 dark:text-red-400" />
-            <span>Appearance</span>
-          </h3>
-          <p className="text-xs text-[#6E6656] dark:text-[#A79B85]">
-            Switch between light parchment and dark modes.
-          </p>
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
-          >
-            Toggle Dark Mode
-          </button>
-        </div>
-
-        <div className="bg-white dark:bg-[#232019] border border-[#E5DFD0] dark:border-[#3A3527] rounded-xl p-4 shadow-xs space-y-2">
-          <h3 className="text-sm font-bold font-serif-academic text-[#232019] dark:text-[#EFE9DD] flex items-center gap-2">
-            <HelpCircle className="w-4 h-4 text-red-800 dark:text-red-400" />
-            <span>Help & Guide</span>
-          </h3>
-          <p className="text-xs text-[#6E6656] dark:text-[#A79B85]">
-            View comprehensive instructions and keyboard shortcuts.
-          </p>
-          <button
-            type="button"
-            onClick={openHelp}
-            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
-          >
-            Open User Guide
-          </button>
-        </div>
-      </div>
-
-      {/* Start a new class (safe) */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-xl p-4 shadow-xs space-y-2">
-        <h3 className="text-sm font-bold font-serif-academic text-[#1C1917] dark:text-[#F5F5F4]">Start a new class</h3>
-        <p className="text-xs text-[#78716C] dark:text-[#A8A29E] leading-relaxed">
-          Saves the open class in the <b>Classes</b> tab, then gives you an empty class. Nothing is lost, and you can switch back any time.
-        </p>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowNewClass(true)}
-            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
-          >
-            Start new class
-          </button>
-          {prefs.showAdvanced && (
+      {/* Advanced Tools: Sample Data & Danger Zone */}
+      {prefs.showAdvanced && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <section className={`${cardCls} flex flex-col justify-between gap-4`}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <FlaskConical className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Demo dataset (50 students)</h2>
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
+                  Replace the open class with 50 sample students, attendance logs, daily tests, term exams, and funds to test printing and layouts.
+                </p>
+              </div>
+            </div>
             <button
               type="button"
-              onClick={() => setActiveTab("classes")}
-              className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
+              onClick={handleLoadSampleData}
+              className="min-h-[42px] px-4 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer self-start"
             >
-              Open Classes
+              <FlaskConical className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+              <span>Load demo data</span>
             </button>
-          )}
-        </div>
-      </div>
-      {showNewClass && <NewClassDialog onClose={() => setShowNewClass(false)} onDone={() => setActiveTab("dashboard")} />}
+          </section>
 
-      {/* Danger Zone — Hidden when showAdvanced is OFF */}
-      {prefs.showAdvanced && (
-        <div className="bg-red-50 dark:bg-red-950/20 border-2 border-red-300 dark:border-red-900 rounded-xl p-4 shadow-xs space-y-2">
-          <h3 className="text-sm font-bold font-serif-academic text-[#991B1B] dark:text-red-400 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-            <span>Danger Zone — Reset Everything</span>
-          </h3>
-          <p className="text-xs text-[#991B1B] dark:text-red-300 leading-relaxed">
-            Wipes the open class completely (students, attendance, assessments, fund payments). A copy of it is put in Classes first, and classes already saved there are not touched. For a normal new class, use Start a new class above instead.
-          </p>
-          <button
-            type="button"
-            onClick={handleResetEverything}
-            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
-          >
-            Reset Everything
-          </button>
+          <section className="rounded-2xl bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/60 p-5 flex flex-col justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-red-900 dark:text-red-300">Reset open class</h2>
+                <p className="text-xs text-red-800/80 dark:text-red-300/80 mt-1 leading-relaxed">
+                  Erases all students, attendance, exams, and funds in the open class. A safety copy is shelved in Classes first, and other saved classes stay untouched.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetEverything}
+              className="min-h-[42px] px-4 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer self-start"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Reset everything</span>
+            </button>
+          </section>
         </div>
       )}
+
+      {/* Backup Choice Modal */}
+      {backupChoice && (
+        <div
+          className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setBackupChoice(false)}
+        >
+          <div
+            className="cg-sheet-up w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-stone-900 border-t sm:border border-stone-200 dark:border-stone-800 p-5 pb-[max(1.25rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] space-y-3 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-label="Backup scope"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Choose backup scope</h3>
+              <button
+                type="button"
+                onClick={() => setBackupChoice(false)}
+                aria-label="Close"
+                className="w-10 h-10 -mr-2 rounded-xl flex items-center justify-center text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleExportBackup(true)}
+              className="w-full text-left p-3.5 rounded-xl bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white transition-colors cursor-pointer"
+            >
+              <div className="text-sm font-semibold">Full school backup</div>
+              <div className="text-xs opacity-85 mt-0.5">
+                Includes the open class and every saved class in Classes.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportBackup(false)}
+              className="w-full text-left p-3.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+            >
+              <div className="text-sm font-semibold">Open class only</div>
+              <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                Exports only {data.className || 'the currently open class'}.
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showNewClass && <NewClassDialog onClose={() => setShowNewClass(false)} onDone={() => setActiveTab("dashboard")} />}
     </div>
   );
 };

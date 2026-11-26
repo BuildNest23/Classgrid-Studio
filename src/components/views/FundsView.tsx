@@ -1,8 +1,6 @@
+import React, { useState, useMemo, useEffect } from 'react';
 import { SyncInput } from '../SyncInput';
-import { ActionGrid, ActionButton } from '../ActionGrid';
-import { HowItWorks } from '../HowItWorks';
 import { FundCardModal } from '../FundCardModal';
-import React, { useState, useMemo } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { Fund, Student } from '../../types';
 import {
@@ -20,14 +18,21 @@ import {
 } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
 import {
+  ArrowLeft,
   Wallet,
   Plus,
   CheckCircle2,
   Trash2,
   AlertTriangle,
-  Printer
+  Printer,
+  ChevronRight,
+  X,
+  Search,
+  FileText,
 } from 'lucide-react';
 import { PlainTextInput } from '../PlainTextInput';
+
+type FundStatusFilter = 'all' | 'pending' | 'partial' | 'paid' | 'exempt';
 
 export const FundsView: React.FC = () => {
   const {
@@ -49,17 +54,25 @@ export const FundsView: React.FC = () => {
   const [newFundAmount, setNewFundAmount] = useState("");
   const [newFundDue, setNewFundDue] = useState("");
 
+  const [statusFilter, setStatusFilter] = useState<FundStatusFilter>('all');
+  const [studentQuery, setStudentQuery] = useState("");
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
+
   const activeFund = data.funds.find(f => f.id === activeFundId);
   const sortedStudents = getSortedStudents(data.students);
 
   // Snug Name column: exact width of the longest student name in the active class
   const nameColWidth = useMemo(
     () => getNameColWidth(sortedStudents.map(s => s.name || "")),
-    // sortedStudents is a fresh array every render; depend on the data it is derived from
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.students]
   );
+
+  // Reset filters when switching funds
+  useEffect(() => {
+    setStatusFilter('all');
+    setStudentQuery("");
+  }, [activeFundId]);
 
   // 1. FUND LIST VIEW
   if (!activeFund) {
@@ -93,163 +106,236 @@ export const FundsView: React.FC = () => {
       toast("Fund created.", "success");
     };
 
-    return (
-      <div className="space-y-3">
-        <HowItWorks
-          id="funds-list"
-          title="How funds work"
-          steps={[
-            <>A <b>fund</b> is any collection, e.g. Monthly Fee, Trip or Books. Tap <b>+ New Fund</b> to create one.</>,
-            <>Give it a name and an amount per student. Leave the amount blank if each student pays a different amount. A due date is optional.</>,
-            <>Open the fund, then enter what each student paid. <b>Status is worked out for you.</b> Tap a student's name for a shareable fee statement.</>,
-            <>Print a <b>Collection Sheet</b> or a <b>Pending List</b>.</>
-          ]}
-        />
+    const sortedFunds = data.funds
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-          <div className="flex justify-between items-center gap-2 flex-wrap">
-            <h2 className="text-base font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-              Funds ({data.funds.length})
-            </h2>
+    return (
+      <div className="cg-view-enter space-y-5">
+        {/* Masthead */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
+              {data.className || 'Class'} · <span className="font-mono-num">{data.funds.length}</span> {data.funds.length === 1 ? 'fund' : 'funds'}
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-50 mt-0.5">
+              Funds
+            </h1>
+          </div>
+          {sortedFunds.length > 0 && (
             <button
               type="button"
-              onClick={() => setNewFormOpen(!newFormOpen)}
-              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer"
+              onClick={() => setNewFormOpen(o => !o)}
+              className={`min-h-[44px] px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0 ${
+                newFormOpen
+                  ? 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700'
+                  : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white'
+              }`}
             >
-              {newFormOpen ? "Cancel" : "+ New Fund"}
+              {newFormOpen ? (
+                <>
+                  <X className="w-4 h-4" />
+                  <span>Cancel</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>New fund</span>
+                </>
+              )}
             </button>
-          </div>
-
-          {newFormOpen && (
-            <form onSubmit={handleCreateFund} className="mt-3.5 p-4 bg-[#FAFAF9] dark:bg-[#0C0A09] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl space-y-3">
-              <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">New Fund</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
-                    Fund Name *
-                  </label>
-                  <PlainTextInput
-                                        value={newFundName}
-                    placeholder="e.g. Monthly Fee — Sep 2026"
-                    onChange={e => setNewFundName(e.target.value)}
-                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
-                    Amount per student (leave blank for variable)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newFundAmount}
-                    placeholder="500 or leave blank"
-                    onChange={e => setNewFundAmount(e.target.value)}
-                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10.5px] font-bold text-[#78716C] dark:text-[#A8A29E] uppercase tracking-wide mb-1">
-                    Due date (optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={newFundDue}
-                    onChange={e => setNewFundDue(e.target.value)}
-                    className="w-full p-2 text-xs rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-inherit"
-                  />
-                </div>
-              </div>
-              <ActionGrid cols={2}>
-                <ActionButton
-                  type="submit"
-                  variant="primary"
-                  icon={Plus}
-                >
-                  Create Fund
-                </ActionButton>
-                <ActionButton
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setNewFormOpen(false)}
-                >
-                  Cancel
-                </ActionButton>
-              </ActionGrid>
-            </form>
           )}
         </div>
 
-        {/* Fund Cards List */}
-        <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-          {data.funds.length === 0 ? (
-            <div className="text-center py-8 text-[#78716C] dark:text-[#A8A29E] bg-[#FAFAF9] dark:bg-[#0C0A09] border border-dashed border-[#D6D3D1] dark:border-[#44403C] rounded-2xl flex flex-col items-center justify-center">
-              <Wallet className="w-10 h-10 mb-2 text-stone-400 dark:text-stone-600" />
-              <span>No funds created yet. Tap <b>+ New Fund</b> to create your first collection drive.</span>
+        {/* Inline Creation Surface */}
+        {newFormOpen && (
+          <form
+            onSubmit={handleCreateFund}
+            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 sm:p-5 space-y-4"
+          >
+            <div>
+              <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">Create fund</h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                Leave amount blank if each student contributes a different amount.
+              </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {data.funds.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map(f => {
-                const st = computeFundStats(f.id);
-                const overdue = f.dueDate && f.dueDate < todayKey() && st.pct < 100;
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                  Fund name
+                </label>
+                <PlainTextInput
+                  value={newFundName}
+                  placeholder="e.g. Monthly Fee — Sep 2026"
+                  onChange={e => setNewFundName(e.target.value)}
+                  className="w-full min-h-[44px] px-3 py-2 text-sm rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                  Amount per student (optional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newFundAmount}
+                  placeholder="e.g. 500 or leave blank"
+                  onChange={e => setNewFundAmount(e.target.value)}
+                  className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-num rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                  Due date (optional)
+                </label>
+                <input
+                  type="date"
+                  value={newFundDue}
+                  onChange={e => setNewFundDue(e.target.value)}
+                  className="w-full min-h-[44px] px-3 py-2 text-sm font-mono-num rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setNewFormOpen(false)}
+                className="min-h-[44px] px-4 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create fund</span>
+              </button>
+            </div>
+          </form>
+        )}
 
-                return (
-                  <div
-                    key={f.id}
-                    onClick={() => setActiveFundId(f.id)}
-                    className="p-4 rounded-2xl border border-[#E7E5E4] dark:border-[#44403C] hover:border-[#D6D3D1] hover:-translate-y-0.5 transition-all cursor-pointer bg-white dark:bg-[#1C1917] shadow-xs"
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <b className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4] truncate">
+        {/* Fund Cards Grid */}
+        {sortedFunds.length === 0 ? (
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl px-6 py-12 text-center flex flex-col items-center">
+            <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-400 dark:text-stone-500 mb-3">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">No funds yet</h2>
+            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1 max-w-sm">
+              Track tuition fees, book charges, or trip collections and issue parent-ready fee receipts.
+            </p>
+            {!newFormOpen && (
+              <button
+                type="button"
+                onClick={() => setNewFormOpen(true)}
+                className="mt-5 min-h-[44px] px-4 rounded-xl text-sm font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New fund</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sortedFunds.map(f => {
+              const st = computeFundStats(f.id);
+              const overdue = !!(f.dueDate && f.dueDate < todayKey() && st.pct < 100);
+
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setActiveFundId(f.id)}
+                  className="group text-left p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-700 transition-colors cursor-pointer flex flex-col justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[15px] font-bold text-stone-900 dark:text-stone-100 truncate">
                         {f.name}
-                      </b>
-                      <span className="text-[11px] font-bold text-[#78716C] dark:text-[#A8A29E] shrink-0">
-                        {st.variable ? "Variable amount" : `${fmtMoney(f.amount)}/student`}
                       </span>
+                      <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 shrink-0 mt-0.5 transition-transform group-hover:translate-x-0.5" />
                     </div>
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs text-stone-500 dark:text-stone-400 mt-1 font-mono-num">
+                      <span>{st.variable ? "Variable amount" : `${fmtMoney(f.amount)}/student`}</span>
+                      {f.dueDate && (
+                        <>
+                          <span>·</span>
+                          <span className={overdue ? 'text-red-700 dark:text-red-400 font-semibold inline-flex items-center gap-1' : ''}>
+                            {overdue && <AlertTriangle className="w-3 h-3" />}
+                            Due {prettyShortDate(f.dueDate)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-                    {overdue && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F8E4E1] text-[#7F1D1D] mb-1">
-                        <AlertTriangle className="w-3 h-3" /> Overdue
-                      </span>
-                    )}
-
-                    <div className="w-full h-2 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden my-2">
+                  <div className="space-y-2">
+                    <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all ${st.pct >= 100 ? 'bg-[#065F46]' : 'bg-[#B4791F]'}`}
+                        className={`h-full rounded-full transition-all ${
+                          st.pct >= 100
+                            ? 'bg-emerald-700 dark:bg-emerald-500'
+                            : overdue
+                            ? 'bg-red-700 dark:bg-red-500'
+                            : 'bg-amber-600 dark:bg-amber-500'
+                        }`}
                         style={{ width: `${Math.min(100, st.pct)}%` }}
                       />
                     </div>
 
-                    <div className="text-xs text-[#78716C] dark:text-[#A8A29E] space-y-0.5 mt-2">
-                      <div className="flex justify-between">
-                        <span>Collected: <b className="text-[#065F46] dark:text-[#6EE7B7]">{fmtMoney(st.collected)}</b></span>
-                        {!st.variable && (
-                          <span>Pending: <b className="text-[#7F1D1D] dark:text-[#F0C8C0]">{fmtMoney(st.pending)}</b></span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">
-                        <b>{st.paid}</b> paid · <b>{st.partial}</b> partial · <b>{st.pend}</b> pending {st.exempt > 0 && <> · <b>{st.exempt}</b> exempt</>}
-                      </div>
-                      {f.dueDate && (
-                        <div className="text-[11px] font-medium text-[#A8A29E]">
-                          Due: {prettyShortDate(f.dueDate)}
-                        </div>
+                    <div className="flex items-baseline justify-between gap-2 text-xs font-mono-num">
+                      <span className="text-stone-500 dark:text-stone-400">
+                        Collected <strong className="font-semibold text-emerald-700 dark:text-emerald-400">{fmtMoney(st.collected)}</strong>
+                      </span>
+                      {!st.variable && (
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Due <strong className={`font-semibold ${st.pending > 0 ? 'text-red-700 dark:text-red-400' : 'text-stone-700 dark:text-stone-300'}`}>{fmtMoney(st.pending)}</strong>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400 font-mono-num">
+                      <strong className="font-semibold text-stone-700 dark:text-stone-300">{st.paid}</strong> paid ·{' '}
+                      <strong className="font-semibold text-stone-700 dark:text-stone-300">{st.partial}</strong> partial ·{' '}
+                      <strong className="font-semibold text-stone-700 dark:text-stone-300">{st.pend}</strong> pending
+                      {st.exempt > 0 && (
+                        <>
+                          {' '}· <strong className="font-semibold text-stone-700 dark:text-stone-300">{st.exempt}</strong> exempt
+                        </>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
   // 2. ACTIVE FUND COLLECTION SHEET VIEW
   const stats = computeFundStats(activeFund.id);
-  const overdue = activeFund.dueDate && activeFund.dueDate < todayKey() && stats.pct < 100;
+  const overdue = !!(activeFund.dueDate && activeFund.dueDate < todayKey() && stats.pct < 100);
+
+  // Filtered students for table
+  const trimmedQuery = studentQuery.trim().toLowerCase();
+  const visibleStudents = sortedStudents.filter(s => {
+    const payment = (data.fundPayments[activeFund.id] || {})[s.id] || {};
+    const st = getFundStudentStatus(activeFund.id, s.id);
+    const isExempt = !!payment.exempt;
+    if (statusFilter === 'exempt' && !isExempt) return false;
+    if (statusFilter === 'paid' && (isExempt || st.code !== 'PAID')) return false;
+    if (statusFilter === 'partial' && (isExempt || st.code !== 'PARTIAL')) return false;
+    if (statusFilter === 'pending' && (isExempt || st.code !== 'PENDING')) return false;
+    if (trimmedQuery) {
+      const nameMatch = (s.name || '').toLowerCase().includes(trimmedQuery);
+      const rollMatch = (s.rollNo || '').toLowerCase().includes(trimmedQuery);
+      if (!nameMatch && !rollMatch) return false;
+    }
+    return true;
+  });
 
   // Delete Fund
   const handleDeleteFund = async () => {
@@ -308,7 +394,7 @@ export const FundsView: React.FC = () => {
     const num = val === "" ? 0 : Number(val);
     if (isNaN(num) || num < 0) return;
     const existing = (data.fundPayments[activeFund.id] || {})[sid];
-    if (!existing && num === 0) return; // nothing to record
+    if (!existing && num === 0) return;
 
     saveData(prev => {
       const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
@@ -465,266 +551,371 @@ export const FundsView: React.FC = () => {
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
+  const filterTabs: Array<{ key: FundStatusFilter; label: string; count: number }> = [
+    { key: 'all', label: 'All', count: sortedStudents.length },
+    { key: 'pending', label: 'Pending', count: stats.pend },
+    ...(!stats.variable ? [{ key: 'partial' as const, label: 'Partial', count: stats.partial }] : []),
+    { key: 'paid', label: 'Paid', count: stats.paid },
+    ...(stats.exempt > 0 ? [{ key: 'exempt' as const, label: 'Exempt', count: stats.exempt }] : []),
+  ];
+
   return (
-    <div className="space-y-3">
-      <HowItWorks
-        id="funds-detail"
-        title="How to record payments"
-        steps={[
-          <>Type the amount each student paid in the <b>Amount</b> column. The date fills in with today automatically and you can change it.</>,
-          <>Status shows <b>Paid</b>, <b>Partial</b> or <b>Pending</b> by itself, based on the amount.</>,
-          <>Tap <b>E</b> next to the amount to mark a student <b>Exempt</b>. They are left out of the totals.</>,
-          <>Use <b>Mark All Paid</b> when everyone has paid the full amount, if it is shown.</>,
-          <>Tap a <b>student's name</b> to open their <b>Fee Statement</b> (all funds, paid and balance). Use the arrows to move between students, then <b>Print</b>, <b>Share as image</b> or <b>Share</b> it with the parent.</>,
-          <>Print the <b>Collection Sheet</b>, or the <b>Pending List</b> to see who still owes.</>
-        ]}
-        note="Everything saves automatically as you type."
-      />
+    <div className="cg-view-enter space-y-5">
+      {/* Active Fund Masthead */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setActiveFundId(null)}
+          className="min-h-[40px] -ml-1.5 px-1.5 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold text-red-800 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>All funds</span>
+        </button>
 
-      {/* Active Fund Header Card */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-2">
-        <div className="flex justify-between items-center gap-2 pb-1 border-b border-[#E7E5E4] dark:border-[#44403C]">
-          <button
-            type="button"
-            onClick={() => setActiveFundId(null)}
-            className="min-h-[44px] text-xs font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
-          >
-            ← All Funds
-          </button>
-        </div>
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-50 truncate">
+                {activeFund.name}
+              </h1>
+              {overdue && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-400">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Overdue
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 font-mono-num">
+              {stats.variable ? "Variable amount" : `${fmtMoney(activeFund.amount)} per student`} · {stats.totalStudentsCounted} counted
+              {stats.exempt > 0 && ` (${stats.exempt} exempt)`}
+              {activeFund.dueDate && ` · Due ${prettyShortDate(activeFund.dueDate)}`}
+            </p>
+          </div>
 
-        <ActionGrid cols={2}>
-          {!stats.variable && (
-            <ActionButton
-              variant="success"
-              icon={CheckCircle2}
-              onClick={handleMarkAllPaid}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handlePrintCollection}
+              className="min-h-[42px] px-3.5 rounded-xl text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              Mark All Paid
-            </ActionButton>
-          )}
-          <ActionButton
-            variant="danger"
-            icon={Trash2}
-            onClick={handleDeleteFund}
-            fullWidth={stats.variable}
-          >
-            Delete Fund
-          </ActionButton>
-        </ActionGrid>
-
-        <div className="flex items-center gap-2 flex-wrap mt-1">
-          <h2 className="text-xl font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-            {activeFund.name}
-          </h2>
-          {overdue && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-[#F8E4E1] text-[#7F1D1D]">
-              <AlertTriangle className="w-3.5 h-3.5" /> Overdue
-            </span>
-          )}
-        </div>
-
-        <div className="text-xs text-[#78716C] dark:text-[#A8A29E] space-y-1">
-          <div>
-            {stats.variable ? "variable amount" : `${fmtMoney(activeFund.amount)} per student`} •{" "}
-            {stats.totalStudentsCounted} students counted {stats.exempt > 0 && `(${stats.exempt} exempt)`}
-            {activeFund.dueDate && ` • Due: ${prettyShortDate(activeFund.dueDate)}`}
-          </div>
-
-          <div className="w-full h-2 bg-[#F5F5F4] dark:bg-[#292524] rounded-full overflow-hidden mt-1">
-            <div
-              className={`h-full transition-all ${stats.pct >= 100 ? 'bg-[#065F46]' : 'bg-[#B4791F]'}`}
-              style={{ width: `${Math.min(100, stats.pct)}%` }}
-            />
-          </div>
-
-          <div className="flex gap-3 flex-wrap text-xs pt-1">
-            <span>Collected: <b className="text-[#065F46] dark:text-[#6EE7B7]">{fmtMoney(stats.collected)}</b></span>
+              <Printer className="w-4 h-4" />
+              <span>Collection sheet</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintPending}
+              className="min-h-[42px] px-3.5 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-stone-400" />
+              <span>Pending list</span>
+            </button>
             {!stats.variable && (
-              <span>Pending: <b className="text-[#7F1D1D] dark:text-[#F0C8C0]">{fmtMoney(stats.pending)}</b></span>
+              <button
+                type="button"
+                onClick={handleMarkAllPaid}
+                className="min-h-[42px] px-3.5 rounded-xl text-xs font-semibold border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-950/50 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Mark all paid</span>
+              </button>
             )}
-            <span>Paid: <b>{stats.paid}</b></span>
-            <span>Partial: <b>{stats.partial}</b></span>
-            <span>Pending: <b>{stats.pend}</b></span>
-            <span>Exempt: <b>{stats.exempt}</b></span>
-            <span>Progress: <b>{stats.pct}%</b></span>
+            <button
+              type="button"
+              onClick={handleDeleteFund}
+              aria-label="Delete fund"
+              title="Delete fund"
+              className="min-h-[42px] w-[42px] rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-500 hover:text-red-700 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/60 hover:bg-red-50/50 dark:hover:bg-red-950/30 inline-flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Collection Matrix Table */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs">
-        <div className="fund-wrap overflow-x-auto border border-[#E7E5E4] dark:border-[#44403C] rounded-xl max-h-[75vh]">
-          <table
-            className="w-full text-xs text-center border-collapse"
-            style={{ '--name-col-w': `${nameColWidth}px` } as React.CSSProperties}
-          >
-            <thead className="sticky top-0 z-10 bg-[#FAFAF9] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4]">
-              <tr>
-                <th className="sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#292524]">
-                  Roll
-                </th>
-                <th className="sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] bg-[#FAFAF9] dark:bg-[#292524] text-left">
-                  Name
-                </th>
-                <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[100px]">
-                  Amount
-                </th>
-                <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[90px]">
-                  Status
-                </th>
-                <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[130px]">
-                  Date
-                </th>
-                <th className="p-2 border border-[#E7E5E4] dark:border-[#44403C] min-w-[160px] text-left">
-                  Note
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedStudents.map((s, sIdx) => {
-                const payment = (data.fundPayments[activeFund.id] || {})[s.id] || {};
-                const st = getFundStudentStatus(activeFund.id, s.id);
-                const isPaid = st.code === 'PAID';
-                const isExempt = !!payment.exempt;
-                const amtVal = payment.amount !== undefined && payment.amount !== 0 ? payment.amount : "";
+      {/* Unified Fund Pulse Bar */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-stone-200 dark:divide-stone-800">
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Collected</div>
+            <div className="mt-1 text-lg font-bold font-mono-num text-emerald-700 dark:text-emerald-400">
+              {fmtMoney(stats.collected)}
+            </div>
+          </div>
 
-                return (
-                  <tr
-                    key={s.id}
-                    className={`even:bg-[#FAFAF9] dark:even:bg-[#0C0A09]`}
-                  >
-                    <td className={`sc1 p-2 border border-[#E7E5E4] dark:border-[#44403C] font-mono font-bold ${
-                      isExempt
-                        ? 'bg-[#FAFAF9]! dark:bg-[#292524]!'
-                        : isPaid
-                        ? 'bg-[#D1FAE5]! dark:bg-[#064E3B]! text-[#065F46] dark:text-[#A7F3D0]'
-                        : 'bg-white! dark:bg-[#1C1917]!'
-                    }`}>
-                      {s.rollNo || "—"}
-                    </td>
-                    <td className={`sc2 p-2 border border-[#E7E5E4] dark:border-[#44403C] text-left font-semibold truncate ${
-                      isExempt
-                        ? 'bg-[#FAFAF9]! dark:bg-[#292524]!'
-                        : isPaid
-                        ? 'bg-[#D1FAE5]! dark:bg-[#064E3B]! text-[#065F46] dark:text-[#A7F3D0]'
-                        : 'bg-white! dark:bg-[#1C1917]!'
-                    }`}>
-                      <button
-                        type="button"
-                        onClick={() => setCardStudentId(s.id)}
-                        title="Open fee statement"
-                        className="max-w-full truncate text-left font-semibold cursor-pointer hover:underline decoration-dotted underline-offset-2"
-                      >
-                        {s.name || "(no name)"}
-                      </button>
-                    </td>
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">
+              {stats.variable ? 'Collection type' : 'Outstanding'}
+            </div>
+            <div className={`mt-1 text-lg font-bold font-mono-num ${
+              stats.variable
+                ? 'text-stone-700 dark:text-stone-300'
+                : stats.pending > 0
+                ? 'text-red-700 dark:text-red-400'
+                : 'text-stone-900 dark:text-stone-100'
+            }`}>
+              {stats.variable ? 'Variable' : fmtMoney(stats.pending)}
+            </div>
+          </div>
 
-                    {/* Amount Cell with E (Exempt) toggle */}
-                    <td className={`p-1 border border-[#E7E5E4] dark:border-[#44403C] ${
-                      isExempt
-                        ? 'bg-[#FAFAF9] dark:bg-[#292524]'
-                        : isPaid
-                        ? 'bg-[#D1FAE5] dark:bg-[#064E3B]'
-                        : 'bg-[#F8E4E1] dark:bg-[#4A1A18]'
-                    }`}>
-                      <div className="flex items-center justify-center gap-1">
-                        <SyncInput
-                          type="number"
-                          min="0"
-                          disabled={isExempt}
-                          value={amtVal}
-                          onCommit={v => handleAmountChange(s.id, v)}
-                          data-fcoord={`${sIdx}_0`}
-                          enterKeyHint="next"
-                          tabIndex={gridTabIndex(sIdx, 0, sortedStudents.length)}
-                          onKeyDown={e => gridNavKeyDown(e, 'data-fcoord', sIdx, 0, sortedStudents.length)}
-                          placeholder="0"
-                          className="w-14 p-1 text-center font-bold font-mono text-xs rounded border border-transparent focus:border-[#2E5A8A] focus:bg-white dark:focus:bg-[#0C0A09] bg-transparent text-inherit disabled:opacity-30"
-                        />
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Students</div>
+            <div className="mt-1 text-xs font-mono-num text-stone-600 dark:text-stone-300 leading-relaxed">
+              <strong className="font-semibold text-stone-900 dark:text-stone-100">{stats.paid}</strong> paid ·{' '}
+              {!stats.variable && (
+                <>
+                  <strong className="font-semibold text-stone-900 dark:text-stone-100">{stats.partial}</strong> partial ·{' '}
+                </>
+              )}
+              <strong className="font-semibold text-stone-900 dark:text-stone-100">{stats.pend}</strong> pending
+            </div>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">Progress</div>
+            <div className="mt-1 flex items-baseline gap-1.5 font-mono-num">
+              <span className={`text-lg font-bold ${
+                stats.pct >= 100
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-stone-900 dark:text-stone-100'
+              }`}>
+                {stats.pct}%
+              </span>
+              {stats.exempt > 0 && (
+                <span className="text-xs text-stone-500 dark:text-stone-400">{stats.exempt} exempt</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="h-1 bg-stone-100 dark:bg-stone-800">
+          <div
+            className={`h-full transition-all ${
+              stats.pct >= 100
+                ? 'bg-emerald-700 dark:bg-emerald-500'
+                : overdue
+                ? 'bg-red-700 dark:bg-red-500'
+                : 'bg-amber-600 dark:bg-amber-500'
+            }`}
+            style={{ width: `${Math.min(100, stats.pct)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Collection Matrix Surface */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
+        {/* Matrix Toolbar */}
+        <div className="px-4 sm:px-5 py-3.5 border-b border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {filterTabs.map(tab => {
+              const active = statusFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`min-h-[36px] px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-red-800 dark:bg-red-700 text-white'
+                      : 'bg-stone-100/80 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200/70 dark:hover:bg-stone-700'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`font-mono-num ${active ? 'text-white/80' : 'text-stone-400 dark:text-stone-500'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {sortedStudents.length >= 8 && (
+            <div className="relative w-full sm:w-56 shrink-0">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={studentQuery}
+                onChange={e => setStudentQuery(e.target.value)}
+                placeholder="Search student or roll…"
+                className="w-full min-h-[38px] pl-9 pr-8 py-1.5 text-xs rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:border-red-700 dark:focus:border-red-500"
+              />
+              {studentQuery && (
+                <button
+                  type="button"
+                  onClick={() => setStudentQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        {visibleStudents.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm text-stone-500 dark:text-stone-400">
+            No students match the current filter.
+          </div>
+        ) : (
+          <div className="fund-wrap overflow-x-auto max-h-[72vh]">
+            <table
+              className="w-full text-xs text-center border-separate border-spacing-0"
+              style={{ '--name-col-w': `${nameColWidth}px` } as React.CSSProperties}
+            >
+              <thead className="sticky top-0 z-10 bg-stone-50 dark:bg-stone-900 text-stone-700 dark:text-stone-200">
+                <tr>
+                  <th className="sc1 px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 font-semibold">
+                    Roll
+                  </th>
+                  <th className="sc2 px-2.5 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900 text-left font-semibold">
+                    Name
+                  </th>
+                  <th className="px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[116px] font-semibold">
+                    Amount
+                  </th>
+                  <th className="px-2.5 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[92px] font-semibold">
+                    Status
+                  </th>
+                  <th className="px-2 py-2.5 border-b border-r border-stone-200 dark:border-stone-800 min-w-[136px] font-semibold">
+                    Date
+                  </th>
+                  <th className="px-2.5 py-2.5 border-b border-stone-200 dark:border-stone-800 min-w-[160px] text-left font-semibold">
+                    Note
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleStudents.map((s, sIdx) => {
+                  const payment = (data.fundPayments[activeFund.id] || {})[s.id] || {};
+                  const st = getFundStudentStatus(activeFund.id, s.id);
+                  const isPaid = st.code === 'PAID';
+                  const isPartial = st.code === 'PARTIAL';
+                  const isExempt = !!payment.exempt;
+                  const amtVal = payment.amount !== undefined && payment.amount !== 0 ? payment.amount : "";
+                  const isEven = sIdx % 2 === 1;
+
+                  const solidStickyBg = isExempt
+                    ? 'bg-[#FAFAF9] dark:bg-[#23201E]'
+                    : isPaid
+                    ? 'bg-[#ECFDF5] dark:bg-[#0D2B22]'
+                    : isEven
+                    ? 'bg-[#FAFAF9] dark:bg-[#141210]'
+                    : 'bg-white dark:bg-[#1C1917]';
+
+                  return (
+                    <tr
+                      key={s.id}
+                      className={isEven ? 'bg-stone-50/60 dark:bg-stone-950/40' : 'bg-white dark:bg-stone-900'}
+                    >
+                      <td className={`sc1 px-2 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-mono-num font-semibold ${solidStickyBg} ${
+                        isPaid && !isExempt ? 'text-emerald-800 dark:text-emerald-300' : 'text-stone-600 dark:text-stone-300'
+                      }`}>
+                        {s.rollNo || "—"}
+                      </td>
+                      <td className={`sc2 px-2.5 py-2 border-b border-r border-stone-200 dark:border-stone-800 text-left font-semibold truncate ${solidStickyBg} ${
+                        isPaid && !isExempt ? 'text-emerald-900 dark:text-emerald-200' : 'text-stone-900 dark:text-stone-100'
+                      }`}>
                         <button
                           type="button"
-                          tabIndex={-1}
-                          onClick={() => handleToggleExempt(s.id)}
-                          title="Toggle Exempt"
-                          aria-label="Toggle Exempt"
-                          className={`w-8 h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                            isExempt
-                              ? 'bg-[#F5F5F4] text-[#78716C] border border-[#D6D3D1] dark:bg-[#44403C] dark:text-[#F5F5F4]'
-                              : 'bg-[#FAFAF9] dark:bg-[#292524] text-[#A8A29E] border border-[#E7E5E4] dark:border-[#44403C] hover:bg-[#F5F5F4]'
-                          }`}
+                          onClick={() => setCardStudentId(s.id)}
+                          title="Open fee receipt"
+                          className="max-w-full truncate text-left font-semibold cursor-pointer hover:underline decoration-dotted underline-offset-2"
                         >
-                          E
+                          {s.name || "(no name)"}
                         </button>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Status Badge */}
-                    <td className={`p-2 border border-[#E7E5E4] dark:border-[#44403C] font-bold text-xs ${
-                      isExempt
-                        ? 'text-[#78716C] bg-[#FAFAF9] dark:text-[#A8A29E] dark:bg-[#292524]'
-                        : isPaid
-                        ? 'text-[#065F46] bg-[#D1FAE5] dark:text-[#A7F3D0] dark:bg-[#064E3B]'
-                        : st.code === 'PARTIAL'
-                        ? 'text-[#7A5515] bg-[#FBF0D9] dark:text-[#F8E0A0] dark:bg-[#3A2E14]'
-                        : 'text-[#7F1D1D] bg-[#F8E4E1] dark:text-[#F0C8C0] dark:bg-[#4A1A18]'
-                    }`}>
-                      {isExempt ? "EXEMPT" : st.code}
-                      {st.overpaid && <span className="ml-1 text-[10px] text-[#065F46]">▲</span>}
-                    </td>
+                      {/* Amount Cell with E (Exempt) toggle */}
+                      <td className={`px-1.5 py-1 border-b border-r border-stone-200 dark:border-stone-800 ${
+                        isExempt
+                          ? 'bg-stone-100/70 dark:bg-stone-800/40'
+                          : isPaid
+                          ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
+                          : isPartial
+                          ? 'bg-amber-50/60 dark:bg-amber-950/20'
+                          : 'bg-red-50/50 dark:bg-red-950/20'
+                      }`}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <SyncInput
+                            type="number"
+                            min="0"
+                            disabled={isExempt}
+                            value={amtVal}
+                            onCommit={v => handleAmountChange(s.id, v)}
+                            data-fcoord={`${sIdx}_0`}
+                            enterKeyHint="next"
+                            tabIndex={gridTabIndex(sIdx, 0, visibleStudents.length)}
+                            onKeyDown={e => gridNavKeyDown(e, 'data-fcoord', sIdx, 0, visibleStudents.length)}
+                            placeholder="0"
+                            className="w-16 py-1 text-center font-bold font-mono-num text-xs rounded-md border border-transparent focus:border-red-700 dark:focus:border-red-500 focus:bg-white dark:focus:bg-stone-950 bg-transparent text-inherit disabled:opacity-35"
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => handleToggleExempt(s.id)}
+                            title={isExempt ? "Remove exempt status" : "Mark Exempt"}
+                            aria-label="Toggle Exempt"
+                            className={`w-8 h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer shrink-0 border ${
+                              isExempt
+                                ? 'bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-900 border-stone-800 dark:border-stone-200'
+                                : 'bg-white/80 dark:bg-stone-900 text-stone-400 border-stone-200 dark:border-stone-700 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
+                            }`}
+                          >
+                            E
+                          </button>
+                        </div>
+                      </td>
 
-                    {/* Date Cell */}
-                    <td className="p-1 border border-[#E7E5E4] dark:border-[#44403C]">
-                      <SyncInput
-                        type="date"
-                        value={payment.date || ""}
-                        onLive={v => handleDateChange(s.id, v)}
-                        onCommit={() => flushSave()}
-                        className="w-full p-1 text-xs text-center bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-[#0C0A09] rounded"
-                      />
-                    </td>
+                      {/* Status */}
+                      <td className={`px-2.5 py-2 border-b border-r border-stone-200 dark:border-stone-800 font-semibold text-xs ${
+                        isExempt
+                          ? 'text-stone-500 dark:text-stone-400 bg-stone-100/50 dark:bg-stone-800/30'
+                          : isPaid
+                          ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30'
+                          : isPartial
+                          ? 'text-amber-700 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/25'
+                          : 'text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20'
+                      }`}>
+                        {isExempt ? "Exempt" : st.code === 'PAID' ? 'Paid' : st.code === 'PARTIAL' ? 'Partial' : 'Pending'}
+                        {st.overpaid && <span className="ml-1 text-[10px] text-emerald-700 dark:text-emerald-400" title="Overpaid">▲</span>}
+                      </td>
 
-                    {/* Note Cell */}
-                    <td className="p-1 border border-[#E7E5E4] dark:border-[#44403C]">
-                      <SyncInput
-                        type="text"
-                        value={payment.note || ""}
-                        placeholder="Optional note"
-                        onLive={v => handleNoteChange(s.id, v)}
-                        onCommit={() => flushSave()}
-                        className="w-full p-1 text-xs bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-[#0C0A09] rounded"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Date Cell */}
+                      <td className="px-1.5 py-1 border-b border-r border-stone-200 dark:border-stone-800">
+                        <SyncInput
+                          type="date"
+                          value={payment.date || ""}
+                          onLive={v => handleDateChange(s.id, v)}
+                          onCommit={() => flushSave()}
+                          className="w-full px-1.5 py-1 text-xs font-mono-num text-center bg-transparent border border-transparent focus:border-red-700 dark:focus:border-red-500 focus:outline-none focus:bg-white dark:focus:bg-stone-950 rounded-md"
+                        />
+                      </td>
+
+                      {/* Note Cell */}
+                      <td className="px-1.5 py-1 border-b border-stone-200 dark:border-stone-800">
+                        <SyncInput
+                          type="text"
+                          value={payment.note || ""}
+                          placeholder="Optional note"
+                          onLive={v => handleNoteChange(s.id, v)}
+                          onCommit={() => flushSave()}
+                          className="w-full px-1.5 py-1 text-xs bg-transparent border border-transparent focus:border-red-700 dark:focus:border-red-500 focus:outline-none focus:bg-white dark:focus:bg-stone-950 rounded-md"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Quiet Footer Hint */}
+        <div className="px-4 sm:px-5 py-2.5 border-t border-stone-100 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-950/40 text-xs text-stone-500 dark:text-stone-400">
+          Tap any student's name to preview, print, or share their fee receipt. Tap <strong className="font-semibold text-stone-700 dark:text-stone-300">E</strong> to mark a student exempt.
         </div>
       </div>
 
-      {/* Print Section */}
-      <div className="bg-white dark:bg-[#1C1917] border border-[#E7E5E4] dark:border-[#44403C] rounded-2xl p-4 shadow-xs space-y-3">
-        <h3 className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">
-          Print
-        </h3>
-        <ActionGrid cols={2}>
-          <ActionButton
-            variant="primary"
-            icon={Printer}
-            onClick={handlePrintCollection}
-          >
-            Collection Sheet
-          </ActionButton>
-          <ActionButton
-            variant="secondary"
-            icon={Printer}
-            onClick={handlePrintPending}
-          >
-            Pending List
-          </ActionButton>
-        </ActionGrid>
-      </div>
       {cardStudentId && (
         <FundCardModal
           data={data}

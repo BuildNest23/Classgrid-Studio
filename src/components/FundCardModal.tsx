@@ -59,14 +59,14 @@ export const FundCardModal: React.FC<Props> = ({ data, students, studentId, onCh
   );
 
   const seg = (active: boolean) =>
-    `flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+    `flex-1 min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
       active
-        ? 'bg-[#0b5d46] border-[#0b5d46] text-white'
-        : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200'
+        ? 'bg-red-800 border-red-800 dark:bg-red-700 dark:border-red-700 text-white'
+        : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700'
     }`;
   const field =
-    'w-full rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-sm px-3 py-2 outline-none focus:border-[#0b5d46]';
-  const lbl = 'block text-[11px] font-semibold text-stone-500 dark:text-stone-400 mb-1';
+    'w-full min-h-[40px] rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 text-sm px-3 py-2 outline-none focus:border-red-700 dark:focus:border-red-500';
+  const lbl = 'block text-xs font-medium text-stone-600 dark:text-stone-400 mb-1';
 
   const options = (
     <div className="border-b border-stone-200 dark:border-stone-800">
@@ -74,18 +74,19 @@ export const FundCardModal: React.FC<Props> = ({ data, students, studentId, onCh
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 cursor-pointer"
+        className="w-full min-h-[44px] flex items-center justify-between gap-2 px-4 sm:px-5 py-2 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors cursor-pointer"
       >
-        <span className="flex items-center gap-1.5 min-w-0">
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+        <span className="flex items-center gap-2 min-w-0">
+          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-stone-400" />
           <span className="truncate">
-            Receipt options · {style === 'a' ? 'Colour' : 'Black & white'} · {fund ? fund.name : 'All funds'}{watermarkActive(wm, data.schoolLogo) ? ' · Watermark' : ''}
+            Receipt options · {style === 'a' ? 'Colour' : 'Black & white'} · {fund ? fund.name : 'All funds'}
+            {watermarkActive(wm, data.schoolLogo) ? ' · Watermark' : ''}
           </span>
         </span>
-        <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 shrink-0 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="px-4 pb-3 space-y-3">
+        <div className="px-4 sm:px-5 pb-3.5 space-y-3">
           <div>
             <span className={lbl}>Design</span>
             <div className="flex gap-2">
@@ -99,7 +100,7 @@ export const FundCardModal: React.FC<Props> = ({ data, students, studentId, onCh
           </div>
           <div>
             <label className={lbl} htmlFor="receipt-scope">
-              Show
+              Include
             </label>
             <select id="receipt-scope" className={field} value={fund ? fund.id : 'all'} onChange={e => setScope(e.target.value)}>
               <option value="all">All funds</option>
@@ -109,17 +110,17 @@ export const FundCardModal: React.FC<Props> = ({ data, students, studentId, onCh
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
-              Receipt number: <b>{receiptNumber(data, studentId, fundId)}</b>
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Receipt number: <span className="font-semibold text-stone-800 dark:text-stone-200 font-mono-num">{receiptNumber(data, studentId, fundId)}</span>
             </p>
           </div>
           <div>
             <label className={lbl} htmlFor="receipt-thanks">
-              Thank-you line (leave empty to hide)
+              Thank-you line (leave blank to hide)
             </label>
             <PlainTextInput
               id="receipt-thanks"
-                            className={field}
+              className={field}
               value={thanks}
               maxLength={90}
               onChange={e => changeThanks(e.target.value)}
