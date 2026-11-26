@@ -9,8 +9,19 @@ export const HistoryCard: React.FC<{ refreshKey?: number }> = ({ refreshKey }) =
   const [list, setList] = useState<Snapshot[] | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => { setList(await listSnapshots(data.classId)); }, [data.classId]);
-  useEffect(() => { load(); }, [load, refreshKey]);
+  const load = useCallback(async () => {
+    try {
+      return await listSnapshots(data.classId);
+    } catch {
+      return [] as Snapshot[];
+    }
+  }, [data.classId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    load().then(items => { if (!cancelled) setList(items); });
+    return () => { cancelled = true; };
+  }, [load, refreshKey]);
 
   const restore = async (s: Snapshot) => {
     if (busy) return;
@@ -24,9 +35,9 @@ export const HistoryCard: React.FC<{ refreshKey?: number }> = ({ refreshKey }) =
       const snap = await loadSnapshot(s.id);
       if (!snap) { toast('This restore point could not be read.', 'error'); return; }
       if (!(await addSnapshot(data, 'Before restore'))) { toast('Could not save your current data first, so nothing was changed.', 'error'); return; }
-      replaceAllData({ ...snap, schoolLogo: data.schoolLogo });
+      replaceAllData({ ...snap, schoolLogo: data.schoolLogo || snap.schoolLogo });
       toast('Restored.', 'success');
-      await load();
+      setList(await load());
     } finally { setBusy(false); }
   };
 
@@ -42,7 +53,7 @@ export const HistoryCard: React.FC<{ refreshKey?: number }> = ({ refreshKey }) =
               <div className="text-sm font-bold truncate">{s.reason}</div>
               <div className="text-xs text-stone-500">{new Date(s.at).toLocaleString()} • {s.students} students</div>
             </div>
-            <button type="button" disabled={busy} onClick={() => restore(s)} className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer">Restore</button>
+            <button type="button" disabled={busy} onClick={() => restore(s)} className="min-h-[44px] px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer disabled:opacity-50">Restore</button>
           </div>
         ))}
       </div>

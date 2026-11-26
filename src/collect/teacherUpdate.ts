@@ -1,6 +1,7 @@
 // Teacher update file: the teacher's attendance, marks and payments, sent back to management.
 // kind "classgrid-teacher-update", v1. Merging is safe to repeat: same data twice changes nothing.
 import { AppData, Assessment, Fund } from '../types';
+import { normalizeData } from '../utils/migrate';
 
 export const UPDATE_KIND = 'classgrid-teacher-update';
 export const UPDATE_VERSION = 1;
@@ -134,14 +135,20 @@ export function planTeacherUpdate(mine: AppData, upd: TeacherUpdate): UpdatePlan
   const nm = (id: string) => stu.get(id)?.name || id;
 
   // ---- Attendance: one item per day
+  const sortedStatus = (raw: Record<string, any> | undefined) => {
+    const out: Record<string, any> = {};
+    Object.keys(raw || {}).sort().forEach(id => {
+      if (stu.has(id) && raw![id] !== undefined && raw![id] !== '') out[id] = raw![id];
+    });
+    return out;
+  };
   Object.keys(upd.data.attendance).sort().forEach(day => {
     const t = upd.data.attendance[day];
     if (!t || typeof t !== 'object') return;
-    const status: Record<string, any> = {};
-    Object.keys(t.status || {}).forEach(id => { if (stu.has(id)) status[id] = t.status[id]; });
+    const status = sortedStatus(t.status);
     const theirs = { holiday: !!t.holiday, locked: !!t.locked, status };
     const cur = mine.attendance[day];
-    if (cur && J({ holiday: !!cur.holiday, locked: !!cur.locked, status: cur.status || {} }) === J(theirs)) { same++; return; }
+    if (cur && J({ holiday: !!cur.holiday, locked: !!cur.locked, status: sortedStatus(cur.status) }) === J(theirs)) { same++; return; }
     let a = 0, l = 0;
     Object.values(status).forEach(v => { if (v === 'A') a++; else if (v === 'L') l++; });
     items.push({
@@ -196,5 +203,6 @@ export function planTeacherUpdate(mine: AppData, upd: TeacherUpdate): UpdatePlan
 }
 
 export function applyTeacherUpdate(mine: AppData, plan: UpdatePlan, chosenIds: Set<string>): AppData {
-  return plan.items.filter(i => chosenIds.has(i.id)).reduce((d, i) => i.apply(d), mine);
+  const merged = plan.items.filter(i => chosenIds.has(i.id)).reduce((d, i) => i.apply(d), mine);
+  return normalizeData(merged);
 }

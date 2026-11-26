@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useClassroom } from '../../context/ClassroomContext';
 import { listShelf, loadFromShelf, getActiveShelfId, setActiveShelfId, defaultClassName, ShelfEntry } from '../../utils/classShelf';
 import { shelveOpenClass } from './ClassesView';
@@ -14,18 +14,24 @@ export const BoardView: React.FC = () => {
   const today = todayKey();
   const activeId = getActiveShelfId();
 
-  const load = useCallback(async () => {
-    try {
-      const list = await listShelf();
-      const sums: Record<string, ReturnType<typeof summarizeClass>> = {};
-      for (const e of list) {
-        const d = await loadFromShelf(e.id);
-        if (d) sums[e.id] = summarizeClass(d, today);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const list = await listShelf();
+        const sums: Record<string, ReturnType<typeof summarizeClass>> = {};
+        for (const e of list) {
+          if (!alive) return;
+          const d = await loadFromShelf(e.id);
+          if (d) sums[e.id] = summarizeClass(d, today);
+        }
+        if (alive) { setShelfData(sums); setEntries(list); }
+      } catch {
+        if (alive) setEntries([]);
       }
-      setShelfData(sums); setEntries(list);
-    } catch { setEntries([]); }
+    })();
+    return () => { alive = false; };
   }, [today]);
-  useEffect(() => { load(); }, [load]);
 
   const open = summarizeClass(data, today);
   const rows: BoardRow[] = [];
@@ -48,7 +54,7 @@ export const BoardView: React.FC = () => {
       const target = await loadFromShelf(r.shelfId);
       if (!target) { toast('This class could not be read.', 'error'); return; }
       await shelveOpenClass(data);
-      replaceAllData({ ...target, schoolLogo: data.schoolLogo });
+      replaceAllData({ ...target, schoolLogo: data.schoolLogo || target.schoolLogo });
       setActiveShelfId(r.shelfId);
       setActiveTab('dashboard');
     } catch (e: any) { toast(`Could not switch class. ${e?.message || ''}`.trim(), 'error'); }

@@ -40,7 +40,9 @@ export const DashboardView: React.FC = () => {
     computeFundStats
   } = useClassroom();
 
-  const [hideGS, setHideGS] = useState(() => localStorage.getItem("classroomHideGS") === "1");
+  const [hideGS, setHideGS] = useState(() => {
+    try { return localStorage.getItem("classroomHideGS") === "1"; } catch { return false; }
+  });
   const [lastSavedTime, setLastSavedTime] = useState<string>("");
 
   // Read the last-saved time from the real storage engine (SQLite on Android, local storage on web).
@@ -58,7 +60,7 @@ export const DashboardView: React.FC = () => {
   }, [data]);
 
   const dismissGS = () => {
-    localStorage.setItem("classroomHideGS", "1");
+    try { localStorage.setItem("classroomHideGS", "1"); } catch { /* ignore */ }
     setHideGS(true);
   };
 

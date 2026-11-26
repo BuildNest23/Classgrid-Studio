@@ -23,7 +23,7 @@ export const TeacherStudents: React.FC = () => {
                 <div className="text-sm font-bold truncate">{s.name}</div>
                 <div className="text-xs text-stone-500 truncate">{[s.fatherName, s.phone, s.address].filter(Boolean).join(' • ')}</div>
               </div>
-              {tel && <a href={`tel:${tel}`} className="p-2 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300" aria-label="Call"><Phone className="w-4 h-4" /></a>}
+              {tel && <a href={`tel:${tel}`} className="w-11 h-11 flex items-center justify-center shrink-0 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300" aria-label="Call"><Phone className="w-4 h-4" /></a>}
             </div>
           );
         })}

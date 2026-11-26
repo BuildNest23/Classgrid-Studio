@@ -469,10 +469,11 @@ export const StudentsView: React.FC = () => {
       if (!ok) return false;
       saveData(prev => {
         const updated = prev.students.map(s => (plan.updates[s.id] ? { ...s, ...plan.updates[s.id] } : s));
+        const baseRoll = parseInt(nextRollNumber(updated), 10) || updated.length + 1;
         const added: Student[] = plan.additions.map((n, i) => ({
           id: newId(),
           admissionNo: n.admissionNo,
-          rollNo: String(parseInt(nextRollNumber(updated), 10) + i).padStart(2, "0"),
+          rollNo: String(baseRoll + i).padStart(2, "0"),
           name: n.name,
           fatherName: n.fatherName,
           phone: n.phone || "",
@@ -533,6 +534,14 @@ export const StudentsView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingEditId, data.students]);
 
+  // If the student currently being edited disappears (e.g. via Excel import, Undo, or class switch), exit edit mode.
+  useEffect(() => {
+    if (editingId && !data.students.some(s => s.id === editingId)) {
+      handleCancelEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, data.students]);
+
   // Keep the student being edited in view when moving with Prev / Next (not when tapping the pencil).
   useEffect(() => {
     if (!editingId || !scrollToEditedRef.current) return;
@@ -552,7 +561,7 @@ export const StudentsView: React.FC = () => {
           <>Use the <b>arrows</b> to move a student up or down, the <b>pencil</b> to edit, or the <b>bin</b> to remove.</>,
           <>Use the search box to find a student by name, father's name, roll number, admission number or phone.</>
         ]}
-        note="Moving or removing a student renumbers the roll numbers. Removing a student also deletes all their attendance, marks and fund records, so you will be asked to confirm."
+        note="Moving a student swaps roll numbers with their neighbour. Removing a student leaves other roll numbers as they are (use Renumber to close gaps), and deletes their attendance, marks and fund records after you confirm."
       />
 
       {/* Notice if class is not configured */}
@@ -699,7 +708,7 @@ export const StudentsView: React.FC = () => {
           <div className="flex gap-2 mt-3">
             <button
               type="submit"
-              className="flex-1 py-2 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="flex-1 min-h-[44px] py-2 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{editingId ? "Update Student" : "Save Student"}</span>
@@ -708,7 +717,7 @@ export const StudentsView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="py-2 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer"
+                className="min-h-[44px] py-2 px-4 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer"
               >
                 Cancel
               </button>
@@ -796,34 +805,38 @@ export const StudentsView: React.FC = () => {
                     onClick={() => handleMove(s.id, -1)}
                     disabled={isFirst}
                     title="Move Up"
-                    className="p-1.5 px-2 rounded-lg text-xs bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
+                    aria-label="Move Up"
+                    className="w-11 h-11 rounded-xl text-xs bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
                   >
-                    <ArrowUp className="w-3.5 h-3.5" />
+                    <ArrowUp className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleMove(s.id, 1)}
                     disabled={isLast}
                     title="Move Down"
-                    className="p-1.5 px-2 rounded-lg text-xs bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
+                    aria-label="Move Down"
+                    className="w-11 h-11 rounded-xl text-xs bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
                   >
-                    <ArrowDown className="w-3.5 h-3.5" />
+                    <ArrowDown className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleEdit(s)}
                     title="Edit"
-                    className="p-1.5 px-2.5 rounded-lg text-xs bg-[#D1FAE5] dark:bg-[#064E3B] text-[#065F46] dark:text-[#A7F3D0] font-bold hover:bg-[#A7F3D0] cursor-pointer flex items-center justify-center gap-1"
+                    aria-label="Edit student"
+                    className="w-11 h-11 rounded-xl text-xs bg-[#D1FAE5] dark:bg-[#064E3B] text-[#065F46] dark:text-[#A7F3D0] font-bold hover:bg-[#A7F3D0] cursor-pointer flex items-center justify-center gap-1"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
+                    <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(s)}
                     title="Delete"
-                    className="p-1.5 px-2.5 rounded-lg text-xs bg-[#F8E4E1] dark:bg-[#4A1A18] text-[#7F1D1D] dark:text-[#F0C8C0] font-bold hover:bg-[#FCA5A5] cursor-pointer flex items-center justify-center"
+                    aria-label="Delete student"
+                    className="w-11 h-11 rounded-xl text-xs bg-[#F8E4E1] dark:bg-[#4A1A18] text-[#7F1D1D] dark:text-[#F0C8C0] font-bold hover:bg-[#FCA5A5] cursor-pointer flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

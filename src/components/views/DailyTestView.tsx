@@ -160,16 +160,19 @@ export const DailyTestView: React.FC = () => {
   const handleMarkChange = (studentId: string, rawVal: string) => {
     const trimmed = rawVal.trim();
     if (trimmed === '') {
-      // Clear mark
+      // Clear mark and prune empty day entry
       quickSaveData(prev => {
         const dayMap = { ...(prev.dailyTests[selectedDate] || {}) };
         delete dayMap[studentId];
+        const nextDaily = { ...prev.dailyTests };
+        if (Object.keys(dayMap).length === 0) {
+          delete nextDaily[selectedDate];
+        } else {
+          nextDaily[selectedDate] = dayMap;
+        }
         return {
           ...prev,
-          dailyTests: {
-            ...prev.dailyTests,
-            [selectedDate]: dayMap
-          }
+          dailyTests: nextDaily
         };
       });
       return;
@@ -217,12 +220,15 @@ export const DailyTestView: React.FC = () => {
       } else {
         dayMap[studentId] = 'A';
       }
+      const nextDaily = { ...prev.dailyTests };
+      if (Object.keys(dayMap).length === 0) {
+        delete nextDaily[selectedDate];
+      } else {
+        nextDaily[selectedDate] = dayMap;
+      }
       return {
         ...prev,
-        dailyTests: {
-          ...prev.dailyTests,
-          [selectedDate]: dayMap
-        }
+        dailyTests: nextDaily
       };
     });
   };
@@ -375,7 +381,7 @@ export const DailyTestView: React.FC = () => {
             <button
               type="button"
               onClick={() => shiftDate(-1)}
-              className="p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition cursor-pointer"
+              className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition cursor-pointer flex items-center justify-center"
               title="Previous Day"
               aria-label="Previous Day"
             >
@@ -394,7 +400,7 @@ export const DailyTestView: React.FC = () => {
             <button
               type="button"
               onClick={() => shiftDate(1)}
-              className="p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition cursor-pointer"
+              className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition cursor-pointer flex items-center justify-center"
               title="Next Day"
               aria-label="Next Day"
             >
@@ -404,7 +410,7 @@ export const DailyTestView: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedDate(todayKey())}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                 selectedDate === todayKey()
                   ? 'bg-red-800 text-white'
                   : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
@@ -684,7 +690,7 @@ export const DailyTestView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleToggleAbsent(student.id)}
-                        className={`w-14 py-1.5 rounded-xl text-xs font-black transition cursor-pointer select-none ${
+                        className={`w-14 min-h-[44px] py-1.5 rounded-xl text-xs font-black transition cursor-pointer select-none ${
                           isAbsent
                             ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-2xs ring-2 ring-rose-400/50'
                             : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300'

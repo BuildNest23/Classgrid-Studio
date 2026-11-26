@@ -1,5 +1,5 @@
 import { AppData, Student } from '../types';
-import { getSortedStudents, loadImage, prettyDate, sessionParts, fileTitle } from './helpers';
+import { getSortedStudents, loadImage, prettyDate, sessionParts, fileTitle, todayKey } from './helpers';
 import { exportImageBlob } from './nativeFileExport';
 import { loadCapsPrint } from './capsPrint';
 import { ListColumns, DEFAULT_LIST_COLUMNS, OptionalCol } from './studentListColumns';
@@ -424,7 +424,7 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
         resolve(false);
         return;
       }
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = todayKey();
       const filename = `${fileTitle(data.className, 'Student List', stamp)}.png`;
       const title = fileTitle(data.className, 'Student List', stamp);
       const ok = await exportImageBlob(blob, filename, title);

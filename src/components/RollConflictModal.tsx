@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RollMode } from '../utils/rollNumbers';
 
 interface Props {
@@ -14,6 +14,14 @@ interface Props {
 
 /** Asked when the roll number someone wants already belongs to another student. */
 export const RollConflictModal: React.FC<Props> = ({ roll, ownerName, studentName, oldRoll, canSwap, onChoose, onCancel }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   const btn =
     'w-full text-left p-3 rounded-xl border border-[#E7E5E4] dark:border-[#44403C] hover:border-[#B91C1C] hover:bg-[#FEF2F2] dark:hover:bg-[#2A1514] cursor-pointer transition-colors';
   return (
@@ -33,7 +41,7 @@ export const RollConflictModal: React.FC<Props> = ({ roll, ownerName, studentNam
           <button type="button" className={btn} onClick={() => onChoose('swap')}>
             <div className="text-xs font-bold text-[#1C1917] dark:text-[#F5F5F4]">Swap</div>
             <div className="text-[11px] text-[#78716C] dark:text-[#A8A29E]">
-              {ownerName || 'They'} get{ownerName ? '' : 's'} {oldRoll ? `roll ${oldRoll}` : 'no roll number (blank)'}
+              {ownerName || 'They'} get{ownerName ? 's' : ''} {oldRoll ? `roll ${oldRoll}` : 'no roll number (blank)'}
             </div>
           </button>
         )}
@@ -48,7 +56,7 @@ export const RollConflictModal: React.FC<Props> = ({ roll, ownerName, studentNam
         <button
           type="button"
           onClick={onCancel}
-          className="w-full py-2.5 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer"
+          className="w-full min-h-[44px] py-2.5 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer"
         >
           Cancel
         </button>

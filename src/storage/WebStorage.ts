@@ -88,6 +88,7 @@ export class WebStorage implements StorageAdapter {
       window.localStorage.setItem(key, value);
     } catch (err) {
       console.error(`Failed to set localStorage key "${key}":`, err);
+      throw err;
     }
   }
 

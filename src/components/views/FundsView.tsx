@@ -114,7 +114,7 @@ export const FundsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setNewFormOpen(!newFormOpen)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer"
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer"
             >
               {newFormOpen ? "Cancel" : "+ New Fund"}
             </button>
@@ -286,20 +286,19 @@ export const FundsView: React.FC = () => {
 
     const todayStr = todayISO();
     saveData(prev => {
-      const nextPayments = { ...prev.fundPayments };
-      if (!nextPayments[activeFund.id]) nextPayments[activeFund.id] = {};
+      const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
 
       sortedStudents.forEach(s => {
-        const cur = nextPayments[activeFund.id][s.id] || {};
+        const cur = fundMap[s.id] || {};
         if (cur.exempt) return;
-        nextPayments[activeFund.id][s.id] = {
+        fundMap[s.id] = {
           ...cur,
           amount: activeFund.amount,
           date: cur.date || todayStr
         };
       });
 
-      return { ...prev, fundPayments: nextPayments };
+      return { ...prev, fundPayments: { ...prev.fundPayments, [activeFund.id]: fundMap } };
     });
     toast("All students marked as paid.", "success");
   };
@@ -312,57 +311,53 @@ export const FundsView: React.FC = () => {
     if (!existing && num === 0) return; // nothing to record
 
     saveData(prev => {
-      const nextPayments = { ...prev.fundPayments };
-      if (!nextPayments[activeFund.id]) nextPayments[activeFund.id] = {};
-      const cur = nextPayments[activeFund.id][sid] || {};
+      const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
+      const cur = fundMap[sid] || {};
 
-      nextPayments[activeFund.id][sid] = {
+      fundMap[sid] = {
         ...cur,
         amount: num,
         date: num > 0 && !cur.date ? todayISO() : cur.date
       };
 
-      return { ...prev, fundPayments: nextPayments };
+      return { ...prev, fundPayments: { ...prev.fundPayments, [activeFund.id]: fundMap } };
     });
   };
 
   // Toggle Exempt
   const handleToggleExempt = (sid: string) => {
     saveData(prev => {
-      const nextPayments = { ...prev.fundPayments };
-      if (!nextPayments[activeFund.id]) nextPayments[activeFund.id] = {};
-      const cur = nextPayments[activeFund.id][sid] || {};
+      const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
+      const cur = fundMap[sid] || {};
       const nextExempt = !cur.exempt;
 
-      nextPayments[activeFund.id][sid] = {
+      fundMap[sid] = {
         ...cur,
         exempt: nextExempt,
         amount: nextExempt ? 0 : cur.amount
       };
 
-      return { ...prev, fundPayments: nextPayments };
+      return { ...prev, fundPayments: { ...prev.fundPayments, [activeFund.id]: fundMap } };
     });
   };
 
   // Date change
   const handleDateChange = (sid: string, dateVal: string) => {
     quickSaveData(prev => {
-      const nextPayments = { ...prev.fundPayments };
-      if (!nextPayments[activeFund.id]) nextPayments[activeFund.id] = {};
-      const cur = nextPayments[activeFund.id][sid] || {};
-      nextPayments[activeFund.id][sid] = { ...cur, date: dateVal };
-      return { ...prev, fundPayments: nextPayments };
+      const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
+      const cur = fundMap[sid] || {};
+      fundMap[sid] = { ...cur, date: dateVal };
+      return { ...prev, fundPayments: { ...prev.fundPayments, [activeFund.id]: fundMap } };
     });
   };
 
   // Note change
   const handleNoteChange = (sid: string, noteVal: string) => {
     quickSaveData(prev => {
-      const nextPayments = { ...prev.fundPayments };
-      if (!nextPayments[activeFund.id]) nextPayments[activeFund.id] = {};
-      const cur = nextPayments[activeFund.id][sid] || {};
-      nextPayments[activeFund.id][sid] = { ...cur, note: noteVal };
-      return { ...prev, fundPayments: nextPayments };
+      const fundMap = { ...(prev.fundPayments[activeFund.id] || {}) };
+      const cur = fundMap[sid] || {};
+      fundMap[sid] = { ...cur, note: noteVal };
+      return { ...prev, fundPayments: { ...prev.fundPayments, [activeFund.id]: fundMap } };
     });
   };
 
@@ -395,7 +390,7 @@ export const FundsView: React.FC = () => {
 
     const namePct = getPrintNameColPct(sortedStudents.map(st => st.name || ""), 9, data.printSize, data.forceOrientation);
     const fullPrintHTML = `<div class="print-sheet">
-      ${buildPrintHeaderHTML(activeFund.name + " — Collection Sheet", (activeFund.dueDate ? "Due: " + esc(prettyShortDate(activeFund.dueDate)) + " • " : "") + amtDesc)}
+      ${buildPrintHeaderHTML(activeFund.name + " — Collection Sheet", (activeFund.dueDate ? "Due: " + prettyShortDate(activeFund.dueDate) + " • " : "") + amtDesc)}
       <table class="fund-print">
         <thead><tr>
           <th style="width:6%">#</th>
@@ -492,7 +487,7 @@ export const FundsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveFundId(null)}
-            className="text-xs font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
+            className="min-h-[44px] text-xs font-bold text-red-800 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
           >
             ← All Funds
           </button>
@@ -652,7 +647,8 @@ export const FundsView: React.FC = () => {
                           tabIndex={-1}
                           onClick={() => handleToggleExempt(s.id)}
                           title="Toggle Exempt"
-                          className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center transition-colors cursor-pointer ${
+                          aria-label="Toggle Exempt"
+                          className={`w-8 h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
                             isExempt
                               ? 'bg-[#F5F5F4] text-[#78716C] border border-[#D6D3D1] dark:bg-[#44403C] dark:text-[#F5F5F4]'
                               : 'bg-[#FAFAF9] dark:bg-[#292524] text-[#A8A29E] border border-[#E7E5E4] dark:border-[#44403C] hover:bg-[#F5F5F4]'

@@ -26,9 +26,9 @@ export const ModeCard: React.FC = () => {
       <div className="flex items-center gap-2 font-black text-sm"><Building2 className="w-4 h-4" /> Mode: Management</div>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={async () => { if (await uiConfirm('Switch this phone to Teacher mode? Management tools will be hidden until you switch back with your PIN.', { yesText: 'Switch', icon: 'info' })) setMode('teacher'); }}
-          className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer">Switch to Teacher mode</button>
-        <button type="button" onClick={changePin} className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />{pinOn ? 'Change PIN' : 'Set PIN'}</button>
-        {pinOn && <button type="button" onClick={removePin} className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold text-red-700 cursor-pointer">Remove PIN</button>}
+          className="min-h-[44px] px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer">Switch to Teacher mode</button>
+        <button type="button" onClick={changePin} className="min-h-[44px] px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold cursor-pointer flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />{pinOn ? 'Change PIN' : 'Set PIN'}</button>
+        {pinOn && <button type="button" onClick={removePin} className="min-h-[44px] px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-bold text-red-700 cursor-pointer">Remove PIN</button>}
       </div>
       <div className={`mt-3 p-3 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 flex items-center gap-3 ${REMINDERS_AVAILABLE ? '' : 'opacity-50'}`} aria-disabled={!REMINDERS_AVAILABLE}>
         <Bell className="w-5 h-5 text-stone-500" />

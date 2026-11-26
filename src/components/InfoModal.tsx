@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import {
   X,
@@ -14,6 +14,15 @@ import {
 
 export const InfoModal: React.FC = () => {
   const { infoModal, closeInfoModal } = useClassroom();
+
+  useEffect(() => {
+    if (!infoModal.isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeInfoModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [infoModal.isOpen, closeInfoModal]);
 
   if (!infoModal.isOpen) return null;
 
@@ -64,6 +73,15 @@ export const InfoModal: React.FC = () => {
 
 export const HelpModal: React.FC = () => {
   const { helpModalOpen, closeHelp } = useClassroom();
+
+  useEffect(() => {
+    if (!helpModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeHelp();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [helpModalOpen, closeHelp]);
 
   if (!helpModalOpen) return null;
 

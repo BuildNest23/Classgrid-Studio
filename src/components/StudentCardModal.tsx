@@ -127,7 +127,7 @@ export const StudentCardModal: React.FC<Props> = ({
 
   const fallbackPrint = async () => {
     toast('Could not create the file on this device, opening the print dialog instead.', 'info');
-    const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false);
+    const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false, baseName);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -175,16 +175,15 @@ export const StudentCardModal: React.FC<Props> = ({
   const iconBtn =
     'w-12 h-12 rounded-full flex items-center justify-center border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-95 transition disabled:opacity-40 cursor-pointer';
   const navBtn =
-    'absolute top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center bg-white/90 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-700 shadow-sm text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer';
+    'absolute top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full flex items-center justify-center bg-white/90 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-700 shadow-sm text-stone-700 dark:text-stone-200 disabled:opacity-30 cursor-pointer';
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 pt-[max(1.25rem,calc(var(--safe-top,env(safe-area-inset-top,0px))+0.75rem))] pb-[max(1.25rem,calc(var(--safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem))] bg-black/60 backdrop-blur-xs"
-      onClick={onClose}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="w-full max-w-xl max-h-[calc(100dvh-var(--safe-top,env(safe-area-inset-top,0px))-var(--safe-bottom,env(safe-area-inset-bottom,0px))-2.5rem)] flex flex-col bg-white dark:bg-stone-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden"
-        onClick={e => e.stopPropagation()}
         role="dialog"
         aria-label={label}
       >
@@ -200,7 +199,7 @@ export const StudentCardModal: React.FC<Props> = ({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 -mr-1 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-full active:bg-stone-200 dark:active:bg-stone-800 cursor-pointer"
+            className="w-11 h-11 -mr-1.5 flex items-center justify-center text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-full active:bg-stone-200 dark:active:bg-stone-800 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

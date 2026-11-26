@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ModeCard } from '../teacher/ModeCard';
 import { useClassroom } from '../../context/ClassroomContext';
 import { PrintSizeKey } from '../../types';
-import { PRINT_SIZES } from '../../utils/helpers';
+import { PRINT_SIZES, todayKey } from '../../utils/helpers';
 import { ActionGrid, ActionButton } from '../ActionGrid';
 import { HowItWorks } from '../HowItWorks';
 import { WatermarkOptions } from '../WatermarkOptions';
@@ -87,7 +87,7 @@ export const SettingsView: React.FC = () => {
     fallbackActive?: boolean;
   } | null>(null);
   const capsPrint = useCapsPrint();
-  const [prefs, updatePrefs] = useClassgridPrefs();
+  const [prefs] = useClassgridPrefs();
 
   useEffect(() => {
     let mounted = true;
@@ -230,6 +230,15 @@ export const SettingsView: React.FC = () => {
 
   const [backupChoice, setBackupChoice] = useState(false);
 
+  useEffect(() => {
+    if (!backupChoice) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBackupChoice(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [backupChoice]);
+
   // Export JSON Backup. `full` = every saved class too; otherwise only the open class.
   const handleExportBackup = async (full: boolean) => {
     setBackupChoice(false);
@@ -255,7 +264,7 @@ export const SettingsView: React.FC = () => {
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayKey();
     const filename = full ? `classroom-backup-${stamp}.json` : `classroom-backup-${(data.className || 'class').replace(/[^A-Za-z0-9_-]+/g, '-')}-${stamp}.json`;
     const title = `ClassGrid Backup (${stamp})`;
 
@@ -331,6 +340,9 @@ export const SettingsView: React.FC = () => {
         const msg = err instanceof Error ? err.message : "Error reading file";
         toast("Could not import: " + msg, "error");
       }
+    };
+    reader.onerror = () => {
+      toast("Could not read backup file.", "error");
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -425,7 +437,7 @@ export const SettingsView: React.FC = () => {
               <div className="text-[11px] opacity-80">Only the class that is open now{data.className ? ` (${data.className})` : ''}.</div>
             </button>
             <button type="button" onClick={() => setBackupChoice(false)}
-              className="w-full py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
+              className="w-full min-h-[44px] py-2 text-xs font-bold text-stone-500 cursor-pointer">Cancel</button>
           </div>
         </div>
       )}
@@ -536,7 +548,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex justify-between items-center pt-2">
             <button
               type="submit"
-              className="py-2.5 px-4 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D]"
+              className="min-h-[44px] py-2.5 px-4 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
             >
               Save Setup
             </button>
@@ -654,7 +666,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         <div className="flex gap-2">
-          <label className="py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer flex items-center gap-1.5">
+          <label className="min-h-[44px] py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer flex items-center gap-1.5">
             <Upload className="w-3.5 h-3.5" />
             <span>Choose Logo…</span>
             <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
@@ -663,7 +675,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={handleRemoveLogo}
-              className="py-2 px-3 text-xs font-bold rounded-lg bg-red-100 text-[#991B1B] hover:bg-red-200 flex items-center gap-1.5"
+              className="min-h-[44px] py-2 px-3 text-xs font-bold rounded-lg bg-red-100 text-[#991B1B] hover:bg-red-200 flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Remove Logo</span>
@@ -773,11 +785,13 @@ export const SettingsView: React.FC = () => {
                 : `Last manual backup: ${daysSinceBackup} day${daysSinceBackup === 1 ? '' : 's'} ago${backupOld ? '. Time for a new one.' : ''}`}
             </p>
             <p className="text-[11px] font-semibold text-[#6E6656] dark:text-[#A79B85]">
-              {daysSinceAutoBackup === null
-                ? 'Last auto-backup: Scheduled on save (max once/24h to device Documents).'
+              {!Capacitor.isNativePlatform()
+                ? 'Auto-backup: Runs automatically on the Android app. On a browser, use Backup to file.'
+                : daysSinceAutoBackup === null
+                ? 'Last auto-backup: Scheduled on save (max once every 24h in app storage).'
                 : daysSinceAutoBackup === 0
-                ? 'Last auto-backup: today (saved to device Documents)'
-                : `Last auto-backup: ${daysSinceAutoBackup} day${daysSinceAutoBackup === 1 ? '' : 's'} ago (saved to device Documents)`}
+                ? 'Last auto-backup: today (saved in app storage)'
+                : `Last auto-backup: ${daysSinceAutoBackup} day${daysSinceAutoBackup === 1 ? '' : 's'} ago (saved in app storage)`}
             </p>
           </div>
         </div>
@@ -811,7 +825,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={toggleDarkMode}
-            className="py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
+            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
           >
             Toggle Dark Mode
           </button>
@@ -828,7 +842,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={openHelp}
-            className="py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
+            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
           >
             Open User Guide
           </button>
@@ -845,7 +859,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowNewClass(true)}
-            className="py-2 px-3 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
+            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
           >
             Start new class
           </button>
@@ -853,7 +867,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab("classes")}
-              className="py-2 px-3 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
+              className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#EFEBE2] dark:bg-[#2A261F] text-[#232019] dark:text-[#EFE9DD] hover:bg-[#E5DFD0] cursor-pointer"
             >
               Open Classes
             </button>
@@ -875,7 +889,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={handleResetEverything}
-            className="py-2 px-3 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
+            className="min-h-[44px] py-2 px-3.5 text-xs font-bold rounded-lg bg-[#991B1B] text-white hover:bg-[#7F1D1D] cursor-pointer"
           >
             Reset Everything
           </button>

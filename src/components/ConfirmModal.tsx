@@ -96,16 +96,23 @@ export const PromptModal: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (promptState.isOpen) {
-      setVal(promptState.defaultValue || "");
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
-        }
-      }, 50);
-    }
-  }, [promptState.isOpen, promptState.defaultValue]);
+    if (!promptState.isOpen) return;
+    setVal(promptState.defaultValue || "");
+    const timer = window.setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }, 50);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePrompt(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [promptState.isOpen, promptState.defaultValue, closePrompt]);
 
   if (!promptState.isOpen) return null;
 

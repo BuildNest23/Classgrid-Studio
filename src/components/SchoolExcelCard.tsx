@@ -11,7 +11,7 @@ import { FileSpreadsheet } from 'lucide-react';
 const card = 'rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5';
 const btn = 'w-full min-h-[48px] rounded-2xl bg-red-800 text-white font-bold cursor-pointer active:scale-[0.98] disabled:opacity-50';
 
-export const SchoolExcelCard: React.FC = () => {
+export const SchoolExcelCard: React.FC<{ onApplied?: () => void }> = ({ onApplied }) => {
   const { data, saveData, toast, uiConfirm } = useClassroom();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -90,6 +90,7 @@ export const SchoolExcelCard: React.FC = () => {
       }
       toast(`${n} change${n === 1 ? '' : 's'} applied.`, 'success');
       setLoaded(null);
+      if (n > 0) onApplied?.();
     } catch (e: any) {
       toast(`Could not apply. ${e?.message || ''}`.trim(), 'error');
     } finally { setBusy(false); }

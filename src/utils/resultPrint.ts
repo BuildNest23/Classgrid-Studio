@@ -147,7 +147,7 @@ function headerHTML(c: ResultPrintCtx, title: string, noLogo = false, hideClassI
     <div class="ps2-title-sub">${esc(c.asmt.name)}</div>`;
 }
 
-function infoBarHTML(c: ResultPrintCtx, items: string[]): string {
+function infoBarHTML(items: string[]): string {
   return `<div class="ps2-info">${items.map(t => `<span>${t}</span>`).join('')}</div>`;
 }
 
@@ -184,7 +184,7 @@ function rankBadge(c: ResultPrintCtx, rank: number, hasData: boolean): string {
   return `<span class="cg-nocap">${esc(ordinal(rank))}</span>`;
 }
 
-function resultTag(c: ResultPrintCtx, r: ResultCalc): string {
+function resultTag(r: ResultCalc): string {
   const word = r.passed ? 'PASS' : 'FAIL';
   const cls = r.passed ? 'ps2-tag ps2-pass' : 'ps2-tag ps2-fail';
   return `<span class="${cls}">${word}${star(r.manual && !r.computedPass)}</span>`;
@@ -230,7 +230,7 @@ export function buildClassResultHTML(
         ${markCells}
         <td class="num ps2-strong">${r.total}</td>
         <td class="num">${hasMarks(r) ? fmtPct(r.pct) : '—'}</td>
-        <td class="num">${resultTag(c, r)}</td>
+        <td class="num">${resultTag(r)}</td>
         <td class="num">${rankBadge(c, item.rank, hasMarks(r))}</td>
       </tr>`;
     })
@@ -239,7 +239,7 @@ export function buildClassResultHTML(
   const failNote = c.style === 'a' ? 'Failed marks shown in red' : 'Failed marks underlined';
   return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(layout.orientation)}">
     ${headerHTML(c, 'Class Result Sheet')}
-    ${infoBarHTML(c, [`Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, failNote, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
+    ${infoBarHTML([`Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, failNote, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
     <table class="ps2-table ps2-res">
       <thead><tr>
         <th style="width:6%">Roll</th>
@@ -408,7 +408,7 @@ export function buildBlankMarksSheetHTML(
     .join('');
   return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(layout.orientation)}">
     ${headerHTML(c, 'Marks Sheet')}
-    ${infoBarHTML(c, [`Total max: ${c.totalMax}`, `Students: ${students.length}`])}
+    ${infoBarHTML([`Total max: ${c.totalMax}`, `Students: ${students.length}`])}
     <style>.print-sheet.ps2 .ps2-table.ps2-hand th,.print-sheet.ps2 .ps2-table.ps2-hand td{border:0.25mm solid #777 !important}</style>
     <table class="ps2-table ps2-res ps2-hand">
       <thead><tr>
@@ -649,14 +649,14 @@ export function buildMeritListHTML(c: ResultPrintCtx): string {
         <td class="name"><span class="cg-fit">${esc(s.fatherName || '—')}</span></td>
         <td class="num ps2-strong">${r.total}</td>
         <td class="num">${pctCell(c, r)}</td>
-        <td class="num">${resultTag(c, r)}</td>
+        <td class="num">${resultTag(r)}</td>
       </tr>`;
     })
     .join('');
 
   return `<div class="print-sheet ps2 ps2-${c.style} ps2-port">
     ${headerHTML(c, 'Merit List')}
-    ${infoBarHTML(c, ['Ranked by total marks', `Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
+    ${infoBarHTML(['Ranked by total marks', `Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
     <table class="ps2-table ps2-merit">
       <thead><tr>
         <th style="width:9%">Rank</th>

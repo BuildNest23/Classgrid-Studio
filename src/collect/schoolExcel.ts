@@ -8,19 +8,21 @@ export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsh
 export async function buildSchoolWorkbookBlob(built: BuiltSchool, schoolName = '', skipSummary = false): Promise<Blob> {
   try {
     const bytes = writeStyledXlsx(built, schoolName, skipSummary);
-    return new Blob([bytes], { type: XLSX_MIME });
+    return new Blob([bytes as BlobPart], { type: XLSX_MIME });
   } catch {
-    return buildPlainWorkbookBlob(built);
+    return buildPlainWorkbookBlob(built, skipSummary);
   }
 }
 
-async function buildPlainWorkbookBlob(built: BuiltSchool): Promise<Blob> {
+async function buildPlainWorkbookBlob(built: BuiltSchool, skipSummary = false): Promise<Blob> {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
 
-  const sum = XLSX.utils.aoa_to_sheet(built.summary.rows);
-  sum['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 10 }, { wch: 12, hidden: true }];
-  XLSX.utils.book_append_sheet(wb, sum, built.summary.name);
+  if (!skipSummary) {
+    const sum = XLSX.utils.aoa_to_sheet(built.summary.rows);
+    sum['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 10 }, { wch: 12, hidden: true }];
+    XLSX.utils.book_append_sheet(wb, sum, built.summary.name);
+  }
 
   built.classes.forEach(c => {
     const ws = XLSX.utils.aoa_to_sheet(c.sheet.rows);

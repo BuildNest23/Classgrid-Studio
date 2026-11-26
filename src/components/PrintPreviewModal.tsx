@@ -60,7 +60,7 @@ export const PrintPreviewModal: React.FC = () => {
   };
 
   // Builds the content (names shrunk to fit) and a fresh measurer for it
-  const prepare = async (r: PrintRequest, ori?: Orientation) => {
+  const prepare = async (r: PrintRequest, ori?: Orientation, isCancelled?: () => boolean) => {
     const useCompact = compactOn && !!r.compact;
     let base = useCompact
       ? r.compact!({ orientation: (ori || orientation) as Orientation, signatures: sigOn, pct: pctOn, caps })
@@ -70,6 +70,7 @@ export const PrintPreviewModal: React.FC = () => {
       base = `<style>.ps2 .ps2-sigs{display:none !important}</style>${base}`;
     }
     const html = await fitLongNames(base);
+    if (isCancelled?.()) return null;
     setContent(html);
     measurerRef.current?.dispose();
     const m = new FitMeasurer(html);
@@ -82,11 +83,13 @@ export const PrintPreviewModal: React.FC = () => {
   useEffect(() => {
     if (firstCapsRef.current) { firstCapsRef.current = false; return; }
     if (!req) return;
+    let cancelled = false;
     (async () => {
       setBusy(true);
-      await prepare(req);
-      setBusy(false);
+      await prepare(req, undefined, () => cancelled);
+      if (!cancelled) setBusy(false);
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caps]);
 
@@ -95,11 +98,13 @@ export const PrintPreviewModal: React.FC = () => {
   useEffect(() => {
     if (firstOptRef.current) { firstOptRef.current = false; return; }
     if (!req) return;
+    let cancelled = false;
     (async () => {
       setBusy(true);
-      await prepare(req);
-      setBusy(false);
+      await prepare(req, undefined, () => cancelled);
+      if (!cancelled) setBusy(false);
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compactOn, sigOn, pctOn, compactOn && !!req?.compact ? orientation : '']);
 
@@ -111,7 +116,7 @@ export const PrintPreviewModal: React.FC = () => {
       setBusy(true);
       setPages(null);
       setPageNumbers(!!req.pageNumbers);
-      const m = await prepare(req, (locked || req.orientation) as Orientation);
+      const m = await prepare(req, (locked || req.orientation) as Orientation, () => cancelled);
       if (cancelled || !m) return;
       setOrientation((locked || req.orientation) as Orientation);
       setSize(data.printSize);
@@ -152,6 +157,13 @@ export const PrintPreviewModal: React.FC = () => {
     setAutoNote('');
   };
 
+  useEffect(() => {
+    if (!req) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [req]);
+
   if (!req) return null;
 
   const g = pageGeometry(orientation);
@@ -177,7 +189,10 @@ export const PrintPreviewModal: React.FC = () => {
   const manual = () => setAutoNote('');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+      onMouseDown={e => { if (e.target === e.currentTarget) close(); }}
+    >
       <div className="w-full sm:max-w-2xl bg-white dark:bg-[#1C1917] rounded-t-3xl sm:rounded-2xl border border-[#E7E5E4] dark:border-[#44403C] shadow-2xl flex flex-col max-h-[94vh]">
         <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[#E7E5E4] dark:border-[#44403C]">
           <div>

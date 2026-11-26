@@ -20,9 +20,6 @@ export function setMode(m: AppMode) {
   try { localStorage.setItem(MODE_KEY, m); } catch { /* ignore */ }
 }
 
-/** Existing users (already have saved classes) keep today's behaviour = management. */
-export function defaultModeForExisting(): AppMode { return 'management'; }
-
 // ---- PIN (4–8 digits). Simple salted hash: keeps casual eyes out, not a vault. ----
 function hash(pin: string, salt: string): string {
   let h1 = 0x811c9dc5, h2 = 0x1b873593;

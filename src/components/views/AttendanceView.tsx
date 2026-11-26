@@ -250,9 +250,11 @@ export const AttendanceView: React.FC = () => {
               const end = parseKey(endD);
               let count = 0;
               let skipped = 0;
-              const d = new Date(start);
 
               saveData(prev => {
+                count = 0;
+                skipped = 0;
+                const d = new Date(start);
                 const nextAtt = { ...prev.attendance };
                 while (d <= end) {
                   const k = dateKey(d);
@@ -654,7 +656,8 @@ export const AttendanceView: React.FC = () => {
               type="button"
               onClick={() => shiftDate(-1)}
               title="Previous day"
-              className="p-2 px-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] font-bold hover:bg-[#E7E5E4] cursor-pointer flex items-center justify-center"
+              aria-label="Previous day"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] font-bold hover:bg-[#E7E5E4] cursor-pointer flex items-center justify-center"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -662,22 +665,31 @@ export const AttendanceView: React.FC = () => {
               type="date"
               value={attDate}
               max={todayKey()}
-              onChange={e => { if (e.target.value) setAttDate(e.target.value); }}
-              className="flex-1 p-2 rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit text-xs md:text-sm font-semibold"
+              onChange={e => {
+                const val = e.target.value;
+                if (!val) return;
+                if (val > todayKey()) {
+                  toast("Future dates are not allowed.", "info");
+                  return;
+                }
+                setAttDate(val);
+              }}
+              className="flex-1 min-h-[44px] p-2 rounded-xl border border-[#D6D3D1] dark:border-[#44403C] bg-white dark:bg-[#0C0A09] text-inherit text-xs md:text-sm font-semibold"
             />
             <button
               type="button"
               onClick={() => shiftDate(1)}
               disabled={isToday}
               title="Next day"
-              className="p-2 px-2.5 rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] font-bold hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
+              aria-label="Next day"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] font-bold hover:bg-[#E7E5E4] disabled:opacity-40 cursor-pointer flex items-center justify-center"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setAttDate(todayKey())}
-              className={`p-2 px-3.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              className={`min-h-[44px] px-3.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                 isToday
                   ? 'bg-[#B91C1C] text-white'
                   : 'bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4]'
@@ -879,7 +891,7 @@ export const AttendanceView: React.FC = () => {
                     disabled={disabled}
                     onClick={() => handleSetStatus(s.id, 'P')}
                     title="Present"
-                    className={`w-10 h-9 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
+                    className={`w-11 h-11 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                       currentStatus === 'P'
                         ? 'bg-[#D1FAE5] text-[#065F46] border-2 border-[#065F46] dark:bg-[#064E3B] dark:text-[#A7F3D0] dark:border-[#34D399]'
                         : 'bg-[#F5F5F4] dark:bg-[#292524] text-[#A8A29E] hover:bg-[#E7E5E4]'
@@ -892,7 +904,7 @@ export const AttendanceView: React.FC = () => {
                     disabled={disabled}
                     onClick={() => handleSetStatus(s.id, 'A')}
                     title="Absent"
-                    className={`w-10 h-9 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
+                    className={`w-11 h-11 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                       currentStatus === 'A'
                         ? 'bg-[#F8E4E1] text-[#7F1D1D] border-2 border-[#B23A32] dark:bg-[#4A1A18] dark:text-[#F0C8C0] dark:border-[#E06A5F]'
                         : 'bg-[#F5F5F4] dark:bg-[#292524] text-[#A8A29E] hover:bg-[#E7E5E4]'
@@ -905,7 +917,7 @@ export const AttendanceView: React.FC = () => {
                     disabled={disabled}
                     onClick={() => handleSetStatus(s.id, 'L')}
                     title="Leave (Excused, excluded from %)"
-                    className={`w-10 h-9 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
+                    className={`w-11 h-11 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                       currentStatus === 'L'
                         ? 'bg-[#FBF0D9] text-[#7A5515] border-2 border-[#B4791F] dark:bg-[#3A2E14] dark:text-[#F8E0A0] dark:border-[#D9A03F]'
                         : 'bg-[#F5F5F4] dark:bg-[#292524] text-[#A8A29E] hover:bg-[#E7E5E4]'

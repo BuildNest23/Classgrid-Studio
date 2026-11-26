@@ -1,51 +1,5 @@
-import { AppData } from '../types';
-import { exportFileBlob } from './nativeFileExport';
-import { exportAllClasses, restoreClasses, setActiveShelfId, getActiveShelfId } from './classShelf';
-import { Capacitor } from '@capacitor/core';
+import { restoreClasses, setActiveShelfId } from './classShelf';
 import { savePrefs } from './prefs';
-
-export async function performBackup(
-  data: AppData,
-  toast: (msg: string, type?: 'success' | 'error' | 'info') => void
-): Promise<boolean> {
-  try {
-    const classes = await exportAllClasses(data);
-    const payload = {
-      app: "ClassroomManager",
-      version: 6,
-      exportedAt: new Date().toISOString(),
-      ...(getActiveShelfId() ? { classId: getActiveShelfId() } : {}),
-      data: data,
-      ...(classes.length > 0 ? { classes } : {})
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const stamp = new Date().toISOString().slice(0, 10);
-    const filename = `classroom-backup-${stamp}.json`;
-    const title = `ClassGrid Backup (${stamp})`;
-
-    const exported = await exportFileBlob(blob, filename, {
-      title,
-      dialogTitle: "Save or Share Backup File",
-      preferShareOnWeb: false
-    });
-    if (!exported) {
-      toast("Could not export the backup file.", "error");
-      return false;
-    }
-
-    try { localStorage.setItem('classgrid_last_backup', String(Date.now())); } catch { /* ignore */ }
-    if (Capacitor.isNativePlatform()) {
-      toast("Backup ready in Android share sheet.", "success");
-    } else {
-      toast("Backup file downloaded.", "success");
-    }
-    return true;
-  } catch (err: any) {
-    toast("Backup failed: " + (err?.message || "Unknown error"), "error");
-    return false;
-  }
-}
 
 export async function performRestore(
   file: File,

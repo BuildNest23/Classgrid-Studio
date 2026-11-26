@@ -122,8 +122,9 @@ function toBase64(blob: Blob): Promise<string> {
 
 /** Phone photos can be huge. Shrink to max 1800px JPEG so the upload is fast and under the limit. */
 async function shrinkImage(file: File): Promise<Blob> {
+  let bmp: ImageBitmap | null = null;
   try {
-    const bmp = await createImageBitmap(file);
+    bmp = await createImageBitmap(file);
     const scale = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bmp.width * scale);
@@ -133,6 +134,8 @@ async function shrinkImage(file: File): Promise<Blob> {
     return blob || file;
   } catch {
     return file;
+  } finally {
+    bmp?.close();
   }
 }
 
@@ -163,7 +166,7 @@ async function postProxy(payload: Record<string, unknown>): Promise<any> {
   return body;
 }
 
-async function callProxy(file: File, mode: 'students' | 'remarks' | 'marks' | 'results', extra: Record<string, unknown> = {}): Promise<any[]> {
+async function callProxy(file: File, mode: 'students' | 'results', extra: Record<string, unknown> = {}): Promise<any[]> {
   const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name);
   const blob: Blob = isImage ? await shrinkImage(file) : file;
   if (blob.size > MAX_UPLOAD_BYTES) {
@@ -220,49 +223,6 @@ export interface RemarkRow {
 const isRemarkHeader = (h: unknown) => /^(remarks?|comments?|teacherremarks?|teachercomments?|feedback|note|notes|observation)$/.test(norm(h));
 const isNameHeader = (h: unknown) => fieldOf(h) === 'name';
 const isRollHeader = (h: unknown) => fieldOf(h) === 'rollNo' || /^(rollno|roll|rollnumber)$/.test(norm(h));
-
-export async function readRemarkRowsFromSheet(file: File): Promise<RemarkRow[]> {
-  if (file.size > MAX_SHEET_BYTES) throw new Error('This file is too large (over 5 MB).');
-  const XLSX = await import('xlsx');
-  let rows: unknown[][];
-  try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', blankrows: false });
-  } catch {
-    throw new Error('Could not open this file. Is it a real Excel or CSV file?');
-  }
-
-  let headerIdx = -1;
-  let cRemark = -1, cName = -1, cRoll = -1;
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
-    const r = rows[i] || [];
-    const rem = r.findIndex(isRemarkHeader);
-    const nm = r.findIndex(isNameHeader);
-    const rl = r.findIndex(isRollHeader);
-    if (rem >= 0 && (nm >= 0 || rl >= 0)) {
-      headerIdx = i; cRemark = rem; cName = nm; cRoll = rl;
-      break;
-    }
-  }
-  if (headerIdx < 0) {
-    throw new Error('Could not find the columns. Put headings like Roll No, Name and Remarks in the first row.');
-  }
-
-  const out: RemarkRow[] = [];
-  for (const r of rows.slice(headerIdx + 1)) {
-    const remarks = String(r[cRemark] ?? '').trim();
-    const name = cName >= 0 ? String(r[cName] ?? '').trim() : '';
-    const rollNo = cRoll >= 0 ? String(r[cRoll] ?? '').trim() : '';
-    if (!remarks || (!name && !rollNo)) continue;
-    out.push({ rollNo, name, remarks });
-  }
-  if (!out.length) throw new Error('No remarks found under the Remarks column.');
-  return out;
-}
-
-export async function readRemarkRowsWithAi(file: File): Promise<RemarkRow[]> {
-  return (await callProxy(file, 'remarks')) as RemarkRow[];
-}
 
 const nameKey = (v: string) => v.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ').trim();
 const rollKey = (v: string) => {
@@ -382,82 +342,6 @@ function matchSubject(label: string, subjects: SubjectLike[]): string | null {
     if (part.length === 1) return part[0].id;
   }
   return null;
-}
-
-export async function readMarkRowsFromSheet(
-  file: File,
-  subjects: SubjectLike[]
-): Promise<{ rows: MarkRow[]; ignoredColumns: string[] }> {
-  if (file.size > MAX_SHEET_BYTES) throw new Error('This file is too large (over 5 MB).');
-  const XLSX = await import('xlsx');
-  let rows: unknown[][];
-  try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', blankrows: false });
-  } catch {
-    throw new Error('Could not open this file. Is it a real Excel or CSV file?');
-  }
-
-  let headerIdx = -1;
-  let cName = -1, cRoll = -1;
-  let subjectCols = new Map<number, string>();
-  let ignored: string[] = [];
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
-    const r = rows[i] || [];
-    const nm = r.findIndex(isNameHeader);
-    const rl = r.findIndex(isRollHeader);
-    const cols = new Map<number, string>();
-    const skipped: string[] = [];
-    r.forEach((cell, c) => {
-      if (c === nm || c === rl) return;
-      const label = String(cell ?? '').trim();
-      if (!label) return;
-      const id = matchSubject(label, subjects);
-      if (id && ![...cols.values()].includes(id)) cols.set(c, id);
-      else skipped.push(label);
-    });
-    if ((nm >= 0 || rl >= 0) && cols.size > 0) {
-      headerIdx = i; cName = nm; cRoll = rl; subjectCols = cols; ignored = skipped;
-      break;
-    }
-  }
-  if (headerIdx < 0) {
-    throw new Error('Could not find the columns. Put headings like Roll No, Name and your subject names (' +
-      subjects.slice(0, 3).map(s => s.name).join(', ') + '…) in the first row.');
-  }
-
-  const out: MarkRow[] = [];
-  for (const r of rows.slice(headerIdx + 1)) {
-    const name = cName >= 0 ? String(r[cName] ?? '').trim() : '';
-    const rollNo = cRoll >= 0 ? String(r[cRoll] ?? '').trim() : '';
-    if (!name && !rollNo) continue;
-    const marks: Record<string, string> = {};
-    subjectCols.forEach((subId, c) => {
-      const v = String(r[c] ?? '').trim();
-      if (v) marks[subId] = v;
-    });
-    if (Object.keys(marks).length) out.push({ rollNo, name, marks });
-  }
-  if (!out.length) throw new Error('No marks found under the subject columns.');
-  return { rows: out, ignoredColumns: ignored };
-}
-
-export async function readMarkRowsWithAi(file: File, subjects: SubjectLike[]): Promise<MarkRow[]> {
-  const raw = await callProxy(file, 'marks', { subjects: subjects.map(s => s.name) });
-  const out: MarkRow[] = [];
-  for (const r of raw) {
-    const marks: Record<string, string> = {};
-    (Array.isArray(r?.marks) ? r.marks : []).forEach((m: any) => {
-      const id = matchSubject(String(m?.subject ?? ''), subjects);
-      const v = String(m?.value ?? '').trim();
-      if (id && v) marks[id] = v;
-    });
-    const name = String(r?.name ?? '').trim();
-    const rollNo = String(r?.rollNo ?? '').trim();
-    if ((name || rollNo) && Object.keys(marks).length) out.push({ rollNo, name, marks });
-  }
-  if (!out.length) throw new Error('No marks were found in this file.');
-  return out;
 }
 
 export interface MarksPlan {

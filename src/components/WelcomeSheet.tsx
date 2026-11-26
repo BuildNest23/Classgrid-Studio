@@ -3,7 +3,6 @@ import { useClassroom } from '../context/ClassroomContext';
 import { isBlankClass } from '../utils/classShelf';
 import { performRestore } from '../utils/backupActions';
 import {
-  GraduationCap,
   Sparkles,
   Upload,
   ArrowRight,
@@ -24,7 +23,7 @@ import { listShelf } from '../utils/classShelf';
 import { PlainTextInput } from './PlainTextInput';
 
 export const WelcomeSheet: React.FC = () => {
-  const { data, saveData, replaceAllData, uiConfirm, toast, setActiveTab } = useClassroom();
+  const { data, saveData, replaceAllData, uiConfirm, toast } = useClassroom();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isOpen, setIsOpen] = useState(false);

@@ -40,7 +40,7 @@ const TAB_TITLES: Record<string, string> = {
   students: 'Students',
   view: 'Student list (Print)',
   settings: 'Class Detail and Backup',
-  classes: 'Classes',
+  classes: 'Saved classes',
   collect: 'Send & Receive',
   inbox: 'Class files',
   board: 'Classes',
@@ -161,7 +161,7 @@ const MainContent: React.FC = () => {
 
       {!teacher && activeTab !== 'board' && <OpenClassBar />}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 pb-24 lg:pb-12">
+      <main className={`flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 pb-24 ${teacher ? '' : 'lg:pb-12'}`}>
         {teacher ? (
         <div className="view-container">
           {(!data.classId && activeTab !== 'collect') && <TeacherHome />}

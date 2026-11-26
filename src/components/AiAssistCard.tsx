@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Paperclip, Sparkles, X, Download } from 'lucide-react';
 
 interface AiAssistCardProps {

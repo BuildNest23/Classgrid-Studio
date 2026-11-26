@@ -75,21 +75,26 @@ export const ClassFilesView: React.FC = () => {
   });
 
   const apply = async () => {
-    if (!loaded) return;
-    const n = loaded.picked.size;
-    const reason = `Before teacher update (${loaded.upd.createdAt ? new Date(loaded.upd.createdAt).toLocaleDateString() : 'file'})`;
-    if (loaded.shelf) {
-      if (!(await addSnapshot(loaded.shelf.data, reason))) { toast('Could not make a restore point, so nothing was changed.', 'error'); return; }
-      try {
-        await saveToShelf(applyTeacherUpdate(loaded.shelf.data, loaded.plan, loaded.picked), { id: loaded.shelf.id, name: loaded.shelf.name });
-      } catch (e: any) { toast(`Could not save. ${e?.message || ''}`.trim(), 'error'); return; }
-    } else {
-      if (!(await addSnapshot(data, reason))) { toast('Could not make a restore point, so nothing was changed.', 'error'); return; }
-      saveData(prev => applyTeacherUpdate(prev, loaded.plan, loaded.picked));
+    if (!loaded || busy) return;
+    setBusy(true);
+    try {
+      const n = loaded.picked.size;
+      const reason = `Before teacher update (${loaded.upd.createdAt ? new Date(loaded.upd.createdAt).toLocaleDateString() : 'file'})`;
+      if (loaded.shelf) {
+        if (!(await addSnapshot(loaded.shelf.data, reason))) { toast('Could not make a restore point, so nothing was changed.', 'error'); return; }
+        try {
+          await saveToShelf(applyTeacherUpdate(loaded.shelf.data, loaded.plan, loaded.picked), { id: loaded.shelf.id, name: loaded.shelf.name });
+        } catch (e: any) { toast(`Could not save. ${e?.message || ''}`.trim(), 'error'); return; }
+      } else {
+        if (!(await addSnapshot(data, reason))) { toast('Could not make a restore point, so nothing was changed.', 'error'); return; }
+        saveData(prev => applyTeacherUpdate(prev, loaded.plan, loaded.picked));
+      }
+      toast(`${n} item${n === 1 ? '' : 's'} added${loaded.shelf ? ` to "${loaded.shelf.name}"` : ''}.`, 'success');
+      setLoaded(null);
+      setHk(k => k + 1);
+    } finally {
+      setBusy(false);
     }
-    toast(`${n} item${n === 1 ? '' : 's'} added${loaded.shelf ? ` to "${loaded.shelf.name}"` : ''}.`, 'success');
-    setLoaded(null);
-    setHk(k => k + 1);
   };
 
   const groups = loaded ? Array.from(new Set(loaded.plan.items.map(i => i.group))) : [];
@@ -148,11 +153,13 @@ export const ClassFilesView: React.FC = () => {
           ))}
           {loaded.plan.items.some(i => i.state === 'conflict') && <p className="text-[11px] text-stone-500 mt-2">"Different" items are not ticked. Tick them only if the teacher's version should replace yours.</p>}
           {!!loaded.plan.items.length && (
-            <button type="button" disabled={!loaded.picked.size} onClick={apply} className={`${btn} mt-4`}>Add {loaded.picked.size} item{loaded.picked.size === 1 ? '' : 's'}</button>
+            <button type="button" disabled={busy || !loaded.picked.size} onClick={apply} className={`${btn} mt-4`}>
+              {busy ? 'Saving…' : `Add ${loaded.picked.size} item${loaded.picked.size === 1 ? '' : 's'}`}
+            </button>
           )}
         </div>
       )}
-      <SchoolExcelCard />
+      <SchoolExcelCard onApplied={() => setHk(k => k + 1)} />
       <HistoryCard refreshKey={hk} />
     </div>
   );

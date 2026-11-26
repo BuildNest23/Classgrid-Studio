@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   AppData,
   ActiveTab,
@@ -23,7 +23,7 @@ import { maybeTriggerAutoBackup } from '../storage/autoBackup';
 import { App as CapApp } from '@capacitor/app';
 
 
-const ALL_TABS: ActiveTab[] = ["dashboard", "students", "attendance", "dailytest", "results", "funds", "view", "settings"];
+const ALL_TABS: ActiveTab[] = ["dashboard", "students", "attendance", "dailytest", "results", "funds", "view", "settings", "classes", "collect", "inbox", "board", "forms"];
 
 // Decided ONCE per page load: a brand-new session always opens on the Dashboard,
 // a refresh inside the same session restores the last tab.
@@ -191,6 +191,7 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const isHydratedRef = useRef<boolean>(false);
   const [loadError, setLoadError] = useState<boolean>(false);
+  const [confirmFreshLoadError, setConfirmFreshLoadError] = useState<boolean>(false);
   const [loadAttempt, setLoadAttempt] = useState<number>(0);
   const [data, setData] = useState<AppData>(() => makeBaseData());
   const [activeTab, setActiveTabState] = useState<ActiveTab>(INITIAL_TAB);
@@ -259,7 +260,7 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const pendingSaveDataRef = useRef<AppData | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const writeQueueTailRef = useRef<Promise<void>>(Promise.resolve());
-  const [, setHistoryVersion] = useState(0);
+  const [historyVersion, setHistoryVersion] = useState(0);
   const bumpHistory = useCallback(() => setHistoryVersion(v => v + 1), []);
 
   // Apply dark mode & table zoom CSS variables
@@ -468,6 +469,7 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     setLoadError(false);
+    setConfirmFreshLoadError(false);
     initStorageAndLoad();
 
     return () => {
@@ -475,12 +477,8 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [toast, loadAttempt]);
 
-  // Last resort from the error screen: start with empty records (after a confirmation).
+  // Last resort from the error screen: start with empty records (confirmed inline in UI).
   const startFreshAfterLoadError = useCallback(() => {
-    const ok = window.confirm(
-      'Start with empty records?\n\nThis replaces the records that could not be opened. Only do this if Retry keeps failing and you have a backup file to import.'
-    );
-    if (!ok) return;
     const fresh = makeBaseData();
     dataRef.current = fresh;
     lastSavedStateRef.current = snapshotOf(fresh);
@@ -488,6 +486,7 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isHydratedRef.current = true;
     setIsHydrated(true);
     setLoadError(false);
+    setConfirmFreshLoadError(false);
   }, []);
 
   // Save with Undo tracking.
@@ -691,6 +690,11 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const uiConfirm = useCallback((message: string, opts: ConfirmDialogOptions = {}): Promise<boolean> => {
+    if (confirmResolveRef.current) {
+      const prev = confirmResolveRef.current;
+      confirmResolveRef.current = null;
+      prev(false);
+    }
     return new Promise<boolean>(resolve => {
       confirmResolveRef.current = resolve;
       setConfirmState({
@@ -703,6 +707,11 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const uiPrompt = useCallback((message: string, defaultValue: string = '', opts: PromptDialogOptions = {}): Promise<string | null> => {
+    if (promptResolveRef.current) {
+      const prev = promptResolveRef.current;
+      promptResolveRef.current = null;
+      prev(null);
+    }
     return new Promise<string | null>(resolve => {
       promptResolveRef.current = resolve;
       setPromptState({
@@ -1040,67 +1049,82 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ${yearSub ? `<div class="print-sub2">${yearSub}</div>` : ''}
         ${noteLine ? `<div class="print-sub2 cg-nocap" style="font-weight:700">${noteLine}</div>` : ''}
         <div class="sheet-title">${esc(title)}</div>
-        ${subline ? `<div class="print-sub2" style="margin-top:1mm;font-weight:700">${subline}</div>` : ''}
+        ${subline ? `<div class="print-sub2" style="margin-top:1mm;font-weight:700">${esc(subline)}</div>` : ''}
       </div>
       ${spacerHTML}
     </div>`;
   }, [data.schoolLogo, data.className, data.inchargeName, data.academicYear, data.sessionDisplay, data.printNote, data.schoolName]);
 
+  const canUndo = historyStackRef.current.length > 0;
+  const canRedo = redoStackRef.current.length > 0;
+
+  const contextValue = useMemo<ClassroomContextType>(() => ({
+    data,
+    activeTab,
+    setActiveTab,
+    activeAssessmentId,
+    setActiveAssessmentId,
+    activeFundId,
+    setActiveFundId,
+    darkMode,
+    toggleDarkMode,
+    tableSizeLevel,
+    changeTableSize,
+    saveData,
+    quickSaveData,
+    flushSave,
+    replaceAllData,
+    resetEverything,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    toasts,
+    toast,
+    dismissToast,
+    isSavedFlashing,
+    uiConfirm,
+    uiPrompt,
+    closeConfirm,
+    closePrompt,
+    confirmState,
+    promptState,
+    helpModalOpen,
+    openHelp,
+    closeHelp,
+    infoModal,
+    showInfoModal,
+    closeInfoModal,
+    isTodayAttendanceTaken,
+    countDay,
+    studentMonthStats,
+    classAttendanceForMonth,
+    classAttendanceThisMonth,
+    calcAssessmentResult,
+    computeAssessmentRanking,
+    assessmentEntryCount,
+    computeFundStats,
+    getFundStudentStatus,
+    classFundsSummary,
+    classAverageForAssessment,
+    buildPrintHeaderHTML,
+    isHydrated
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    data, activeTab, setActiveTab, activeAssessmentId, setActiveAssessmentId,
+    activeFundId, setActiveFundId, darkMode, toggleDarkMode, tableSizeLevel, changeTableSize,
+    saveData, quickSaveData, flushSave, replaceAllData, resetEverything, undo, redo,
+    canUndo, canRedo, historyVersion, toasts, toast, dismissToast, isSavedFlashing,
+    uiConfirm, uiPrompt, closeConfirm, closePrompt, confirmState, promptState,
+    helpModalOpen, openHelp, closeHelp, infoModal, showInfoModal, closeInfoModal,
+    isTodayAttendanceTaken, countDay, studentMonthStats, classAttendanceForMonth,
+    classAttendanceThisMonth, calcAssessmentResult, computeAssessmentRanking,
+    assessmentEntryCount, computeFundStats, getFundStudentStatus, classFundsSummary,
+    classAverageForAssessment, buildPrintHeaderHTML, isHydrated
+  ]);
+
   return (
-    <ClassroomContext.Provider
-      value={{
-        data,
-        activeTab,
-        setActiveTab,
-        activeAssessmentId,
-        setActiveAssessmentId,
-        activeFundId,
-        setActiveFundId,
-        darkMode,
-        toggleDarkMode,
-        tableSizeLevel,
-        changeTableSize,
-        saveData,
-        quickSaveData,
-        flushSave,
-        replaceAllData,
-        resetEverything,
-        undo,
-        redo,
-        canUndo: historyStackRef.current.length > 0,
-        canRedo: redoStackRef.current.length > 0,
-        toasts,
-        toast,
-        dismissToast,
-        isSavedFlashing,
-        uiConfirm,
-        uiPrompt,
-        closeConfirm,
-        closePrompt,
-        confirmState,
-        promptState,
-        helpModalOpen,
-        openHelp,
-        closeHelp,
-        infoModal,
-        showInfoModal,
-        closeInfoModal,
-        isTodayAttendanceTaken,
-        countDay,
-        studentMonthStats,
-        classAttendanceForMonth,
-        classAttendanceThisMonth,
-        calcAssessmentResult,
-        computeAssessmentRanking,
-        assessmentEntryCount,
-        computeFundStats,
-        getFundStudentStatus,
-        classFundsSummary,
-        classAverageForAssessment,
-        buildPrintHeaderHTML,
-        isHydrated
-      }}
-    >
+    <ClassroomContext.Provider value={contextValue}>
       {!isHydrated && loadError ? (
         <div className="min-h-screen flex flex-col items-center justify-center bg-stone-100 dark:bg-stone-950 text-stone-800 dark:text-stone-200 p-6 text-center">
           <div className="w-16 h-16 rounded-2xl bg-[#991B1B] text-white flex items-center justify-center shadow-lg mb-4 text-2xl font-bold">CG</div>
@@ -1111,17 +1135,41 @@ export const ClassroomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           <button
             type="button"
             onClick={() => setLoadAttempt(n => n + 1)}
-            className="px-5 py-2.5 rounded-xl bg-[#991B1B] text-white text-sm font-bold cursor-pointer"
+            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#991B1B] text-white text-sm font-bold cursor-pointer"
           >
             Retry
           </button>
-          <button
-            type="button"
-            onClick={startFreshAfterLoadError}
-            className="mt-3 text-xs font-semibold text-stone-500 underline cursor-pointer"
-          >
-            Start with empty records
-          </button>
+          {!confirmFreshLoadError ? (
+            <button
+              type="button"
+              onClick={() => setConfirmFreshLoadError(true)}
+              className="mt-3 min-h-[44px] px-3 text-xs font-semibold text-stone-500 underline cursor-pointer"
+            >
+              Start with empty records
+            </button>
+          ) : (
+            <div className="mt-4 max-w-xs w-full p-3.5 rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-left space-y-2.5">
+              <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                <b>Start with empty records?</b> This replaces the records that could not be opened. Only continue if Retry keeps failing and you have a backup file to import.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmFreshLoadError(false)}
+                  className="flex-1 min-h-[44px] rounded-xl text-xs font-bold bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={startFreshAfterLoadError}
+                  className="flex-1 min-h-[44px] rounded-xl text-xs font-bold bg-[#991B1B] text-white cursor-pointer"
+                >
+                  Start fresh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : !isHydrated ? (
         <div className="min-h-screen flex flex-col items-center justify-center bg-stone-100 dark:bg-stone-950 text-stone-800 dark:text-stone-200 p-6 select-none">

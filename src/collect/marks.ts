@@ -86,8 +86,6 @@ export interface MarksPlan {
   daily?: 'attendance' | 'test';
 }
 
-export const isMarksReturn = (r: ReturnFile) => r.kind === 'marks';
-
 export function planMarksReturn(data: AppData, ret: ReturnFile): MarksPlan {
   const plan: MarksPlan = { assessment: null, changes: [], missing: 0, alreadySame: 0 };
   const asmt = data.assessments.find(a => a.id === ret.assessmentId);

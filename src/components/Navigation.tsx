@@ -48,7 +48,7 @@ export const Navigation: React.FC = () => {
     { id: 'view' as ActiveTab, label: 'Student list (Print)', icon: FileText },
     { id: 'collect' as ActiveTab, label: 'Send & Receive', icon: Send },
     { id: 'inbox' as ActiveTab, label: 'Class files', icon: Inbox },
-    ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Classes', icon: Archive }] : []),
+    ...(prefs.showAdvanced ? [{ id: 'classes' as ActiveTab, label: 'Saved classes', icon: Archive }] : []),
     { id: 'settings' as ActiveTab, label: 'Class Detail and Backup', icon: Settings },
   ];
 
@@ -106,7 +106,7 @@ export const Navigation: React.FC = () => {
     },
     ...(prefs.showAdvanced ? [{
       id: 'classes' as ActiveTab,
-      label: 'Classes',
+      label: 'Saved classes',
       icon: Archive,
       desc: 'Save, switch & start classes · keep every class safe'
     }] : []),
@@ -129,7 +129,7 @@ export const Navigation: React.FC = () => {
   return (
     <>
       {/* Desktop Top Navigation Bar (Hidden on Mobile) */}
-      <nav className="hidden lg:flex items-center justify-center gap-1.5 py-2.5 px-4 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 transition-colors">
+      <nav className="hidden lg:flex flex-wrap items-center justify-center gap-1.5 py-2.5 px-4 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 transition-colors">
         {desktopAllTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

@@ -40,7 +40,13 @@ export const TeacherHome: React.FC = () => {
       <button type="button" onClick={() => setActiveTab('attendance')}
         className="w-full text-left p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 cursor-pointer active:scale-[0.99]">
         <div className="text-xs text-stone-500">{prettyDate(todayKey())}</div>
-        <div className="font-black mt-0.5">{taken ? `Attendance taken: ${c.present} present, ${c.absent} absent${c.leave ? `, ${c.leave} leave` : ''}` : 'Attendance not taken yet'}</div>
+        <div className="font-black mt-0.5">
+          {c.holiday
+            ? 'Today is marked as a Class Holiday'
+            : taken
+              ? `Attendance taken: ${c.present} present, ${c.absent} absent${c.leave ? `, ${c.leave} leave` : ''}`
+              : 'Attendance not taken yet'}
+        </div>
         <div className="text-xs font-bold text-red-800 dark:text-red-400 mt-1">{taken ? 'Open attendance' : 'Take attendance now'} →</div>
       </button>
       <div className="grid grid-cols-2 gap-3">

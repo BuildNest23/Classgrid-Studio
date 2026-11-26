@@ -227,12 +227,12 @@ export async function importIntoShelf(parsed: unknown): Promise<{ added: number;
 }
 
 /** Builds the "back up all classes" payload. */
-export async function buildShelfBackup(): Promise<{ app: 'ClassGridShelf'; version: 1; exportedAt: string; classes: Array<{ name: string; data: AppData }> }> {
+export async function buildShelfBackup(): Promise<{ app: 'ClassGridShelf'; version: 1; exportedAt: string; classes: Array<{ id: string; name: string; data: AppData }> }> {
   const index = await listShelf();
-  const classes: Array<{ name: string; data: AppData }> = [];
+  const classes: Array<{ id: string; name: string; data: AppData }> = [];
   for (const e of index) {
     const data = await loadFromShelf(e.id);
-    if (data) classes.push({ name: e.name, data });
+    if (data) classes.push({ id: e.id, name: e.name, data });
   }
   return { app: 'ClassGridShelf', version: 1, exportedAt: new Date().toISOString(), classes };
 }

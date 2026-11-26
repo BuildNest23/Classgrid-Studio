@@ -1,5 +1,5 @@
 import { PrintSizeKey } from '../types';
-import { PRINT_SIZES } from './helpers';
+import { PRINT_SIZES, esc } from './helpers';
 import { Capacitor } from '@capacitor/core';
 import { Printer } from '@capgo/capacitor-printer';
 import { loadCapsPrint } from './capsPrint';
@@ -405,7 +405,7 @@ export function buildStandalonePrintHTML(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>${docTitle}</title>
+  <title>${esc(docTitle)}</title>
   <style>
     @page {
       size: A4 ${orientation};
@@ -480,9 +480,17 @@ export async function triggerPrint(
   // The browser names the saved PDF after the page title
   const oldTitle = document.title;
   document.title = docTitle;
-  const restoreTitle = () => { document.title = oldTitle; window.removeEventListener('afterprint', restoreTitle); };
+  let titleTimer: number | undefined;
+  const restoreTitle = () => {
+    document.title = oldTitle;
+    window.removeEventListener('afterprint', restoreTitle);
+    if (titleTimer !== undefined) {
+      window.clearTimeout(titleTimer);
+      titleTimer = undefined;
+    }
+  };
   window.addEventListener('afterprint', restoreTitle);
-  setTimeout(restoreTitle, 120000);
+  titleTimer = window.setTimeout(restoreTitle, 120000);
 
   printArea.style.setProperty('--mult', String(mult));
   printArea.innerHTML = contentHTML;

@@ -27,7 +27,12 @@ export const EditFieldModal: React.FC<EditFieldModalProps> = ({
   useEffect(() => {
     ref.current?.focus();
     ref.current?.select();
-  }, []);
+    const onGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onGlobalKey);
+    return () => window.removeEventListener('keydown', onGlobalKey);
+  }, [onClose]);
 
   const save = () => {
     const v = text.trim();
@@ -60,7 +65,7 @@ export const EditFieldModal: React.FC<EditFieldModalProps> = ({
             <div className="text-sm font-bold text-[#1C1917] dark:text-[#F5F5F4]">{label}</div>
             <div className="text-xs text-[#78716C] dark:text-[#A8A29E] truncate">{subject}</div>
           </div>
-          <button type="button" onClick={onClose} className="p-1 rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer" title="Close">
+          <button type="button" onClick={onClose} className="w-11 h-11 -mr-1.5 -mt-1.5 flex items-center justify-center rounded-xl text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer" title="Close" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -89,10 +94,10 @@ export const EditFieldModal: React.FC<EditFieldModalProps> = ({
         {error && <div className="text-xs font-semibold text-red-700 dark:text-red-400">{error}</div>}
 
         <div className="flex gap-2 pt-1">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer">
+          <button type="button" onClick={onClose} className="flex-1 min-h-[44px] py-2.5 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] cursor-pointer">
             Cancel
           </button>
-          <button type="button" onClick={save} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer">
+          <button type="button" onClick={save} className="flex-1 min-h-[44px] py-2.5 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] cursor-pointer">
             Save
           </button>
         </div>

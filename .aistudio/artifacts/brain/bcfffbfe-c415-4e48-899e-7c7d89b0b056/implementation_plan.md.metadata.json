@@ -1,6 +1,0 @@
-{
-  "summary": "Revised implementation plan incorporating user must-haves: per-class tools with backward compatibility (old data = all tools on), empty-install welcome sheet with skip and restore options, compact collapsible My Tools card on Home and Settings, advanced tools switch, permanent backup/restore/new-class actions, next-step hints, and leaving ResultsView intact.",
-  "updatedAt": "2026-10-17T11:25:07.608414100Z",
-  "requestFeedback": true,
-  "userFacing": true
-}

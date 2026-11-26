@@ -446,7 +446,7 @@ export const ClassesView: React.FC = () => {
                       aria-label="Move up"
                       onClick={() => handleMove(entry, -1)}
                       disabled={busy || idx === 0}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
+                      className="w-11 h-11 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
                     >
                       <ChevronUp className="w-5 h-5" />
                     </button>
@@ -455,7 +455,7 @@ export const ClassesView: React.FC = () => {
                       aria-label="Move down"
                       onClick={() => handleMove(entry, 1)}
                       disabled={busy || idx === list.length - 1}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
+                      className="w-11 h-11 flex items-center justify-center rounded-lg border border-[#E7E5E4] dark:border-[#44403C] bg-white dark:bg-[#1C1917] text-stone-700 dark:text-stone-300 disabled:opacity-30 cursor-pointer"
                     >
                       <ChevronDown className="w-5 h-5" />
                     </button>

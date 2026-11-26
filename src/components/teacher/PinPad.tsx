@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { verifyPin } from '../../utils/appMode';
 
 export const PinPad: React.FC<{ onOk: () => void; onCancel: () => void }> = ({ onOk, onCancel }) => {
   const [v, setV] = useState('');
   const [bad, setBad] = useState(false);
   const submit = () => { if (verifyPin(v)) onOk(); else { setBad(true); setV(''); } };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-5" onClick={onCancel}>
       <div className="w-full max-w-xs bg-white dark:bg-stone-900 rounded-3xl p-5" onClick={e => e.stopPropagation()}>

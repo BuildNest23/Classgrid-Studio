@@ -99,7 +99,7 @@ export function generateDailyTestRegisterHTML(data: AppData, options: PrintOptio
     for (let d = 1; d <= daysInMonth; d++) {
       const k = `${yearStr}-${String(monthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const rec = data.dailyTests[k];
-      if (rec && Object.keys(rec).length > 0) testDaysHeld++;
+      if (rec && data.students.some(s => rec[s.id] !== undefined)) testDaysHeld++;
     }
   }
 

@@ -144,7 +144,9 @@ export function normalizeData(raw: unknown): AppData {
           }
         }
       });
-      dailyTests[dateKey] = cleanDay;
+      if (Object.keys(cleanDay).length > 0) {
+        dailyTests[dateKey] = cleanDay;
+      }
     });
   }
 

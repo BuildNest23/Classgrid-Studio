@@ -166,6 +166,9 @@ export const CollectView: React.FC<{ limit?: 'marks' }> = ({ limit }) => {
 
   const addText = (text: string, fileName: string) => {
     const ret = parseReturn(text);
+    if (limit === 'marks' && ret.kind !== 'marks') {
+      throw new Error('Only marks forms can be imported here.');
+    }
     const plan = planReturn(data, ret);
     const marks = ret.kind === 'marks' ? planMarksReturn(data, ret) : ret.kind === 'daily' ? planDailyReturn(data, ret) : undefined;
     const picked = new Set<string>([
@@ -597,8 +600,8 @@ export const CollectView: React.FC<{ limit?: 'marks' }> = ({ limit }) => {
                     <div className="flex gap-2 pt-1">
                       <button type="button" onClick={() => setAll(li, true)} className="py-2 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">Tick all</button>
                       <button type="button" onClick={() => setAll(li, false)} className="py-2 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] cursor-pointer">Untick all</button>
-                      <button type="button" disabled={!pk} onClick={() => apply(li)} className="flex-1 py-2 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer">
-                        Apply {pk} mark{pk === 1 ? '' : 's'}
+                      <button type="button" disabled={!pk} onClick={() => apply(li)} className="flex-1 min-h-[44px] py-2 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer">
+                        Apply {pk} {m.daily ? (pk === 1 ? 'entry' : 'entries') : (pk === 1 ? 'mark' : 'marks')}
                       </button>
                     </div>
                   )}

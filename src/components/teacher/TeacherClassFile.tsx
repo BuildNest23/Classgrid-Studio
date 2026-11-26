@@ -11,6 +11,7 @@ export const TeacherClassFile: React.FC = () => {
   const { data, saveData, replaceAllData, toast, uiConfirm, setActiveTab } = useClassroom();
   const ref = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+  const [sending, setSending] = useState(false);
   const hasClass = !!data.classId;
 
   const onFile = async (f: File | undefined) => {
@@ -42,13 +43,19 @@ export const TeacherClassFile: React.FC = () => {
   };
 
   const sendUpdate = async () => {
+    if (sending) return;
     const u = buildTeacherUpdate(data);
     if (!u) return;
-    const blob = new Blob([JSON.stringify(u)], { type: 'application/json' });
-    const ok = await exportFileBlob(blob, updateFileName(u), { title: `Update - ${u.className || 'Class'}`, dialogTitle: 'Send update to management', preferShareOnWeb: true });
-    if (ok) {
-      saveData(prev => prev.teacherLink ? { ...prev, teacherLink: { ...prev.teacherLink, lastSentAt: Date.now() } } : prev);
-      toast('Update file ready.', 'success');
+    setSending(true);
+    try {
+      const blob = new Blob([JSON.stringify(u)], { type: 'application/json' });
+      const ok = await exportFileBlob(blob, updateFileName(u), { title: `Update - ${u.className || 'Class'}`, dialogTitle: 'Send update to management', preferShareOnWeb: true });
+      if (ok) {
+        saveData(prev => prev.teacherLink ? { ...prev, teacherLink: { ...prev.teacherLink, lastSentAt: Date.now() } } : prev);
+        toast('Update file ready.', 'success');
+      }
+    } finally {
+      setSending(false);
     }
   };
 
@@ -60,7 +67,7 @@ export const TeacherClassFile: React.FC = () => {
         <h2 className="mt-3 text-lg font-black">Send update to management</h2>
         <p className="text-sm text-stone-500 mt-1">Shares your attendance, marks and fund records as one file (WhatsApp, email…). Safe to send again anytime.</p>
         {data.teacherLink?.lastSentAt ? <p className="text-xs text-stone-400 mt-1">Last sent: {new Date(data.teacherLink.lastSentAt).toLocaleString()}</p> : null}
-        <button type="button" onClick={sendUpdate} className="mt-4 w-full min-h-[48px] rounded-2xl bg-red-800 text-white font-bold cursor-pointer active:scale-[0.98]">Send update</button>
+        <button type="button" disabled={sending} onClick={sendUpdate} className="mt-4 w-full min-h-[48px] rounded-2xl bg-red-800 text-white font-bold cursor-pointer active:scale-[0.98] disabled:opacity-60">{sending ? 'Preparing...' : 'Send update'}</button>
       </div>
     )}
     <div className="rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-5">
