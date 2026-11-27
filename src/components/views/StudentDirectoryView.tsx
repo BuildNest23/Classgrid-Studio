@@ -5,6 +5,7 @@ import { RollMode, changeRoll, findRollOwner, formatRoll, isBlankRoll } from '..
 import { useClassroom } from '../../context/ClassroomContext';
 import { getSortedStudents, esc, fileTitle, prettyDate, todayKey } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
+import { computePrintTableLayout, PrintColumnSpec } from '../../utils/printTableLayout';
 import { downloadStudentListPNG } from '../../utils/canvasExport';
 import { Printer, Share2, FileSpreadsheet, GraduationCap } from 'lucide-react';
 import { exportFileBlob } from '../../utils/nativeFileExport';
@@ -172,19 +173,40 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
     const on = OPTIONAL_COLS.filter(c => cols[c.key]);
     const optCell = (k: OptionalCol, s: (typeof sortedStudents)[number]) =>
       k === 'phone'
-        ? `<td class="center">${esc(s.phone || '—')}</td>`
+        ? `<td class="center"><span class="cg-fit-line">${esc(s.phone || '—')}</span></td>`
         : k === 'address'
         ? `<td>${esc(s.address || '—')}</td>`
         : k === 'occupation'
         ? `<td>${esc(s.occupation || '—')}</td>`
         : `<td class="cg-nocap">${esc(s.notes || '—')}</td>`;
 
+    const colSpecs: PrintColumnSpec[] = [
+      { label: 'Roll #', values: sortedStudents.map(s => s.rollNo || ''), kind: 'index' },
+      { label: 'Adm. No', values: sortedStudents.map(s => s.admissionNo || ''), kind: 'code' },
+      { label: 'Name', values: sortedStudents.map(s => s.name || ''), kind: 'name' },
+      { label: 'Father Name', values: sortedStudents.map(s => s.fatherName || ''), kind: 'name' },
+      ...on.map<PrintColumnSpec>(c => ({
+        label: c.label,
+        values: sortedStudents.map(s =>
+          c.key === 'phone'
+            ? s.phone || ''
+            : c.key === 'address'
+            ? s.address || ''
+            : c.key === 'occupation'
+            ? s.occupation || ''
+            : s.notes || ''
+        ),
+        kind: c.key === 'phone' ? 'phone' : 'text',
+        nocap: c.key === 'notes',
+      })),
+    ];
+
     const rows = sortedStudents
       .map(
         s => `
       <tr>
-        <td class="center font-mono font-bold">${esc(s.rollNo || '—')}</td>
-        <td class="center font-mono">${esc(s.admissionNo || '—')}</td>
+        <td class="center font-mono font-bold"><span class="cg-fit-line">${esc(s.rollNo || '—')}</span></td>
+        <td class="center font-mono"><span class="cg-fit-line">${esc(s.admissionNo || '—')}</span></td>
         <td><span class="cg-fit">${esc(s.name || '—')}</span></td>
         <td><span class="cg-fit">${esc(s.fatherName || '—')}</span></td>
         ${on.map(c => optCell(c.key, s)).join('')}
@@ -192,26 +214,44 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
       )
       .join('');
 
-    const optW = on.length ? Math.floor(36 / on.length) : 0;
-    const fixedExtra = on.length ? 0 : 36;
-    const nameW = 22.5 + fixedExtra / 2;
-    const fullPrintHTML = `<div class="print-sheet">
+    const buildSheet = (orientation: 'portrait' | 'landscape', printSize = data.printSize, caps?: boolean) => {
+      const layout = computePrintTableLayout(colSpecs, {
+        fontPt: 9.5,
+        headFontPt: 8.5,
+        padXMm: 3.0,
+        printSize,
+        forceOrientation: orientation,
+        caps,
+      });
+      return `<div class="print-sheet">
       ${buildPrintHeaderHTML('Student List')}
       <table>
         <thead>
           <tr>
-            <th style="width:8%">Roll #</th>
-            <th style="width:11%">Adm. No</th>
-            <th style="width:${nameW}%">Name</th>
-            <th style="width:${nameW}%">Father Name</th>
-            ${on.map(c => `<th style="width:${optW}%">${c.label}</th>`).join('')}
+            ${colSpecs.map((c, i) => `<th style="width:${layout.widthsPct[i]}%">${esc(c.label)}</th>`).join('')}
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="${4 + on.length}" class="center">No students</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="${colSpecs.length}" class="center">No students</td></tr>`}</tbody>
       </table>
     </div>`;
+    };
 
-    const ok = await previewPrint({ html: fullPrintHTML, orientation: 'portrait' }, data);
+    const initialLayout = computePrintTableLayout(colSpecs, {
+      fontPt: 9.5,
+      headFontPt: 8.5,
+      padXMm: 3.0,
+      printSize: data.printSize,
+      forceOrientation: data.forceOrientation,
+    });
+
+    const ok = await previewPrint(
+      {
+        html: buildSheet(initialLayout.orientation, data.printSize),
+        orientation: initialLayout.orientation,
+        build: ({ orientation, size, caps }) => buildSheet(orientation, size, caps),
+      },
+      data
+    );
     if (!ok) toast('Could not open the print dialog. Try again.', 'error');
   };
 

@@ -163,6 +163,9 @@ const BASE_PRINT_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+  .print-sheet, .print-sheet * {
+    box-sizing: border-box;
+  }
   .print-sheet table {
     width: 100%;
     border-collapse: collapse !important;
@@ -177,12 +180,20 @@ const BASE_PRINT_CSS = `
     vertical-align: middle;
     color: #000000;
     background: #FFFFFF;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
   }
   .print-sheet th {
     background: #E5E7EB;
     font-weight: 700;
     text-align: center;
     font-size: calc(8.5pt * var(--mult, 1));
+  }
+  .print-sheet .cg-fit-line {
+    display: inline-block;
+    max-width: 100%;
+    white-space: nowrap;
   }
   .print-sheet td.center { text-align: center; }
   .print-sheet td.num { text-align: center; font-variant-numeric: tabular-nums; }
@@ -194,6 +205,7 @@ const BASE_PRINT_CSS = `
     padding: calc(0.8mm * var(--mult, 1)) calc(0.3mm * var(--mult, 1));
     font-size: calc(7pt * var(--mult, 1));
     text-align: center;
+    overflow: hidden;
   }
   .print-sheet .reg-table th { font-size: calc(6.5pt * var(--mult, 1)); }
   .print-sheet .reg-table td.left { text-align: left; padding-left: 1mm; }
@@ -263,7 +275,7 @@ const BASE_PRINT_CSS = `
   .ps2 .ps2-sigs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8mm; margin-top: 8mm; }
   .ps2 .ps2-sigs > div { border-top: 0.3mm solid #000; padding-top: 1.6mm; text-align: center; font-size: calc(9pt * var(--mult, 1)); }
   .print-sheet.ps2 table { border: 0 !important; }
-  .print-sheet.ps2 .ps2-table th, .print-sheet.ps2 .ps2-table td { font-size: calc(9pt * var(--mult, 1)); vertical-align: middle; }
+  .print-sheet.ps2 .ps2-table th, .print-sheet.ps2 .ps2-table td { font-size: calc(9pt * var(--mult, 1)); vertical-align: middle; overflow-wrap: break-word; word-break: break-word; }
   .print-sheet.ps2 .ps2-table td.name, .print-sheet.ps2 .ps2-table td.left, .print-sheet.ps2 .ps2-table th.left { text-align: left; }
   .print-sheet.ps2 .ps2-table td.num { text-align: center; }
   .ps2 .ps2-strong { font-weight: 800; }
@@ -446,8 +458,8 @@ export async function triggerPrint(
   const mult = (PRINT_SIZES[printSize] || PRINT_SIZES.m).mult;
   const finalOrientation = (forceOrientation || orientation || 'portrait') as 'portrait' | 'landscape';
 
-  // Run long names auto-fit measurement pre-pass so names shrink instead of overflowing columns
-  contentHTML = await fitLongNames(contentHTML);
+  // Run long names & single-line cell auto-fit pre-pass at the exact print orientation and text size
+  contentHTML = await fitLongNames(contentHTML, { orientation: finalOrientation, mult });
 
   const docTitle = (title || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();

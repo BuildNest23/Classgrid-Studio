@@ -1,3 +1,4 @@
+import { PrintSizeKey } from '../types';
 import { triggerPrint, classPrintTitle } from './printEngine';
 
 /** Options of the compact (one-line names, small boxes) version of a sheet, set in the print preview. */
@@ -8,6 +9,12 @@ export interface CompactOptions {
   caps: boolean;
 }
 
+export interface DynamicBuildOptions {
+  orientation: 'portrait' | 'landscape';
+  size: PrintSizeKey;
+  caps: boolean;
+}
+
 export interface PrintRequest {
   html: string;
   /** The orientation this sheet is normally printed in. */
@@ -15,6 +22,8 @@ export interface PrintRequest {
   pageNumbers?: boolean;
   /** Builds the compact version of this sheet. When present, the preview offers a Compact sheet option. */
   compact?: (o: CompactOptions) => string;
+  /** Optional dynamic builder that recalculates column widths when orientation, text size, or caps change in preview. */
+  build?: (o: DynamicBuildOptions) => string;
 }
 
 type Listener = (req: PrintRequest) => void;

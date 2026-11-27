@@ -720,13 +720,22 @@ export const ResultsView: React.FC = () => {
       toast("Add subjects first.", "error");
       return;
     }
-    const layout = planResultPrintLayout(
-      ranked.map(item => item.s.name || ""),
-      activeAsmt.subjects.map(sub => sub.name),
-      data.printSize,
-      data.forceOrientation
+    const ctx = printCtx();
+    const stuNames = ranked.map(item => item.s.name || "");
+    const subNames = activeAsmt.subjects.map(sub => sub.name);
+    const layout = planResultPrintLayout(stuNames, subNames, data.printSize, data.forceOrientation);
+    const ok = await previewPrint(
+      {
+        html: buildClassResultHTML(ctx, layout, data.printSize),
+        orientation: layout.orientation,
+        pageNumbers: true,
+        build: ({ orientation, size }) => {
+          const dynLayout = planResultPrintLayout(stuNames, subNames, size, orientation);
+          return buildClassResultHTML(ctx, { ...dynLayout, orientation }, size);
+        },
+      },
+      data
     );
-    const ok = await previewPrint({ html: buildClassResultHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -784,13 +793,23 @@ export const ResultsView: React.FC = () => {
       toast("Add students first.", "error");
       return;
     }
-    const layout = planResultPrintLayout(
-      data.students.map(s => s.name || ""),
-      activeAsmt.subjects.map(sub => sub.name),
-      data.printSize,
-      data.forceOrientation
+    const ctx = printCtx();
+    const stuNames = data.students.map(s => s.name || "");
+    const subNames = activeAsmt.subjects.map(sub => sub.name);
+    const layout = planResultPrintLayout(stuNames, subNames, data.printSize, data.forceOrientation);
+    const ok = await previewPrint(
+      {
+        html: buildBlankMarksSheetHTML(ctx, layout),
+        orientation: layout.orientation,
+        pageNumbers: true,
+        compact: o => buildCompactMarksSheetHTML(ctx, o),
+        build: ({ orientation, size }) => {
+          const dynLayout = planResultPrintLayout(stuNames, subNames, size, orientation);
+          return buildBlankMarksSheetHTML(ctx, { ...dynLayout, orientation });
+        },
+      },
+      data
     );
-    const ok = await previewPrint({ html: buildBlankMarksSheetHTML(printCtx(), layout), orientation: layout.orientation, pageNumbers: true, compact: o => buildCompactMarksSheetHTML(printCtx(), o) }, data);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -799,7 +818,16 @@ export const ResultsView: React.FC = () => {
       toast("Add subjects first.", "error");
       return;
     }
-    const ok = await previewPrint({ html: buildMeritListHTML(printCtx()), orientation: "portrait", pageNumbers: true }, data);
+    const ctx = printCtx();
+    const ok = await previewPrint(
+      {
+        html: buildMeritListHTML(ctx, { orientation: "portrait", printSize: data.printSize }),
+        orientation: "portrait",
+        pageNumbers: true,
+        build: ({ orientation, size, caps }) => buildMeritListHTML(ctx, { orientation, printSize: size, caps }),
+      },
+      data
+    );
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 

@@ -1,6 +1,7 @@
-import { AppData, Assessment, Student } from '../types';
+import { AppData, Assessment, PrintSizeKey, Student } from '../types';
 import { esc, ordinal, PRINT_SIZES, sessionParts } from './helpers';
 import { WatermarkSettings, loadWatermark, watermarkActive, watermarkHTML } from './logoWatermark';
+import { computePrintTableLayout, PrintColumnSpec } from './printTableLayout';
 
 export type ResultPrintStyle = 'a' | 'b';
 const PRINT_STYLE_KEY = 'classroomResultPrintStyle';
@@ -202,10 +203,39 @@ function pctCell(c: ResultPrintCtx, r: ResultCalc): string {
 
 export function buildClassResultHTML(
   c: ResultPrintCtx,
-  layout: { orientation: 'portrait' | 'landscape'; namePct: number; headFontPt: number }
+  layout: { orientation: 'portrait' | 'landscape'; namePct: number; headFontPt: number },
+  printSize: PrintSizeKey = c.data.printSize
 ): string {
   const { asmt, data, ranked } = c;
   const passPct = Number(asmt.passPercent) || 40;
+
+  // Compute compact widths for fixed summary columns so Total, %, Result, and Rank never overflow
+  const fixedSpecs: PrintColumnSpec[] = [
+    { label: 'Roll', values: ranked.map(i => i.s.rollNo || ''), kind: 'index' },
+    { label: 'Total', values: ranked.map(i => String(i.r.total)), kind: 'code' },
+    { label: '%', values: ranked.map(i => (hasMarks(i.r) ? fmtPct(i.r.pct) : '—')), kind: 'code' },
+    { label: 'Result', values: ranked.map(i => (i.r.passed ? 'PASS' : 'FAIL') + star(i.r.manual && !i.r.computedPass)), kind: 'status' },
+    { label: 'Rank', values: ranked.map(i => (hasMarks(i.r) ? ordinal(i.rank) : '—')), kind: 'index' },
+  ];
+  const pageMm = layout.orientation === 'landscape' ? 277 : 186;
+  const fixedMeasure = computePrintTableLayout(fixedSpecs, {
+    fontPt: 9,
+    headFontPt: 8.5,
+    padXMm: 2.2,
+    printSize,
+    forceOrientation: layout.orientation,
+  });
+  // Convert natural mm into conservative percentages capped so subject columns always keep room
+  const rawPct = fixedMeasure.naturalMm.map(mm => (mm / pageMm) * 100);
+  const scaleFix = Math.min(1, 38 / Math.max(1, rawPct.reduce((a, b) => a + b, 0)));
+  const rollPct = Math.round(Math.max(5.2, Math.min(8, rawPct[0] * scaleFix)) * 10) / 10;
+  const totalPct = Math.round(Math.max(6.2, Math.min(9.5, rawPct[1] * scaleFix)) * 10) / 10;
+  const pctColPct = Math.round(Math.max(6.8, Math.min(10, rawPct[2] * scaleFix)) * 10) / 10;
+  const resPct = Math.round(Math.max(8, Math.min(11.5, rawPct[3] * scaleFix)) * 10) / 10;
+  const rankPct = Math.round(Math.max(5.5, Math.min(8.5, rawPct[4] * scaleFix)) * 10) / 10;
+  const fixedSum = rollPct + totalPct + pctColPct + resPct + rankPct;
+  const maxNamePct = Math.max(14, 100 - fixedSum - Math.max(1, asmt.subjects.length) * 5.2);
+  const safeNamePct = Math.round(Math.min(layout.namePct, maxNamePct) * 10) / 10;
 
   const headCells = asmt.subjects
     .map(
@@ -221,17 +251,17 @@ export function buildClassResultHTML(
         .map(sub => {
           const raw = rawMark(c, s.id, sub.id);
           const failed = subjectFailed(raw, Number(sub.max) || 0, passPct);
-          return `<td class="num${failed ? ' ps2-failmark' : ''}">${esc(fmtMark(raw))}</td>`;
+          return `<td class="num${failed ? ' ps2-failmark' : ''}"><span class="cg-fit-line">${esc(fmtMark(raw))}</span></td>`;
         })
         .join('');
       return `<tr>
-        <td class="num">${esc(s.rollNo || '—')}</td>
+        <td class="num"><span class="cg-fit-line">${esc(s.rollNo || '—')}</span></td>
         <td class="name"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         ${markCells}
-        <td class="num ps2-strong">${r.total}</td>
-        <td class="num">${hasMarks(r) ? fmtPct(r.pct) : '—'}</td>
-        <td class="num">${resultTag(r)}</td>
-        <td class="num">${rankBadge(c, item.rank, hasMarks(r))}</td>
+        <td class="num ps2-strong"><span class="cg-fit-line">${r.total}</span></td>
+        <td class="num"><span class="cg-fit-line">${hasMarks(r) ? fmtPct(r.pct) : '—'}</span></td>
+        <td class="num"><span class="cg-fit-line">${resultTag(r)}</span></td>
+        <td class="num"><span class="cg-fit-line">${rankBadge(c, item.rank, hasMarks(r))}</span></td>
       </tr>`;
     })
     .join('');
@@ -242,13 +272,13 @@ export function buildClassResultHTML(
     ${infoBarHTML([`Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, failNote, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
     <table class="ps2-table ps2-res">
       <thead><tr>
-        <th style="width:6%">Roll</th>
-        <th class="name" style="width:${layout.namePct}%">Name</th>
+        <th style="width:${rollPct}%">Roll</th>
+        <th class="name" style="width:${safeNamePct}%">Name</th>
         ${headCells}
-        <th style="width:7%">Total</th>
-        <th style="width:7%">%</th>
-        <th style="width:9%">Result</th>
-        <th style="width:6%">Rank</th>
+        <th style="width:${totalPct}%">Total</th>
+        <th style="width:${pctColPct}%">%</th>
+        <th style="width:${resPct}%">Result</th>
+        <th style="width:${rankPct}%">Rank</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -399,7 +429,7 @@ export function buildBlankMarksSheetHTML(
   const rows = students
     .map(
       s => `<tr style="height:10.5mm;">
-        <td class="num" style="${box}">${esc(s.rollNo || '—')}</td>
+        <td class="num" style="${box}"><span class="cg-fit-line">${esc(s.rollNo || '—')}</span></td>
         <td class="name" style="${box}"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         ${blanks}
         <td class="num" style="${box}">&nbsp;</td>
@@ -412,10 +442,10 @@ export function buildBlankMarksSheetHTML(
     <style>.print-sheet.ps2 .ps2-table.ps2-hand th,.print-sheet.ps2 .ps2-table.ps2-hand td{border:0.25mm solid #777 !important}</style>
     <table class="ps2-table ps2-res ps2-hand">
       <thead><tr>
-        <th style="width:6%">Roll</th>
+        <th style="width:6.5%">Roll</th>
         <th class="name" style="width:${layout.namePct}%">Name</th>
         ${headCells}
-        <th style="width:9%">Total<br><span class="ps2-th-max">(${c.totalMax})</span></th>
+        <th style="width:9.5%">Total<br><span class="ps2-th-max">(${c.totalMax})</span></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -618,9 +648,13 @@ export function buildBlankReportCardHTML(c: ResultPrintCtx): string {
 
 // ---------- 3. Merit List ----------
 
-export function buildMeritListHTML(c: ResultPrintCtx): string {
+export function buildMeritListHTML(
+  c: ResultPrintCtx,
+  opts?: { orientation?: 'portrait' | 'landscape'; printSize?: PrintSizeKey; caps?: boolean }
+): string {
   const { asmt, data, ranked } = c;
   const passPct = Number(asmt.passPercent) || 40;
+  const ori = opts?.orientation ?? 'portrait';
 
   // Merit order: by rank (total marks), ties keep roll-number order.
   const list = ranked
@@ -630,6 +664,24 @@ export function buildMeritListHTML(c: ResultPrintCtx): string {
       const rb = b.rank || 1e9;
       return ra - rb;
     });
+
+  const colSpecs: PrintColumnSpec[] = [
+    { label: 'Rank', values: list.map(i => (hasMarks(i.r) ? ordinal(i.rank) + (c.style === 'b' && i.rank <= 3 ? ' ★' : '') : '—')), kind: 'index' },
+    { label: 'Roll', values: list.map(i => i.s.rollNo || ''), kind: 'index' },
+    { label: 'Name', values: list.map(i => i.s.name || ''), kind: 'name' },
+    { label: 'Father Name', values: list.map(i => i.s.fatherName || ''), kind: 'name' },
+    { label: 'Total', values: list.map(i => String(i.r.total)), kind: 'code' },
+    { label: '%', values: list.map(i => (hasMarks(i.r) ? fmtPct(i.r.pct) : '—')), kind: 'code', minMm: c.style === 'a' ? 24 : 15 },
+    { label: 'Result', values: list.map(i => (i.r.passed ? 'PASS' : 'FAIL') + star(i.r.manual && !i.r.computedPass)), kind: 'status' },
+  ];
+  const layout = computePrintTableLayout(colSpecs, {
+    fontPt: 9,
+    headFontPt: 9,
+    padXMm: 2.4,
+    printSize: opts?.printSize ?? data.printSize,
+    forceOrientation: ori,
+    caps: opts?.caps,
+  });
 
   const rows = list
     .map(item => {
@@ -643,29 +695,29 @@ export function buildMeritListHTML(c: ResultPrintCtx): string {
           : `<span class="cg-nocap">${esc(ordinal(item.rank))}</span>`
         : `<span class="cg-nocap">${esc(ordinal(item.rank))}</span>` + (top ? ' ★' : '');
       return `<tr class="${top && c.style === 'b' ? 'ps2-toprow' : ''}">
-        <td class="num">${rankCell}</td>
-        <td class="num">${esc(s.rollNo || '—')}</td>
+        <td class="num"><span class="cg-fit-line">${rankCell}</span></td>
+        <td class="num"><span class="cg-fit-line">${esc(s.rollNo || '—')}</span></td>
         <td class="name ps2-namebold"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         <td class="name"><span class="cg-fit">${esc(s.fatherName || '—')}</span></td>
-        <td class="num ps2-strong">${r.total}</td>
+        <td class="num ps2-strong"><span class="cg-fit-line">${r.total}</span></td>
         <td class="num">${pctCell(c, r)}</td>
-        <td class="num">${resultTag(r)}</td>
+        <td class="num"><span class="cg-fit-line">${resultTag(r)}</span></td>
       </tr>`;
     })
     .join('');
 
-  return `<div class="print-sheet ps2 ps2-${c.style} ps2-port">
+  return `<div class="print-sheet ps2 ps2-${c.style} ${pageClass(ori)}">
     ${headerHTML(c, 'Merit List')}
     ${infoBarHTML(['Ranked by total marks', `Pass mark: ${passPct}%`, `Total max: ${c.totalMax}`, `Students: ${data.students.length}`, ...(hasManualPass(c) ? ['✱ Passed manually'] : [])])}
     <table class="ps2-table ps2-merit">
       <thead><tr>
-        <th style="width:9%">Rank</th>
-        <th style="width:8%">Roll</th>
-        <th class="name">Name</th>
-        <th class="name">Father Name</th>
-        <th style="width:9%">Total</th>
-        <th style="width:${c.style === 'a' ? 15 : 9}%">%</th>
-        <th style="width:11%">Result</th>
+        <th style="width:${layout.widthsPct[0]}%">Rank</th>
+        <th style="width:${layout.widthsPct[1]}%">Roll</th>
+        <th class="name" style="width:${layout.widthsPct[2]}%">Name</th>
+        <th class="name" style="width:${layout.widthsPct[3]}%">Father Name</th>
+        <th style="width:${layout.widthsPct[4]}%">Total</th>
+        <th style="width:${layout.widthsPct[5]}%">%</th>
+        <th style="width:${layout.widthsPct[6]}%">Result</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

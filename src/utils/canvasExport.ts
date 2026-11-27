@@ -3,12 +3,113 @@ import { getSortedStudents, loadImage, prettyDate, sessionParts, fileTitle, toda
 import { exportImageBlob } from './nativeFileExport';
 import { loadCapsPrint } from './capsPrint';
 import { ListColumns, DEFAULT_LIST_COLUMNS, OptionalCol } from './studentListColumns';
+import { computeCanvasTableColWidths, PrintColumnSpec } from './printTableLayout';
 
 function cap(text: string, enabled: boolean): string {
   if (!text) return '';
   return enabled ? text.toUpperCase() : text;
 }
 
+/**
+ * Wraps text into lines within maxW, splitting ultra-long words cleanly if a single word exceeds maxW.
+ */
+function wrapCanvasLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  font: string
+): string[] {
+  ctx.font = font;
+  const safeMaxW = Math.max(16, maxW);
+  const raw = String(text ?? '');
+  if (!raw) return [''];
+  const words = raw.split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+
+  const lines: string[] = [];
+  let line = '';
+
+  const pushWord = (word: string) => {
+    if (ctx.measureText(word).width <= safeMaxW) {
+      if (!line) {
+        line = word;
+      } else if (ctx.measureText(line + ' ' + word).width <= safeMaxW) {
+        line = line + ' ' + word;
+      } else {
+        lines.push(line);
+        line = word;
+      }
+      return;
+    }
+    // Single word wider than cell: flush current line and break cleanly inside the word
+    if (line) {
+      lines.push(line);
+      line = '';
+    }
+    let chunk = '';
+    for (const ch of word) {
+      if (chunk && ctx.measureText(chunk + ch).width > safeMaxW) {
+        lines.push(chunk);
+        chunk = ch;
+      } else {
+        chunk += ch;
+      }
+    }
+    if (chunk) line = chunk;
+  };
+
+  for (const w of words) pushWord(w);
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+
+/**
+ * Draws single-line centered or left-aligned text, shrinking font down to 62% so codes/phones/headers
+ * never overflow their cell borders, with a hard clip safeguard.
+ */
+function drawSingleLineFittedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  baseFontSize: number,
+  fontWeight: number,
+  fontFamily: string,
+  align: 'center' | 'left' = 'center'
+) {
+  const padX = 6;
+  const maxW = Math.max(12, width - padX * 2);
+  const floorSize = Math.max(8, baseFontSize * 0.62);
+  let fitted = baseFontSize;
+
+  for (let sz = baseFontSize; sz >= floorSize; sz = Math.round((sz - 0.5) * 100) / 100) {
+    ctx.font = `${fontWeight} ${sz}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxW) {
+      fitted = sz;
+      break;
+    }
+    fitted = sz;
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x + 1, y + 1, Math.max(1, width - 2), Math.max(1, height - 2));
+  ctx.clip();
+  ctx.font = `${fontWeight} ${fitted}px ${fontFamily}`;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  const drawX = align === 'center' ? x + width / 2 : x + padX;
+  ctx.fillText(text, drawX, y + height / 2);
+  ctx.restore();
+}
+
+/**
+ * Draws text fitted cleanly inside a cell box: tries shrinking gently to 1 line,
+ * otherwise wraps neatly across lines (with a hard clip safeguard so nothing crosses cell borders).
+ */
 function drawFittedOrWrappedText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -18,20 +119,27 @@ function drawFittedOrWrappedText(
   height: number,
   baseFontSize: number,
   fontFamily: string,
-  maxLines: number = 2
+  maxLines: number = 4,
+  align: 'left' | 'center' = 'left',
+  fontWeight: number = 600
 ) {
-  const maxW = width - 10;
-  const floorSize = baseFontSize * 0.75;
+  const padX = 6;
+  const maxW = Math.max(14, width - padX * 2);
+  const floorSize = Math.max(8.5, baseFontSize * 0.78);
 
-  ctx.textAlign = 'left';
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x + 1, y + 1, Math.max(1, width - 2), Math.max(1, height - 2));
+  ctx.clip();
   ctx.fillStyle = '#000000';
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
 
-  // Try shrinking font down to 75% in 0.25 steps to fit on a single line
+  // Try single-line fit with gentle shrink first
   let fitsOneLine = false;
   let fittedSize = baseFontSize;
-
-  for (let sz = baseFontSize; sz >= floorSize; sz = Math.round((sz - 0.25) * 100) / 100) {
-    ctx.font = `600 ${sz}px ${fontFamily}`;
+  for (let sz = baseFontSize; sz >= floorSize; sz = Math.round((sz - 0.5) * 100) / 100) {
+    ctx.font = `${fontWeight} ${sz}px ${fontFamily}`;
     if (ctx.measureText(text).width <= maxW) {
       fitsOneLine = true;
       fittedSize = sz;
@@ -39,35 +147,29 @@ function drawFittedOrWrappedText(
     }
   }
 
+  const drawX = align === 'center' ? x + width / 2 : x + padX;
   if (fitsOneLine) {
-    ctx.font = `600 ${fittedSize}px ${fontFamily}`;
-    ctx.fillText(text, x + 5, y + height / 2);
-    ctx.textAlign = 'center';
+    ctx.font = `${fontWeight} ${fittedSize}px ${fontFamily}`;
+    ctx.fillText(text, drawX, y + height / 2);
+    ctx.restore();
     return;
   }
 
-  // Otherwise wrap into multiple lines as before
-  ctx.font = `600 ${baseFontSize}px ${fontFamily}`;
-  const words = text.split(/\s+/);
-  let line = '';
-  const lines: string[] = [];
-  words.forEach(w => {
-    const test = line ? line + ' ' + w : w;
-    if (ctx.measureText(test).width <= maxW) {
-      line = test;
-    } else {
-      if (line) lines.push(line);
-      line = w;
-    }
-  });
-  if (line) lines.push(line);
+  // Wrap cleanly into lines at base size (or slightly shrunk if needed to fit maxLines)
+  let fontSize = baseFontSize;
+  let lines = wrapCanvasLines(ctx, text, maxW, `${fontWeight} ${fontSize}px ${fontFamily}`);
+  while (lines.length > maxLines && fontSize > floorSize) {
+    fontSize = Math.max(floorSize, Math.round((fontSize - 0.5) * 100) / 100);
+    lines = wrapCanvasLines(ctx, text, maxW, `${fontWeight} ${fontSize}px ${fontFamily}`);
+  }
 
-  const finalLines = lines.length > maxLines ? lines.slice(0, maxLines) : lines;
-  const lineH = baseFontSize * 1.15;
+  const finalLines = lines.slice(0, maxLines);
+  const lineH = fontSize * 1.2;
   const totalTextH = finalLines.length * lineH;
-  const startY = y + height / 2 - totalTextH / 2 + lineH / 2 - 1;
-  finalLines.forEach((ln, li) => ctx.fillText(ln, x + 5, startY + li * lineH));
-  ctx.textAlign = 'center';
+  const startY = y + height / 2 - totalTextH / 2 + lineH / 2;
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  finalLines.forEach((ln, li) => ctx.fillText(ln, drawX, startY + li * lineH));
+  ctx.restore();
 }
 
 export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): Promise<boolean> {
@@ -90,23 +192,60 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     }
   }
 
+  const isCaps = loadCapsPrint();
   const pad = 30;
   const headerH = 140;
   const headRowH = 54;
-  const rowH = 56;
+  const baseRowH = 50;
   const dateH = 30;
-
-  const colWidths = [44, 70, 200, 200, 150, 200, 260];
   const bandH = 36;
-  const bandCount = (absentList.length ? 1 : 0) + (leaveList.length ? 1 : 0);
+
+  const allShown = [...absentList, ...leaveList];
+  const colSpecs: PrintColumnSpec[] = [
+    { label: '#', values: allShown.map((_, i) => String(i + 1)), kind: 'index' },
+    { label: 'Roll', values: allShown.map(s => s.rollNo || ''), kind: 'index' },
+    { label: 'Name', values: allShown.map(s => s.name || ''), kind: 'name' },
+    { label: 'Father Name', values: allShown.map(s => s.fatherName || ''), kind: 'name' },
+    { label: 'Father Occupation', values: allShown.map(s => s.occupation || ''), kind: 'text' },
+    { label: 'Phone', values: allShown.map(s => s.phone || ''), kind: 'phone' },
+    { label: 'Address', values: allShown.map(s => s.address || ''), kind: 'text' },
+  ];
+
+  const colWidths = computeCanvasTableColWidths(colSpecs, 15, 15, F, isCaps, 980, 1400);
   const tableW = colWidths.reduce((a, b) => a + b, 0);
   const totalW = pad * 2 + tableW;
+
+  // Measure dynamic row heights using a scratch canvas so wrapped addresses/occupations never get cut off
+  const measureCanvas = document.createElement('canvas');
+  const mCtx = measureCanvas.getContext('2d');
+  const calcRowH = (st: Student) => {
+    if (!mCtx) return baseRowH;
+    const vals = [
+      cap(st.name || '—', isCaps),
+      cap(st.fatherName || '—', isCaps),
+      cap(st.occupation || '—', isCaps),
+      cap(st.address || '—', isCaps),
+    ];
+    const colsIdx = [2, 3, 4, 6];
+    let maxLines = 1;
+    vals.forEach((v, idx) => {
+      const lines = wrapCanvasLines(mCtx, v, colWidths[colsIdx[idx]] - 12, `600 15px ${F}`);
+      if (lines.length > maxLines) maxLines = lines.length;
+    });
+    const clampedLines = Math.min(4, maxLines);
+    return Math.max(baseRowH, Math.ceil(clampedLines * 18.5 + 18));
+  };
+
+  const absentHeights = absentList.map(calcRowH);
+  const leaveHeights = leaveList.map(calcRowH);
 
   const total = sorted.length;
   const present = total - absentList.length - leaveList.length;
 
-  const dataRows = (isHoliday || noAbsentees) ? 0 : (absentList.length + leaveList.length);
-  const tableH = (isHoliday || noAbsentees) ? 60 : (headRowH + dataRows * rowH + bandCount * bandH);
+  const bandCount = (absentList.length ? 1 : 0) + (leaveList.length ? 1 : 0);
+  const rowsTotalH =
+    absentHeights.reduce((a, b) => a + b, 0) + leaveHeights.reduce((a, b) => a + b, 0);
+  const tableH = isHoliday || noAbsentees ? 60 : headRowH + rowsTotalH + bandCount * bandH;
   const statsExtraH = !isHoliday ? 70 : 0;
   const totalH = pad * 2 + headerH + dateH + tableH + statsExtraH + 30;
 
@@ -134,7 +273,6 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
   const textRightBound = totalW - pad;
   const centerX = (textLeftBound + textRightBound) / 2;
 
-  const isCaps = loadCapsPrint();
   let y = pad;
   ctx.fillStyle = "#111827";
   ctx.font = `700 22px ${F}`;
@@ -178,25 +316,23 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
     ctx.font = `700 18px ${F}`;
     ctx.fillStyle = "#166534";
     ctx.fillText("All students were present.", centerX, y + 30);
-    y += tableH; // move below the message, so the summary line never overlaps it
+    y += tableH;
   } else {
-    const headers = ["#", "Roll", "Name", "Father Name", "Father Occupation", "Phone", "Address"].map(h => cap(h, isCaps));
+    const headers = colSpecs.map(c => cap(c.label, isCaps));
     ctx.fillStyle = "#F3F4F6";
     ctx.fillRect(pad, y, tableW, headRowH);
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 1;
 
     let x = pad;
-    ctx.fillStyle = "#000000";
-    ctx.font = `700 15px ${F}`;
     headers.forEach((h, i) => {
       ctx.strokeRect(x, y, colWidths[i], headRowH);
-      drawFittedOrWrappedText(ctx, h, x, y, colWidths[i], headRowH, 15, F, 2);
+      drawFittedOrWrappedText(ctx, h, x, y, colWidths[i], headRowH, 14.5, F, 2, 'center', 700);
       x += colWidths[i];
     });
     y += headRowH;
 
-    const drawSection = (title: string, color: string, list: Student[]) => {
+    const drawSection = (title: string, color: string, list: Student[], heights: number[]) => {
       if (!list.length) return;
       ctx.fillStyle = color;
       ctx.fillRect(pad, y, tableW, bandH);
@@ -209,12 +345,11 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
       ctx.textAlign = "center";
       y += bandH;
       list.forEach((st, idx) => {
+        const rh = heights[idx] || baseRowH;
         x = pad;
         ctx.fillStyle = idx % 2 === 0 ? "#ffffff" : "#F9FAFB";
-        ctx.fillRect(pad, y, tableW, rowH);
+        ctx.fillRect(pad, y, tableW, rh);
         ctx.strokeStyle = "#000000";
-        ctx.fillStyle = "#000000";
-        ctx.font = `600 15px ${F}`;
         const cells = [
           String(idx + 1),
           st.rollNo || "—",
@@ -222,29 +357,29 @@ export async function downloadAbsenteeSlipPNG(dateKey: string, data: AppData): P
           cap(st.fatherName || "—", isCaps),
           cap(st.occupation || "—", isCaps),
           st.phone || "—",
-          st.address || "—"
+          cap(st.address || "—", isCaps),
         ];
         cells.forEach((val, i) => {
-          ctx.strokeRect(x, y, colWidths[i], rowH);
-          if (i >= 2) {
-            drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 15, F, 2);
+          ctx.strokeRect(x, y, colWidths[i], rh);
+          if (i === 0 || i === 1 || i === 5) {
+            drawSingleLineFittedText(ctx, val, x, y, colWidths[i], rh, 15, 600, F, 'center');
           } else {
-            ctx.fillText(val, x + colWidths[i] / 2, y + rowH / 2);
+            drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rh, 15, F, 4, 'left', 600);
           }
           x += colWidths[i];
         });
-        y += rowH;
+        y += rh;
       });
     };
-    drawSection("Absent", "#FEE2E2", absentList);
-    drawSection("Leave (Excused)", "#FEF3C7", leaveList);
+    drawSection("Absent", "#FEE2E2", absentList, absentHeights);
+    drawSection("Leave (Excused)", "#FEF3C7", leaveList, leaveHeights);
   }
 
-  // Summary line below the table: also when nobody is absent, and also when nothing was marked for the day
   if (!isHoliday) {
     y += 40;
     ctx.font = `800 18px ${F}`;
     ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
     ctx.fillText(`Total: ${total}   •   Present: ${present}   •   Absent: ${absentList.length}   •   Leave: ${leaveList.length}`, centerX, y);
   }
 
@@ -278,21 +413,79 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
     }
   }
 
+  const isCaps = loadCapsPrint();
   const pad = 30;
   const headerH = (sessionParts(data).year && data.className) ? 170 : (sessionParts(data).year || data.className ? 155 : 140);
   const headRowH = 44;
-  const rowH = 44;
-  const optDefs: { key: OptionalCol; label: string; w: number }[] = [
-    { key: 'phone', label: 'Phone', w: 120 },
-    { key: 'address', label: 'Address', w: 160 },
-    { key: 'occupation', label: 'Occupation', w: 130 },
-    { key: 'notes', label: 'Notes', w: 130 },
+  const baseRowH = 40;
+
+  const optDefs: { key: OptionalCol; label: string }[] = [
+    { key: 'phone', label: 'Phone' },
+    { key: 'address', label: 'Address' },
+    { key: 'occupation', label: 'Occupation' },
+    { key: 'notes', label: 'Notes' },
   ];
   const optOn = optDefs.filter(o => cols[o.key]);
-  const colWidths = [80, 110, 200, 200, ...optOn.map(o => o.w)];
+
+  const colSpecs: PrintColumnSpec[] = [
+    { label: 'Roll #', values: sorted.map(s => s.rollNo || ''), kind: 'index' },
+    { label: 'Adm. No', values: sorted.map(s => s.admissionNo || ''), kind: 'code' },
+    { label: 'Name', values: sorted.map(s => s.name || ''), kind: 'name' },
+    { label: 'Father Name', values: sorted.map(s => s.fatherName || ''), kind: 'name' },
+    ...optOn.map<PrintColumnSpec>(o => ({
+      label: o.label,
+      values: sorted.map(s =>
+        o.key === 'phone'
+          ? s.phone || ''
+          : o.key === 'address'
+          ? s.address || ''
+          : o.key === 'occupation'
+          ? s.occupation || ''
+          : s.notes || ''
+      ),
+      kind: o.key === 'phone' ? 'phone' : 'text',
+      nocap: o.key === 'notes',
+    })),
+  ];
+
+  const colWidths = computeCanvasTableColWidths(colSpecs, 12, 12, F, isCaps, 760, 1400);
   const tableW = colWidths.reduce((a, b) => a + b, 0);
   const totalW = pad * 2 + tableW;
-  const totalH = pad * 2 + headerH + headRowH + sorted.length * rowH + 20;
+
+  // Measure dynamic row heights so wrapped text never overflows or clips
+  const measureCanvas = document.createElement('canvas');
+  const mCtx = measureCanvas.getContext('2d');
+  const rowCellsList = sorted.map(s => [
+    s.rollNo || '—',
+    s.admissionNo || '—',
+    cap(s.name || '—', isCaps),
+    cap(s.fatherName || '—', isCaps),
+    ...optOn.map(o =>
+      o.key === 'phone'
+        ? s.phone || '—'
+        : o.key === 'address'
+        ? cap(s.address || '—', isCaps)
+        : o.key === 'occupation'
+        ? cap(s.occupation || '—', isCaps)
+        : s.notes || '—'
+    ),
+  ]);
+
+  const rowHeights = rowCellsList.map(cells => {
+    if (!mCtx) return baseRowH;
+    let maxLines = 1;
+    cells.forEach((val, i) => {
+      const kind = colSpecs[i].kind;
+      if (kind === 'index' || kind === 'code' || kind === 'phone') return;
+      const lines = wrapCanvasLines(mCtx, val, colWidths[i] - 12, `600 12px ${F}`);
+      if (lines.length > maxLines) maxLines = lines.length;
+    });
+    const clampedLines = Math.min(4, maxLines);
+    return Math.max(baseRowH, Math.ceil(clampedLines * 15 + 14));
+  });
+
+  const rowsTotalH = rowHeights.reduce((a, b) => a + b, 0);
+  const totalH = pad * 2 + headerH + headRowH + rowsTotalH + 20;
 
   const canvas = document.createElement("canvas");
   canvas.width = totalW * scale;
@@ -318,7 +511,6 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
   const textRightBound = totalW - pad;
   const centerX = (textLeftBound + textRightBound) / 2;
 
-  const isCaps = loadCapsPrint();
   let y = pad;
   ctx.fillStyle = "#111827";
   ctx.font = `700 22px ${F}`;
@@ -348,74 +540,38 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
   ctx.fillText("STUDENT LIST", centerX, y + 12);
   y = pad + headerH;
 
-  const headers = ["Roll #", "Adm. No", "Name", "Father Name", ...optOn.map(o => o.label)].map(h => cap(h, isCaps));
+  const headers = colSpecs.map(c => cap(c.label, isCaps));
   ctx.fillStyle = "#F3F4F6";
   ctx.fillRect(pad, y, tableW, headRowH);
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 1;
 
   let x = pad;
-  ctx.fillStyle = "#000000";
-  ctx.font = `700 12px ${F}`;
   headers.forEach((h, i) => {
     ctx.strokeRect(x, y, colWidths[i], headRowH);
-    ctx.fillText(h, x + colWidths[i] / 2, y + headRowH / 2);
+    drawFittedOrWrappedText(ctx, h, x, y, colWidths[i], headRowH, 12, F, 2, 'center', 700);
     x += colWidths[i];
   });
   y += headRowH;
 
-  sorted.forEach((s, idx) => {
+  rowCellsList.forEach((cells, idx) => {
+    const rh = rowHeights[idx] || baseRowH;
     x = pad;
     ctx.fillStyle = idx % 2 === 0 ? "#ffffff" : "#F9FAFB";
-    ctx.fillRect(pad, y, tableW, rowH);
+    ctx.fillRect(pad, y, tableW, rh);
     ctx.strokeStyle = "#000000";
-    ctx.fillStyle = "#000000";
-    ctx.font = `600 11.5px ${F}`;
-
-    const cells = [
-      s.rollNo || "—",
-      s.admissionNo || "—",
-      cap(s.name || "—", isCaps),
-      cap(s.fatherName || "—", isCaps),
-      ...optOn.map(o =>
-        o.key === 'phone' ? (s.phone || "—")
-        : o.key === 'address' ? cap(s.address || "—", isCaps)
-        : o.key === 'occupation' ? cap(s.occupation || "—", isCaps)
-        : (s.notes || "—"))
-    ];
 
     cells.forEach((val, i) => {
-      ctx.strokeRect(x, y, colWidths[i], rowH);
-      if (i === 2 || i === 3) {
-        drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rowH, 11.5, F, 2);
-      } else if (i >= 4 && optOn[i - 4].key !== 'phone') {
-        ctx.textAlign = "left";
-        const maxW = colWidths[i] - 10;
-        const words = String(val).split(/\s+/);
-        let line = "";
-        const lines: string[] = [];
-        words.forEach(w => {
-          const test = line ? line + " " + w : w;
-          if (ctx.measureText(test).width <= maxW) {
-            line = test;
-          } else {
-            if (line) lines.push(line);
-            line = w;
-          }
-        });
-        if (line) lines.push(line);
-        const finalLines = lines.length > 2 ? lines.slice(0, 2) : lines;
-        const lineH = 13;
-        const totalTextH = finalLines.length * lineH;
-        const startY = y + rowH / 2 - totalTextH / 2 + lineH / 2 - 1;
-        finalLines.forEach((ln, li) => ctx.fillText(ln, x + 5, startY + li * lineH));
-        ctx.textAlign = "center";
+      ctx.strokeRect(x, y, colWidths[i], rh);
+      const kind = colSpecs[i].kind;
+      if (kind === 'index' || kind === 'code' || kind === 'phone') {
+        drawSingleLineFittedText(ctx, val, x, y, colWidths[i], rh, 12, i === 0 ? 700 : 600, F, 'center');
       } else {
-        ctx.fillText(val, x + colWidths[i] / 2, y + rowH / 2);
+        drawFittedOrWrappedText(ctx, val, x, y, colWidths[i], rh, 12, F, 4, 'left', 600);
       }
       x += colWidths[i];
     });
-    y += rowH;
+    y += rh;
   });
 
   return new Promise<boolean>(resolve => {
@@ -432,4 +588,3 @@ export async function downloadStudentListPNG(data: AppData, cols: ListColumns = 
     }, "image/png");
   });
 }
-

@@ -12,6 +12,7 @@ import {
   esc,
 } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
+import { computePrintTableLayout, PrintColumnSpec } from '../../utils/printTableLayout';
 import { downloadAbsenteeSlipPNG } from '../../utils/canvasExport';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -450,48 +451,27 @@ export const AttendanceView: React.FC = () => {
     showInfoModal('Student Attendance Summary', content);
   };
 
-  // Print Absentee Slip (100% preserved print output)
+  // Print Absentee Slip
   const handlePrintAbsenteeSlip = async () => {
     const absentList = day ? sortedStudents.filter(s => day.status[s.id] === 'A') : [];
     const leaveList = day ? sortedStudents.filter(s => day.status[s.id] === 'L') : [];
 
-    let bodyHTML = '';
-    if (day && day.holiday) {
-      bodyHTML = `<div class="no-absents">This day was marked as a Class Holiday.</div>`;
-    } else if (!absentList.length && !leaveList.length) {
-      bodyHTML = `<div class="no-absents">All students were present.</div>`;
-    } else {
-      const rows: Array<{ idx: number; s: Student; status: string }> = [];
+    const rows: Array<{ idx: number; s: Student; status: string }> = [];
+    if (!(day && day.holiday) && (absentList.length || leaveList.length)) {
       absentList.forEach((s, i) => rows.push({ idx: i + 1, s, status: 'Absent' }));
       leaveList.forEach((s, i) =>
         rows.push({ idx: absentList.length + i + 1, s, status: 'Leave (Excused)' })
       );
-
-      bodyHTML = `<table>
-        <thead><tr>
-          <th style="width:5%">#</th>
-          <th style="width:8%">Roll</th>
-          <th style="width:20%">Name</th>
-          <th style="width:20%">Father Name</th>
-          <th style="width:23%">Phone</th>
-          <th style="width:24%">Status</th>
-        </tr></thead>
-        <tbody>${rows
-          .map(
-            r => `
-          <tr>
-            <td class="center">${r.idx}</td>
-            <td class="center">${esc(r.s.rollNo || '—')}</td>
-            <td><span class="cg-fit">${esc(r.s.name || '—')}</span></td>
-            <td><span class="cg-fit">${esc(r.s.fatherName || '—')}</span></td>
-            <td class="center">${esc(r.s.phone || '—')}</td>
-            <td class="center" style="font-weight:700">${r.status}</td>
-          </tr>`
-          )
-          .join('')}
-        </tbody>
-      </table>`;
     }
+
+    const colSpecs: PrintColumnSpec[] = [
+      { label: '#', values: rows.map(r => String(r.idx)), kind: 'index' },
+      { label: 'Roll', values: rows.map(r => r.s.rollNo || ''), kind: 'index' },
+      { label: 'Name', values: rows.map(r => r.s.name || ''), kind: 'name' },
+      { label: 'Father Name', values: rows.map(r => r.s.fatherName || ''), kind: 'name' },
+      { label: 'Phone', values: rows.map(r => r.s.phone || ''), kind: 'phone' },
+      { label: 'Status', values: rows.map(r => r.status), kind: 'status' },
+    ];
 
     const total = sortedStudents.length;
     const present = total - absentList.length - leaveList.length;
@@ -502,15 +482,70 @@ export const AttendanceView: React.FC = () => {
          </div>`
         : '';
 
-    const fullPrintHTML = `<div class="print-sheet absentee-slip-sheet">
-      ${buildPrintHeaderHTML('Absentee Slip')}
-      <div class="print-sub2" style="font-weight:700">${esc(prettyDate(key))}</div>
-      <div style="margin-top:3mm"></div>
-      ${bodyHTML}
-      ${statsHTML}
-    </div>`;
+    const buildSheet = (orientation: 'portrait' | 'landscape', printSize = data.printSize, caps?: boolean) => {
+      let bodyHTML = '';
+      if (day && day.holiday) {
+        bodyHTML = `<div class="no-absents">This day was marked as a Class Holiday.</div>`;
+      } else if (!rows.length) {
+        bodyHTML = `<div class="no-absents">All students were present.</div>`;
+      } else {
+        const layout = computePrintTableLayout(colSpecs, {
+          fontPt: 13,
+          headFontPt: 12,
+          padXMm: 3.0,
+          printSize,
+          forceOrientation: orientation,
+          caps,
+        });
+        bodyHTML = `<table>
+          <thead><tr>
+            ${colSpecs.map((c, i) => `<th style="width:${layout.widthsPct[i]}%">${esc(c.label)}</th>`).join('')}
+          </tr></thead>
+          <tbody>${rows
+            .map(
+              r => `
+            <tr>
+              <td class="center"><span class="cg-fit-line">${r.idx}</span></td>
+              <td class="center"><span class="cg-fit-line">${esc(r.s.rollNo || '—')}</span></td>
+              <td><span class="cg-fit">${esc(r.s.name || '—')}</span></td>
+              <td><span class="cg-fit">${esc(r.s.fatherName || '—')}</span></td>
+              <td class="center"><span class="cg-fit-line">${esc(r.s.phone || '—')}</span></td>
+              <td class="center" style="font-weight:700"><span class="cg-fit">${r.status}</span></td>
+            </tr>`
+            )
+            .join('')}
+          </tbody>
+        </table>`;
+      }
 
-    const ok = await previewPrint({ html: fullPrintHTML, orientation: 'portrait' }, data);
+      return `<div class="print-sheet absentee-slip-sheet">
+        ${buildPrintHeaderHTML('Absentee Slip')}
+        <div class="print-sub2" style="font-weight:700">${esc(prettyDate(key))}</div>
+        <div style="margin-top:3mm"></div>
+        ${bodyHTML}
+        ${statsHTML}
+      </div>`;
+    };
+
+    const initialLayout = rows.length
+      ? computePrintTableLayout(colSpecs, {
+          fontPt: 13,
+          headFontPt: 12,
+          padXMm: 3.0,
+          printSize: data.printSize,
+          forceOrientation: data.forceOrientation,
+          minColsForAutoLandscape: 6,
+        })
+      : { orientation: 'portrait' as const };
+
+    const ok = await previewPrint(
+      {
+        html: buildSheet(initialLayout.orientation, data.printSize),
+        orientation: initialLayout.orientation,
+        build: ({ orientation, size, caps }) => buildSheet(orientation, size, caps),
+      },
+      data
+    );
     if (!ok) toast('Could not open the print dialog. Try again.', 'error');
   };
 
@@ -564,13 +599,13 @@ export const AttendanceView: React.FC = () => {
           .join('');
 
         return `<tr>
-        <td>${esc(s.rollNo || '—')}</td>
+        <td><span class="cg-fit-line">${esc(s.rollNo || '—')}</span></td>
         <td class="left" style="text-align:left;padding-left:1mm"><span class="cg-fit">${esc(s.name || '—')}</span></td>
         ${cells}
         <td class="total-col font-bold">${stats.p}</td>
         <td class="total-col">${stats.a}</td>
         <td class="total-col">${stats.l}</td>
-        <td class="total-col font-bold">${stats.pct}%</td>
+        <td class="total-col font-bold"><span class="cg-fit-line">${stats.pct}%</span></td>
       </tr>`;
       })
       .join('');

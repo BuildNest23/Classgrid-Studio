@@ -1,4 +1,5 @@
 import { loadCapsPrint } from './capsPrint';
+import { pageGeometry, Orientation } from './printFit';
 
 /**
  * Baseline print styles needed inside the off-screen measurement iframe
@@ -35,26 +36,30 @@ function getIframeCss(): string {
   return out.join('\n');
 }
 
+export interface FitLongNamesOptions {
+  orientation?: Orientation;
+  mult?: number;
+}
+
 /**
- * Measures all .cg-fit spans within an off-screen iframe rendered at real page width.
- * For any span whose text would overflow its cell, reduces font-size in 0.25pt steps
- * down to 75% of original size until it fits. Bakes the result as an inline style.
+ * Measures all .cg-fit (1-2 line smart fit) and .cg-fit-line (single-line fit for phones/codes/dates)
+ * spans inside an off-screen iframe rendered at the exact real printable page width and text scale.
+ * Resets prior inline sizing first so re-running on orientation/size changes never double-shrinks text.
  */
-export async function fitLongNames(html: string): Promise<string> {
-  if (typeof document === 'undefined' || !html || !html.includes('cg-fit')) {
+export async function fitLongNames(html: string, opts?: FitLongNamesOptions): Promise<string> {
+  if (typeof document === 'undefined' || !html || (!html.includes('cg-fit') && !html.includes('cg-fit-line'))) {
     return html;
   }
 
   const isFullDoc = /<!doctype/i.test(html) || /<html/i.test(html);
-  // Detect the page type from the builders' root/table class names only. Matching the whole HTML
-  // (e.g. the word "fr" or "landscape" inside a name, remark, subject or note) picked the wrong
-  // measuring width and shrank every name on the sheet.
-  const isLandscape = /class="[^"]*\b(?:ps2-land|reg-table|dt-sheet)\b/i.test(html);
+  const guessedLandscape = /class="[^"]*\b(?:ps2-land|reg-table|dt-sheet)\b/i.test(html);
+  const orientation: Orientation = opts?.orientation ?? (guessedLandscape ? 'landscape' : 'portrait');
+  const mult = opts?.mult ?? 1;
   const isReceipt = /class="fr\b/i.test(html);
   const capsOn = loadCapsPrint();
 
-  // Page width at 96 dpi matching real print dimensions
-  const widthPx = isReceipt ? 380 : (isLandscape ? 1123 : 794);
+  // Exact printable page width at 96 dpi (with real A4 margins subtracted!)
+  const widthPx = isReceipt ? 380 : Math.round(pageGeometry(orientation).printW);
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -85,6 +90,7 @@ export async function fitLongNames(html: string): Promise<string> {
       doc.open();
       doc.write(docHtml);
       doc.close();
+      doc.getElementById('printArea')?.style.setProperty('--mult', String(mult));
     } else {
       const styles = getIframeCss();
       const wrapClass = capsOn ? 'caps-on' : '';
@@ -100,7 +106,7 @@ export async function fitLongNames(html: string): Promise<string> {
   </style>
 </head>
 <body>
-  <div id="cgFitRoot" class="${wrapClass}" style="width:${widthPx}px;">
+  <div id="cgFitRoot" class="${wrapClass}" style="width:${widthPx}px; --mult:${mult};">
     ${html}
   </div>
 </body>
@@ -120,46 +126,80 @@ export async function fitLongNames(html: string): Promise<string> {
     }
     await new Promise(r => requestAnimationFrame(r));
 
-    const fitEls = Array.from(doc.querySelectorAll<HTMLElement>('.cg-fit'));
+    const fitEls = Array.from(doc.querySelectorAll<HTMLElement>('.cg-fit, .cg-fit-line'));
 
     for (const el of fitEls) {
-      const cell = el.closest('td, th, .ps2-idgrid > div > b, .dt-field, .col-name, .name, .fr-stu-name') as HTMLElement || el.parentElement || el;
+      // Clear any stale inline styles from a previous fit pass so we always measure from natural CSS size
+      el.style.fontSize = '';
+      el.style.display = '';
+      el.style.whiteSpace = '';
+      el.style.overflowWrap = '';
+      el.style.wordBreak = '';
 
-      // Ensure inline-block and nowrap for measurement
-      el.style.display = 'inline-block';
-      el.style.whiteSpace = 'nowrap';
+      const singleLineMode = el.classList.contains('cg-fit-line');
+      const cell =
+        (el.closest('td, th, .ps2-idgrid > div > b, .dt-field, .col-name, .name, .fr-stu-name') as HTMLElement) ||
+        el.parentElement ||
+        el;
 
       const compCell = doc.defaultView?.getComputedStyle(cell);
       const padLeft = parseFloat(compCell?.paddingLeft || '0') || 0;
       const padRight = parseFloat(compCell?.paddingRight || '0') || 0;
-      const availWidth = Math.max(10, cell.clientWidth - padLeft - padRight - 0.5);
+      const availWidth = Math.max(8, cell.clientWidth - padLeft - padRight - 0.5);
 
       const compEl = doc.defaultView?.getComputedStyle(el);
-      const origPx = parseFloat(compEl?.fontSize || '13.33') || 13.33;
-      // 1 pt = 96 / 72 px => px * 72 / 96 = pt
+      const origPx = parseFloat(compEl?.fontSize || '12.66') || 12.66;
       const origPt = origPx * (72 / 96);
-      const floorPt = origPt * 0.75;
 
-      const fitsOneLine = () => el.scrollWidth <= availWidth && cell.scrollWidth <= cell.clientWidth + 0.5;
+      // Measure on a single line first
+      el.style.display = 'inline-block';
+      el.style.whiteSpace = 'nowrap';
+
+      const fitsOneLine = () =>
+        el.scrollWidth <= availWidth + 0.5 && cell.scrollWidth <= cell.clientWidth + 0.5;
 
       if (fitsOneLine()) {
-        // Fits at original size on one line: remove unnecessary inline styles
         el.style.display = '';
         el.style.whiteSpace = '';
         continue;
       }
 
-      // Too long for one line: first wrap onto a second line at the ORIGINAL size.
-      // Only if two lines are still not enough (or one word is wider than the cell) shrink the text,
-      // and then it stays wrapped on its lines. Never cut the text off.
+      if (singleLineMode) {
+        // Phone numbers, codes, dates, amounts, status badges: keep on 1 line by shrinking smoothly down to 62%
+        const floorPt = Math.max(5.5, origPt * 0.62);
+        let currPt = origPt;
+        let ok = false;
+        while (!ok && currPt > floorPt) {
+          currPt = Math.max(floorPt, Math.round((currPt - 0.25) * 100) / 100);
+          el.style.fontSize = `${currPt}pt`;
+          ok = fitsOneLine();
+        }
+        if (!ok) {
+          // Absolute last resort (e.g. 20-char string inside a tiny cell): wrap inside box so it never spills out
+          el.style.whiteSpace = 'normal';
+          el.style.overflowWrap = 'anywhere';
+          el.style.wordBreak = 'break-word';
+          el.style.fontSize = `${floorPt}pt`;
+        }
+        continue;
+      }
+
+      // Multi-line smart fit (.cg-fit): try wrapping cleanly onto 2 lines at original size first,
+      // then shrink down to 68% in 0.25pt steps until it fits cleanly without overflowing the box.
+      const floorPt = Math.max(5.8, origPt * 0.68);
       el.style.whiteSpace = 'normal';
       el.style.overflowWrap = 'normal';
+      el.style.wordBreak = 'normal';
       const fitsTwoLines = () => {
         const px = parseFloat(doc.defaultView?.getComputedStyle(el).fontSize || '') || origPx;
         const lhRaw = parseFloat(doc.defaultView?.getComputedStyle(el).lineHeight || '');
         const lh = isFinite(lhRaw) && lhRaw > 0 ? lhRaw : px * 1.3;
         const lines = Math.ceil(el.getBoundingClientRect().height / lh - 0.15);
-        return lines <= 2 && el.scrollWidth <= availWidth + 0.5 && cell.scrollWidth <= cell.clientWidth + 0.5;
+        return (
+          lines <= 2 &&
+          el.scrollWidth <= availWidth + 0.5 &&
+          cell.scrollWidth <= cell.clientWidth + 0.5
+        );
       };
 
       let ok = fitsTwoLines();
@@ -170,8 +210,9 @@ export async function fitLongNames(html: string): Promise<string> {
         ok = fitsTwoLines();
       }
       if (!ok) {
-        // Last resort (a single very long word): allow breaking inside the word so nothing leaves the box
+        // Last resort (a single very long unbroken word): allow breaking inside the word so nothing leaves the box
         el.style.overflowWrap = 'anywhere';
+        el.style.wordBreak = 'break-word';
         el.style.fontSize = `${floorPt}pt`;
       }
     }

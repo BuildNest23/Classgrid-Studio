@@ -303,13 +303,69 @@ app.addEventListener('input',function(e){
   }
 });
 
+function planPrintCols(specs,mult,caps){
+  var cv=document.createElement('canvas'),cx=cv.getContext('2d'),pxToMm=25.4/96;
+  var fPx=9.5*mult*96/72,hPx=8.5*mult*96/72,pad=2.8*mult+0.5,fam='Arial,Helvetica,sans-serif';
+  function tw(t,f){if(!cx)return String(t||'').length*2.1;cx.font=f;return cx.measureText(String(t||'')).width*pxToMm}
+  function blank(v){var s=String(v==null?'':v).trim();return !s||s==='\u2014'||s==='-'||s==='\u2013'}
+  var ms=specs.map(function(c){
+    var up=caps&&!c.nocap,hl=up?String(c.l||'').toUpperCase():String(c.l||'');
+    var hm=tw(hl,'700 '+hPx+'px '+fam)+pad+1.4;
+    var hwm=hl.split(/\s+/).reduce(function(m,w){return Math.max(m,tw(w,'700 '+hPx+'px '+fam))},0)+pad+1.2;
+    var vals=c.vals.map(function(v){return String(v==null?'':v).trim()}).filter(function(v){return !blank(v)});
+    if(!vals.length){var cm=Math.max(9.5,Math.min(hm,Math.max(hwm,hm*0.85)));return {empty:true,min:Math.max(8,Math.min(cm,hwm)),nat:cm,max:Math.max(cm+2,16),w:0,sl:true}}
+    var ws=[],lw=0,fw=(c.kind==='index'||c.kind==='status')?700:400,vf=fw+' '+fPx+'px '+fam;
+    vals.forEach(function(v){var t=up?v.toUpperCase():v;ws.push(tw(t,vf)+pad+1.4);t.split(/\s+/).forEach(function(p){if(p)lw=Math.max(lw,tw(p,vf)+pad+1.2)})});
+    ws.sort(function(a,b){return a-b});
+    var mx=ws[ws.length-1]||hm,p90=ws[Math.min(ws.length-1,Math.floor((ws.length-1)*0.9))]||mx;
+    var sl=c.kind==='index'||c.kind==='code'||c.kind==='phone'||c.kind==='status';
+    var mn,nt,wt;
+    if(c.kind==='index'){nt=Math.max(hm,Math.min(mx,18));mn=Math.max(8.5,Math.min(nt,14));wt=0.05}
+    else if(c.kind==='code'){nt=Math.max(hm,Math.min(mx,28));mn=Math.max(9.5,Math.min(nt,Math.max(hwm,Math.min(p90,22))));wt=0.15}
+    else if(c.kind==='phone'){nt=Math.max(hm,Math.min(mx+0.8,36));mn=Math.max(hm,Math.min(mx,30));wt=0.15}
+    else if(c.kind==='status'){nt=Math.max(hm,Math.min(mx+1,30));mn=Math.max(hwm,13);wt=0.15}
+    else if(c.kind==='name'){nt=Math.max(hm,Math.min(mx,58),Math.min(p90+2,50));mn=Math.max(hwm,Math.min(lw,28),20);wt=1.25}
+    else{var tg=mx<=34?mx:Math.max(lw,p90*0.62,mx*0.52);nt=Math.max(hm,Math.min(tg,52));mn=Math.max(hwm,Math.min(lw,26),15);wt=1}
+    if(nt<mn)nt=mn;
+    return {empty:false,min:mn,nat:nt,w:wt,sl:sl};
+  });
+  var totNat=ms.reduce(function(s,m){return s+m.nat},0);
+  var land=specs.length>=5&&totNat>186*1.03,target=land?277:186;
+  var ws=ms.map(function(m){return m.nat}),sum=totNat;
+  if(sum<target){
+    var ex=target-sum;
+    [function(m){return !m.empty&&m.w>=0.5},function(m){return !m.empty},function(){return true}].forEach(function(fn){
+      if(ex<=0.05)return;var ix=[];ms.forEach(function(m,i){if(fn(m))ix.push(i)});if(!ix.length)return;
+      var twt=ix.reduce(function(s,i){return s+(ms[i].w||0.2)},0);
+      ix.forEach(function(i){ws[i]+=ex*(ms[i].w||0.2)/twt});ex=0;
+    });
+  }else if(sum>target){
+    var def=sum-target;
+    [function(m){return !m.empty&&!m.sl},function(m){return m.empty},function(m){return !m.empty&&m.sl}].forEach(function(fn){
+      if(def<=0.05)return;var slk=0,ix=[];
+      ms.forEach(function(m,i){if(fn(m)){var k=Math.max(0,ws[i]-m.min);if(k>0){ix.push(i);slk+=k}}});
+      if(slk<=0.01)return;var tk=Math.min(def,slk);
+      ix.forEach(function(i){ws[i]-=tk*Math.max(0,ws[i]-ms[i].min)/slk});def-=tk;
+    });
+    if(def>0.05){var curS=ws.reduce(function(a,b){return a+b},0)||target;ws=ws.map(function(w){return w*target/curS})}
+  }
+  var sFinal=ws.reduce(function(a,b){return a+b},0)||target;
+  return {land:land,pct:ws.map(function(w){return (w*100/sFinal).toFixed(2)})};
+}
 document.getElementById('bPrint').addEventListener('click',function(){
   var P=CFG.print;if(!P||!P.header){toast('Print is not available in this file.');return}
-  var m=model(),n=m.cols.length,land=n>8;
-  var head=m.cols.map(function(c){return '<th>'+esc(c.l)+'</th>'}).join('');
+  var m=model();
+  var specs=m.cols.map(function(c,idx){
+    var k=c.k;
+    var kind=k==='rollNo'||k==='rank'?'index':k==='phone'?'phone':(k==='name'||k==='fatherName')?'name':(k==='res'||k==='status')?'status':(CEN[k]?'code':'text');
+    return {l:c.l,kind:kind,nocap:k==='notes'||k==='remark',vals:m.rows.map(function(r){return r[idx]?r[idx].t:''})};
+  });
+  var lay=planPrintCols(specs,P.mult||1,!!P.caps);
+  var head=m.cols.map(function(c,i){return '<th style="width:'+lay.pct[i]+'%">'+esc(c.l)+'</th>'}).join('');
   var body=m.rows.map(function(r){return '<tr>'+r.map(function(c,i){var k=m.cols[i].k,cl=[];
     if(k==='rollNo')cl.push('center font-mono font-bold');else if(CEN[k])cl.push('center');
-    var inner=(k==='name'||k==='fatherName')?'<span class="cg-fit">'+esc(c.t)+'</span>':esc(c.t);
+    if(k==='notes'||k==='remark')cl.push('cg-nocap');
+    var inner=(k==='name'||k==='fatherName')?'<span class="cg-fit">'+esc(c.t)+'</span>':(k==='rollNo'||k==='phone'||CEN[k]?'<span class="cg-fit-line">'+esc(c.t)+'</span>':esc(c.t));
     return '<td'+(cl.length?' class="'+cl.join(' ')+'"':'')+(c.f?' style="font-weight:800;text-decoration:underline"':'')+'>'+inner+'</td>'}).join('')+'</tr>'}).join('');
   var hdr=P.headers&&P.headers[tab]?P.headers[tab]:P.header;
   hdr=hdr.replace(/>[^<>]*Student List[^<>]*</,'>'+esc(m.title)+'<');
@@ -318,7 +374,7 @@ document.getElementById('bPrint').addEventListener('click',function(){
   pa.innerHTML='<div class="print-sheet">'+hdr+'<table><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>';
   var st=document.getElementById('pgstyle');if(st)st.remove();
   st=document.createElement('style');st.id='pgstyle';st.media='print';
-  st.textContent=P.css+'\n@page{size:A4 '+(land?'landscape':'portrait')+';margin:'+(land?'10mm':'12mm')+'}';
+  st.textContent=P.css+'\n.print-sheet,.print-sheet *{box-sizing:border-box}.print-sheet th,.print-sheet td{overflow-wrap:break-word;word-break:break-word;max-width:100%}.print-sheet .cg-fit-line{display:inline-block;max-width:100%;white-space:nowrap}\n@page{size:A4 '+(lay.land?'landscape':'portrait')+';margin:'+(lay.land?'10mm':'12mm')+'}';
   document.head.appendChild(st);
   setTimeout(function(){window.print()},50);
 });

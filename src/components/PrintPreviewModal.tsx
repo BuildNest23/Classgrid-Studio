@@ -47,97 +47,111 @@ export const PrintPreviewModal: React.FC = () => {
 
   const locked = (data.forceOrientation || '') as Orientation | '';
 
-  const runAuto = async (m: FitMeasurer, natural: Orientation) => {
-    setBusy(true);
-    try {
-      const best = await autoFit(m, natural, locked);
-      setOrientation(best.orientation);
-      setSize(best.size);
-      setAutoNote(`Auto-fit: ${best.pages} page${best.pages === 1 ? '' : 's'}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Builds the content (names shrunk to fit) and a fresh measurer for it
-  const prepare = async (r: PrintRequest, ori?: Orientation, isCancelled?: () => boolean) => {
+  const buildRawHtml = (r: PrintRequest, ori: Orientation, sz: PrintSizeKey) => {
     const useCompact = compactOn && !!r.compact;
     let base = useCompact
-      ? r.compact!({ orientation: (ori || orientation) as Orientation, signatures: sigOn, pct: pctOn, caps })
+      ? r.compact!({ orientation: ori, signatures: sigOn, pct: pctOn, caps })
+      : r.build
+      ? r.build({ orientation: ori, size: sz, caps })
       : r.html;
-    // Signatures off: hide the signature block of normal sheets (the compact sheet leaves it out itself)
     if (!useCompact && !sigOn && base.includes('ps2-sigs')) {
       base = `<style>.ps2 .ps2-sigs{display:none !important}</style>${base}`;
     }
-    const html = await fitLongNames(base);
-    if (isCancelled?.()) return null;
-    setContent(html);
+    return base;
+  };
+
+  const makeMeasurer = (r: PrintRequest, initialHtml: string) => {
     measurerRef.current?.dispose();
-    const m = new FitMeasurer(html);
+    const provider =
+      !compactOn && r.build
+        ? (o: Orientation, s: PrintSizeKey) => buildRawHtml(r, o, s)
+        : undefined;
+    const m = new FitMeasurer(initialHtml, 'Print', provider);
     measurerRef.current = m;
     return m;
   };
 
-  // Turning UPPERCASE on/off changes text widths: rebuild, keep the chosen layout
-  const firstCapsRef = useRef(true);
-  useEffect(() => {
-    if (firstCapsRef.current) { firstCapsRef.current = false; return; }
-    if (!req) return;
-    let cancelled = false;
-    (async () => {
-      setBusy(true);
-      await prepare(req, undefined, () => cancelled);
-      if (!cancelled) setBusy(false);
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caps]);
+  // Builds fitted HTML for the exact active orientation & text size
+  const prepareFitted = async (
+    r: PrintRequest,
+    ori: Orientation,
+    sz: PrintSizeKey,
+    isCancelled?: () => boolean
+  ) => {
+    const base = buildRawHtml(r, ori, sz);
+    const multVal = (PRINT_SIZES[sz] || PRINT_SIZES.m).mult;
+    const fitted = await fitLongNames(base, { orientation: ori, mult: multVal });
+    if (isCancelled?.()) return null;
+    setContent(fitted);
+    return fitted;
+  };
 
-  // Compact sheet / Signatures / %age change the sheet itself: rebuild it and recount the pages
-  const firstOptRef = useRef(true);
-  useEffect(() => {
-    if (firstOptRef.current) { firstOptRef.current = false; return; }
-    if (!req) return;
-    let cancelled = false;
-    (async () => {
-      setBusy(true);
-      await prepare(req, undefined, () => cancelled);
-      if (!cancelled) setBusy(false);
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compactOn, sigOn, pctOn, compactOn && !!req?.compact ? orientation : '']);
+  const runAuto = async (r: PrintRequest, isCancelled?: () => boolean) => {
+    setBusy(true);
+    try {
+      const startOri = (locked || r.orientation) as Orientation;
+      const rawStart = buildRawHtml(r, startOri, data.printSize);
+      const m = makeMeasurer(r, rawStart);
+      const best = await autoFit(m, r.orientation, locked);
+      if (isCancelled?.()) return;
+      const fitted = await prepareFitted(r, best.orientation, best.size, isCancelled);
+      if (isCancelled?.() || !fitted) return;
+      // Measure final fitted sheet so page count & height match preview exactly
+      const finalM = makeMeasurer(r, fitted);
+      const measured = await finalM.measure(best.size, best.orientation);
+      if (isCancelled?.()) return;
+      setOrientation(prevOri => {
+        if (prevOri !== best.orientation) skipNextLayoutRef.current = true;
+        return best.orientation;
+      });
+      setSize(prevSz => {
+        if (prevSz !== best.size) skipNextLayoutRef.current = true;
+        return best.size;
+      });
+      setPages(measured.pages);
+      setHeightPx(Math.max(200, measured.heightPx));
+      setAutoNote(`Auto-fit: ${measured.pages} page${measured.pages === 1 ? '' : 's'}`);
+    } finally {
+      if (!isCancelled?.()) setBusy(false);
+    }
+  };
 
-  // Opening: prepare the content, then pick the best layout automatically
+  // Skip redundant refit right after auto-fit already fitted the winning orientation/size
+  const skipNextLayoutRef = useRef(false);
+
+  // Opening: run auto-fit once and fit the winning orientation & text size cleanly
   useEffect(() => {
     if (!req) return;
     let cancelled = false;
-    (async () => {
-      setBusy(true);
-      setPages(null);
-      setPageNumbers(!!req.pageNumbers);
-      const m = await prepare(req, (locked || req.orientation) as Orientation, () => cancelled);
-      if (cancelled || !m) return;
-      setOrientation((locked || req.orientation) as Orientation);
-      setSize(data.printSize);
-      await runAuto(m, req.orientation);
-    })();
+    setPages(null);
+    setPageNumbers(!!req.pageNumbers);
+    runAuto(req, () => cancelled);
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [req]);
 
-  // Re-count pages whenever the layout changes
+  // Whenever orientation, text size, UPPERCASE, or sheet options change, rebuild & re-fit at the exact geometry
   useEffect(() => {
-    const m = measurerRef.current;
-    if (!req || !content || !m) return;
+    if (!req) return;
+    if (skipNextLayoutRef.current) {
+      skipNextLayoutRef.current = false;
+      return;
+    }
     let cancelled = false;
-    m.measure(size, orientation).then(r => {
+    (async () => {
+      setBusy(true);
+      const fitted = await prepareFitted(req, orientation, size, () => cancelled);
+      if (cancelled || !fitted) return;
+      const m = makeMeasurer(req, fitted);
+      const r = await m.measure(size, orientation);
       if (cancelled) return;
       setPages(r.pages);
       setHeightPx(Math.max(200, r.heightPx));
-    });
+      setBusy(false);
+    })();
     return () => { cancelled = true; };
-  }, [req, content, size, orientation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orientation, size, caps, compactOn, sigOn, pctOn]);
 
   useLayoutEffect(() => {
     if (!req || !boxRef.current) return;
@@ -310,8 +324,8 @@ export const PrintPreviewModal: React.FC = () => {
         <div className="p-3 flex gap-2 border-t border-[#E7E5E4] dark:border-[#44403C]">
           <button
             type="button"
-            disabled={busy || !measurerRef.current}
-            onClick={() => measurerRef.current && runAuto(measurerRef.current, req.orientation)}
+            disabled={busy || !req}
+            onClick={() => req && runAuto(req)}
             className="py-2.5 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
           >
             <Wand2 className="w-4 h-4" /> Auto-fit

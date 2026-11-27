@@ -12,11 +12,11 @@ import {
   getSortedStudents,
   esc,
   getNameColWidth,
-  getPrintNameColPct,
   gridNavKeyDown,
   gridTabIndex,
 } from '../../utils/helpers';
 import { previewPrint } from '../../utils/printPreviewBus';
+import { computePrintTableLayout, PrintColumnSpec } from '../../utils/printTableLayout';
 import {
   ArrowLeft,
   Wallet,
@@ -449,7 +449,7 @@ export const FundsView: React.FC = () => {
 
   // Print Collection Sheet
   const handlePrintCollection = async () => {
-    const rows = sortedStudents.map((s, i) => {
+    const rowData = sortedStudents.map((s, i) => {
       const p = (data.fundPayments[activeFund.id] || {})[s.id] || {};
       const st = getFundStudentStatus(activeFund.id, s.id);
       const exempt = !!p.exempt;
@@ -457,42 +457,71 @@ export const FundsView: React.FC = () => {
       const statTxt = exempt ? "EXEMPT" : st.code;
       const statCls = "stat-" + statTxt.toLowerCase();
       const amtCls = exempt ? "" : (st.code === 'PAID' ? "amt-green" : "amt-red");
+      return { idx: String(i + 1), s, p, amtVal, statTxt, statCls, amtCls };
+    });
 
-      return `<tr>
-        <td class="center">${i + 1}</td>
-        <td class="center font-mono">${esc(s.rollNo || "—")}</td>
-        <td class="name"><span class="cg-fit">${esc(s.name || "—")}</span></td>
-        <td class="center ${amtCls}">${esc(amtVal)}</td>
-        <td class="center ${statCls}">${statTxt}</td>
-        <td class="center">${esc(p.date || "—")}</td>
-        <td class="cg-nocap">${esc(p.note || "")}</td>
-      </tr>`;
-    }).join("");
+    const rows = rowData.map(r => `<tr>
+        <td class="center"><span class="cg-fit-line">${r.idx}</span></td>
+        <td class="center font-mono"><span class="cg-fit-line">${esc(r.s.rollNo || "—")}</span></td>
+        <td class="name"><span class="cg-fit">${esc(r.s.name || "—")}</span></td>
+        <td class="center ${r.amtCls}"><span class="cg-fit-line">${esc(r.amtVal)}</span></td>
+        <td class="center ${r.statCls}"><span class="cg-fit-line">${r.statTxt}</span></td>
+        <td class="center"><span class="cg-fit-line">${esc(r.p.date || "—")}</span></td>
+        <td class="cg-nocap">${esc(r.p.note || "")}</td>
+      </tr>`).join("");
+
+    const colSpecs: PrintColumnSpec[] = [
+      { label: "#", values: rowData.map(r => r.idx), kind: "index" },
+      { label: "Roll", values: rowData.map(r => r.s.rollNo || ""), kind: "index" },
+      { label: "Name", values: rowData.map(r => r.s.name || ""), kind: "name" },
+      { label: "Amount", values: rowData.map(r => r.amtVal), kind: "amount" },
+      { label: "Status", values: rowData.map(r => r.statTxt), kind: "status" },
+      { label: "Date", values: rowData.map(r => r.p.date || ""), kind: "date" },
+      { label: "Note", values: rowData.map(r => r.p.note || ""), kind: "text", nocap: true },
+    ];
 
     const totalLine = stats.variable
       ? `Collected: ${fmtMoney(stats.collected)} • Paid: ${stats.paid} • Pending: ${stats.pend} • Exempt: ${stats.exempt}`
       : `Collected: ${fmtMoney(stats.collected)} • Outstanding: ${fmtMoney(stats.pending)} • Paid: ${stats.paid} • Partial: ${stats.partial} • Pending: ${stats.pend} • Exempt: ${stats.exempt}`;
     const amtDesc = stats.variable ? "Variable amount" : `${fmtMoney(activeFund.amount)} per student`;
 
-    const namePct = getPrintNameColPct(sortedStudents.map(st => st.name || ""), 9, data.printSize, data.forceOrientation);
-    const fullPrintHTML = `<div class="print-sheet">
+    const buildSheet = (orientation: "portrait" | "landscape", printSize = data.printSize, caps?: boolean) => {
+      const layout = computePrintTableLayout(colSpecs, {
+        fontPt: 9,
+        headFontPt: 9,
+        padXMm: 1.6,
+        printSize,
+        forceOrientation: orientation,
+        caps,
+      });
+      return `<div class="print-sheet">
       ${buildPrintHeaderHTML(activeFund.name + " — Collection Sheet", (activeFund.dueDate ? "Due: " + prettyShortDate(activeFund.dueDate) + " • " : "") + amtDesc)}
       <table class="fund-print">
         <thead><tr>
-          <th style="width:6%">#</th>
-          <th style="width:9%">Roll</th>
-          <th style="width:${namePct}%">Name</th>
-          <th style="width:12%">Amount</th>
-          <th style="width:13%">Status</th>
-          <th style="width:15%">Date</th>
-          <th>Note</th>
+          ${colSpecs.map((c, i) => `<th style="width:${layout.widthsPct[i]}%">${esc(c.label)}</th>`).join("")}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="cg-nocap" style="margin-top:3mm;font-size:9.5pt;font-weight:700">${totalLine}</div>
     </div>`;
+    };
 
-    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
+    const initialLayout = computePrintTableLayout(colSpecs, {
+      fontPt: 9,
+      headFontPt: 9,
+      padXMm: 1.6,
+      printSize: data.printSize,
+      forceOrientation: data.forceOrientation,
+    });
+
+    const ok = await previewPrint(
+      {
+        html: buildSheet(initialLayout.orientation, data.printSize),
+        orientation: initialLayout.orientation,
+        build: ({ orientation, size, caps }) => buildSheet(orientation, size, caps),
+      },
+      data
+    );
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
@@ -512,42 +541,73 @@ export const FundsView: React.FC = () => {
       }
     });
 
-    const pendingNamePct = getPrintNameColPct(pendingRows.map(r => r.s.name || ""), 9, data.printSize, data.forceOrientation);
-    let bodyHTML = "";
-    if (!pendingRows.length) {
-      bodyHTML = `<div class="no-absents">Everyone has paid or is exempt.</div>`;
-    } else {
-      bodyHTML = `<table class="fund-print">
+    const colSpecs: PrintColumnSpec[] = [
+      { label: "#", values: pendingRows.map((_, i) => String(i + 1)), kind: "index" },
+      { label: "Roll", values: pendingRows.map(r => r.s.rollNo || ""), kind: "index" },
+      { label: "Name", values: pendingRows.map(r => r.s.name || ""), kind: "name" },
+      { label: "Paid", values: pendingRows.map(r => (r.st.amount ? String(r.st.amount) : "")), kind: "amount" },
+      { label: "Owed", values: pendingRows.map(r => (stats.variable ? "" : String(Math.max(0, r.st.target - r.st.amount)))), kind: "amount" },
+      { label: "Note", values: pendingRows.map(r => ((data.fundPayments[activeFund.id] || {})[r.s.id] || {}).note || ""), kind: "text", nocap: true },
+    ];
+
+    const subtitle = stats.variable ? "Students who haven't paid yet" : `Total Owed: ${fmtMoney(totalPending)}`;
+
+    const buildSheet = (orientation: "portrait" | "landscape", printSize = data.printSize, caps?: boolean) => {
+      let bodyHTML = "";
+      if (!pendingRows.length) {
+        bodyHTML = `<div class="no-absents">Everyone has paid or is exempt.</div>`;
+      } else {
+        const layout = computePrintTableLayout(colSpecs, {
+          fontPt: 9,
+          headFontPt: 9,
+          padXMm: 1.6,
+          printSize,
+          forceOrientation: orientation,
+          caps,
+        });
+        bodyHTML = `<table class="fund-print">
         <thead><tr>
-          <th style="width:6%">#</th>
-          <th style="width:9%">Roll</th>
-          <th style="width:${pendingNamePct}%">Name</th>
-          <th style="width:16%">Paid</th>
-          <th style="width:16%">Owed</th>
-          <th>Note</th>
+          ${colSpecs.map((c, i) => `<th style="width:${layout.widthsPct[i]}%">${esc(c.label)}</th>`).join("")}
         </tr></thead>
         <tbody>${pendingRows.map((row, i) => {
           const p = (data.fundPayments[activeFund.id] || {})[row.s.id] || {};
           const owed = stats.variable ? "—" : Math.max(0, row.st.target - row.st.amount);
           return `<tr>
-            <td class="center">${i + 1}</td>
-            <td class="center font-mono">${esc(row.s.rollNo || "—")}</td>
+            <td class="center"><span class="cg-fit-line">${i + 1}</span></td>
+            <td class="center font-mono"><span class="cg-fit-line">${esc(row.s.rollNo || "—")}</span></td>
             <td class="name"><span class="cg-fit">${esc(row.s.name || "—")}</span></td>
-            <td class="center">${esc(row.st.amount ? String(row.st.amount) : "—")}</td>
-            <td class="center font-bold" style="color:#991B1B">${esc(owed)}</td>
+            <td class="center"><span class="cg-fit-line">${esc(row.st.amount ? String(row.st.amount) : "—")}</span></td>
+            <td class="center font-bold" style="color:#991B1B"><span class="cg-fit-line">${esc(owed)}</span></td>
             <td class="cg-nocap">${esc(p.note || "")}</td>
           </tr>`;
         }).join("")}</tbody>
       </table>`;
-    }
+      }
 
-    const subtitle = stats.variable ? "Students who haven't paid yet" : `Total Owed: ${fmtMoney(totalPending)}`;
-    const fullPrintHTML = `<div class="print-sheet">
+      return `<div class="print-sheet">
       ${buildPrintHeaderHTML(activeFund.name + " — Pending List", subtitle)}
       ${bodyHTML}
     </div>`;
+    };
 
-    const ok = await previewPrint({ html: fullPrintHTML, orientation: "portrait" }, data);
+    const initialLayout = pendingRows.length
+      ? computePrintTableLayout(colSpecs, {
+          fontPt: 9,
+          headFontPt: 9,
+          padXMm: 1.6,
+          printSize: data.printSize,
+          forceOrientation: data.forceOrientation,
+        })
+      : { orientation: "portrait" as const };
+
+    const ok = await previewPrint(
+      {
+        html: buildSheet(initialLayout.orientation, data.printSize),
+        orientation: initialLayout.orientation,
+        build: ({ orientation, size, caps }) => buildSheet(orientation, size, caps),
+      },
+      data
+    );
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
   };
 
