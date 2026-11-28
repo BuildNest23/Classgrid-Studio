@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "sync:android": "npx cap sync android && cp -r android-res/res/* android/app/src/main/res/ 2>/dev/null",
+    "setup:android-print": "node scripts/setup-android-print.mjs",
+    "sync:android": "npx cap sync android && (cp -r android-res/res/* android/app/src/main/res/ 2>/dev/null || true) && (cp android-res/MainActivity.java android/app/src/main/java/com/classgrid/app/MainActivity.java 2>/dev/null || true) && node scripts/setup-android-print.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

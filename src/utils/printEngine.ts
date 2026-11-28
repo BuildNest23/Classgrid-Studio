@@ -2,6 +2,7 @@ import { PrintSizeKey } from '../types';
 import { PRINT_SIZES, esc } from './helpers';
 import { Capacitor } from '@capacitor/core';
 import { Printer } from '@capgo/capacitor-printer';
+import { NativePrint } from '../plugins/nativePrint';
 import { loadCapsPrint } from './capsPrint';
 import { fitLongNames } from './fitText';
 
@@ -439,12 +440,10 @@ export function buildStandalonePrintHTML(
 
 /**
  * Master print function called by all views and components in the app.
- * Automatically delegates to @capgo/capacitor-printer when run inside Capacitor Android/iOS,
- * or standard browser window.print() on the web.
- *
- * Known Android limitation:
- * The Android system print dialog ignores `@page { size }`, so previews show Letter portrait
- * even for landscape documents. `@capgo/capacitor-printer`'s `printHtml` has no paper-size option.
+ * On native Android, prefers our custom NativePrint Capacitor plugin so Android's
+ * PrintManager opens with ISO A4, exact Landscape/Portrait orientation, Color mode,
+ * and zero extra hardware margins, falling back to @capgo/capacitor-printer if needed.
+ * On web browsers, delegates to standard window.print().
  */
 export async function triggerPrint(
   contentHTML: string,
@@ -464,16 +463,33 @@ export async function triggerPrint(
   const docTitle = (title || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || extractDocumentTitle(contentHTML);
   const isCaps = loadCapsPrint();
 
-  // Native mobile runtime: Use Capacitor native print manager
+  // Native mobile runtime: Use custom NativePrint on Android (explicit A4/orientation/color/no-margins),
+  // falling back automatically to @capgo/capacitor-printer on iOS or if NativePrint is unavailable.
   if (Capacitor.isNativePlatform()) {
+    const fullHtml = buildStandalonePrintHTML(
+      contentHTML,
+      mult,
+      finalOrientation,
+      pageNumbers,
+      docTitle
+    );
+
+    if (Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('NativePrint')) {
+      try {
+        await NativePrint.printHtml({
+          name: docTitle,
+          html: fullHtml,
+          orientation: finalOrientation,
+          paperSize: 'A4',
+          colorMode: 'color',
+        });
+        return true;
+      } catch (err) {
+        console.warn('NativePrint.printHtml failed, falling back to Capacitor Printer:', err);
+      }
+    }
+
     try {
-      const fullHtml = buildStandalonePrintHTML(
-        contentHTML,
-        mult,
-        finalOrientation,
-        pageNumbers,
-        docTitle
-      );
       await Printer.printHtml({
         name: docTitle,
         html: fullHtml
