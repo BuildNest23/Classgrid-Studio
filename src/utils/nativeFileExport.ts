@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { NativePrint, ANDROID_DOWNLOAD_FOLDER } from '../plugins/nativePrint';
 
 /**
  * Converts a standard Blob to base64 string (without data URL prefix).
@@ -77,7 +78,23 @@ export async function exportFileBlob(
     try {
       const base64Data = await blobToBase64(blob);
 
-      // Save to Cache directory so zero extra runtime storage permissions are needed on Android
+      // On Android, also save a permanent copy directly inside Download/ClassGrid
+      let savedToDownloads = false;
+      if (Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('NativePrint')) {
+        try {
+          await NativePrint.saveFileToDownloads({
+            data: base64Data,
+            fileName: cleanFilename,
+            mimeType: blob.type || 'application/octet-stream',
+            folder: ANDROID_DOWNLOAD_FOLDER,
+          });
+          savedToDownloads = true;
+        } catch (dlErr) {
+          console.warn('Could not save copy to Download/ClassGrid:', dlErr);
+        }
+      }
+
+      // Write to Cache directory so the Android/iOS Share sheet can also send via WhatsApp/Drive/Gmail
       const savedFile = await Filesystem.writeFile({
         path: `exports/${cleanFilename}`,
         data: base64Data,
@@ -85,12 +102,26 @@ export async function exportFileBlob(
         recursive: true,
       });
 
-      // Open Android native share sheet with file uri
-      await Share.share({
-        title: shareTitle,
-        dialogTitle,
-        files: [savedFile.uri],
-      });
+      try {
+        await Share.share({
+          title: shareTitle,
+          dialogTitle,
+          files: [savedFile.uri],
+        });
+      } catch (shareErr: unknown) {
+        // Dismissing the share sheet is clean; if already saved to Download/ClassGrid, still succeed
+        const errorMsg = (shareErr as Error)?.message || String(shareErr);
+        if (
+          savedToDownloads ||
+          errorMsg.includes('canceled') ||
+          errorMsg.includes('cancelled') ||
+          errorMsg.includes('dismissed') ||
+          (shareErr as Error)?.name === 'AbortError'
+        ) {
+          return true;
+        }
+        throw shareErr;
+      }
 
       return true;
     } catch (err: unknown) {

@@ -19,139 +19,21 @@ function readAppId() {
   return 'com.classgrid.app';
 }
 
-function buildPluginSource(packageName) {
-  const templatePath = path.join(rootDir, 'android-res', 'NativePrintPlugin.java');
-  if (fs.existsSync(templatePath)) {
-    const raw = fs.readFileSync(templatePath, 'utf8');
-    return raw.replace(/^package\s+[^;]+;/m, `package ${packageName};`);
+function readRequiredTemplate(fileName) {
+  const templatePath = path.join(rootDir, 'android-res', fileName);
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`[setup-android-print] Missing template file: android-res/${fileName}`);
   }
-
-  return `package ${packageName};
-
-import android.app.Activity;
-import android.content.Context;
-import android.print.PrintAttributes;
-import android.print.PrintDocumentAdapter;
-import android.print.PrintManager;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-
-import com.getcapacitor.Plugin;
-import com.getcapacitor.PluginCall;
-import com.getcapacitor.PluginMethod;
-import com.getcapacitor.annotation.CapacitorPlugin;
-
-import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-@CapacitorPlugin(name = "NativePrint")
-public class NativePrintPlugin extends Plugin {
-    private WebView printWebView;
-
-    @PluginMethod
-    public void printHtml(PluginCall call) {
-        final String html = call.getString("html");
-        if (html == null || html.trim().isEmpty()) {
-            call.reject("Missing HTML content to print.");
-            return;
-        }
-
-        final String rawName = call.getString("name", "Document");
-        final String jobName = (rawName == null || rawName.trim().isEmpty()) ? "Document" : rawName.trim();
-        final String orientation = call.getString("orientation", "portrait");
-        final String paperSize = call.getString("paperSize", "A4");
-        final String colorMode = call.getString("colorMode", "color");
-
-        final Activity activity = getActivity();
-        if (activity == null || activity.isFinishing()) {
-            call.reject("Android Activity is unavailable for printing.");
-            return;
-        }
-
-        activity.runOnUiThread(() -> {
-            try {
-                final WebView webView = new WebView(activity);
-                final WebSettings settings = webView.getSettings();
-                settings.setJavaScriptEnabled(false);
-                settings.setAllowFileAccess(false);
-                settings.setAllowContentAccess(false);
-                settings.setLoadsImagesAutomatically(true);
-                settings.setBlockNetworkImage(false);
-
-                final AtomicBoolean printTriggered = new AtomicBoolean(false);
-
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onPageFinished(WebView view, String url) {
-                        if (!printTriggered.compareAndSet(false, true)) {
-                            return;
-                        }
-                        try {
-                            PrintManager printManager =
-                                (PrintManager) activity.getSystemService(Context.PRINT_SERVICE);
-                            if (printManager == null) {
-                                call.reject("Android PrintManager service is unavailable.");
-                                return;
-                            }
-
-                            PrintDocumentAdapter printAdapter = view.createPrintDocumentAdapter(jobName);
-
-                            PrintAttributes.MediaSize baseMedia = resolveMediaSize(paperSize);
-                            boolean isLandscape = "landscape".equalsIgnoreCase(orientation);
-                            PrintAttributes.MediaSize orientedMedia = isLandscape
-                                ? baseMedia.asLandscape()
-                                : baseMedia.asPortrait();
-
-                            int resolvedColorMode = "monochrome".equalsIgnoreCase(colorMode)
-                                ? PrintAttributes.COLOR_MODE_MONOCHROME
-                                : PrintAttributes.COLOR_MODE_COLOR;
-
-                            PrintAttributes attributes = new PrintAttributes.Builder()
-                                .setMediaSize(orientedMedia)
-                                .setColorMode(resolvedColorMode)
-                                .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                                .build();
-
-                            printManager.print(jobName, printAdapter, attributes);
-                            call.resolve();
-                        } catch (Exception err) {
-                            call.reject("Failed to open Android print dialog: " + err.getMessage(), err);
-                        }
-                    }
-                });
-
-                printWebView = webView;
-                webView.loadDataWithBaseURL("about:blank", html, "text/html", "UTF-8", null);
-            } catch (Exception err) {
-                call.reject("Failed to prepare print WebView: " + err.getMessage(), err);
-            }
-        });
-    }
-
-    private static PrintAttributes.MediaSize resolveMediaSize(String paperSize) {
-        if (paperSize == null) {
-            return PrintAttributes.MediaSize.ISO_A4;
-        }
-        String normalized = paperSize.trim().toUpperCase(Locale.US);
-        switch (normalized) {
-            case "LETTER":
-            case "NA_LETTER":
-                return PrintAttributes.MediaSize.NA_LETTER;
-            case "LEGAL":
-            case "NA_LEGAL":
-                return PrintAttributes.MediaSize.NA_LEGAL;
-            case "A5":
-            case "ISO_A5":
-                return PrintAttributes.MediaSize.ISO_A5;
-            case "A4":
-            case "ISO_A4":
-            default:
-                return PrintAttributes.MediaSize.ISO_A4;
-        }
-    }
+  return fs.readFileSync(templatePath, 'utf8');
 }
-`;
+
+function buildPluginSource(packageName) {
+  const raw = readRequiredTemplate('NativePrintPlugin.java');
+  return raw.replace(/^package\s+[^;]+;/m, `package ${packageName};`);
+}
+
+function buildPdfPrintSource() {
+  return readRequiredTemplate('PdfPrint.java');
 }
 
 function patchMainActivity(mainActivityPath, packageName) {
@@ -219,10 +101,17 @@ function main() {
   }
 
   const appId = readAppId();
+  const javaRoot = path.join(androidDir, 'app', 'src', 'main', 'java');
   const packagePath = appId.split('.').join(path.sep);
-  const javaPkgDir = path.join(androidDir, 'app', 'src', 'main', 'java', packagePath);
+  const javaPkgDir = path.join(javaRoot, packagePath);
+  const androidPrintDir = path.join(javaRoot, 'android', 'print');
 
   fs.mkdirSync(javaPkgDir, { recursive: true });
+  fs.mkdirSync(androidPrintDir, { recursive: true });
+
+  const pdfPrintPath = path.join(androidPrintDir, 'PdfPrint.java');
+  fs.writeFileSync(pdfPrintPath, buildPdfPrintSource(), 'utf8');
+  console.log(`[setup-android-print] Wrote ${path.relative(rootDir, pdfPrintPath)}`);
 
   const pluginPath = path.join(javaPkgDir, 'NativePrintPlugin.java');
   fs.writeFileSync(pluginPath, buildPluginSource(appId), 'utf8');

@@ -292,8 +292,10 @@ export const SettingsView: React.FC = () => {
 
     try { localStorage.setItem(LAST_BACKUP_KEY, String(Date.now())); } catch { /* ignore */ }
     setLastBackup(Date.now());
-    if (Capacitor.isNativePlatform()) {
-      toast("Backup ready in Android share sheet.", "success");
+    if (Capacitor.getPlatform() === 'android') {
+      toast("Backup saved to Download/ClassGrid.", "success");
+    } else if (Capacitor.isNativePlatform()) {
+      toast("Backup ready in share sheet.", "success");
     } else {
       toast("Backup file downloaded.", "success");
     }

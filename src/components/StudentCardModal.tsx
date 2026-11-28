@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Printer, Image as ImageIcon, Share2, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Printer, Image as ImageIcon, Share2, AlertTriangle, Loader2, Download } from 'lucide-react';
 import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { Capacitor } from '@capacitor/core';
-import { triggerPrint } from '../utils/printEngine';
+import { triggerPrint, savePdfToDownloads } from '../utils/printEngine';
 import { confirmCardPrintSettings } from '../utils/printSettingsPrompt';
 import {
   CARD_W_PX,
@@ -56,7 +56,8 @@ export const StudentCardModal: React.FC<Props> = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
-  const [busy, setBusy] = useState<'' | 'img' | 'share'>('');
+  const [busy, setBusy] = useState<'' | 'img' | 'share' | 'pdf'>('');
+  const isAndroid = Capacitor.getPlatform() === 'android';
   const [measuredH, setMeasuredH] = useState(560);
   const pageW = receipt ? RECEIPT_PAGE_W_PX : CARD_W_PX;
   const pageH = receipt ? measuredH : CARD_H_PX;
@@ -142,6 +143,23 @@ export const StudentCardModal: React.FC<Props> = ({
     if (!receipt && !(await confirmCardPrintSettings(uiConfirm, printSize, forceOrientation))) { onClose(); setActiveTab('settings'); return; }
     const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false, baseName);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
+  };
+
+  const handleSavePdf = async () => {
+    if (busy) return;
+    if (!receipt && !(await confirmCardPrintSettings(uiConfirm, printSize, forceOrientation))) { onClose(); setActiveTab('settings'); return; }
+    setBusy('pdf');
+    try {
+      const res = await savePdfToDownloads(cardHTML, 'portrait', printSize, forceOrientation, false, baseName);
+      if (res.saved) {
+        toast(`Saved to ${res.path || 'Download/ClassGrid'}`, 'success');
+      } else {
+        const ok = await triggerPrint(cardHTML, 'portrait', printSize, forceOrientation, false, baseName);
+        if (!ok) toast("Could not save PDF or open print dialog. Try again.", "error");
+      }
+    } finally {
+      setBusy('');
+    }
   };
 
   const run = async (kind: 'img' | 'share') => {
@@ -250,12 +268,23 @@ export const StudentCardModal: React.FC<Props> = ({
         </div>
 
         {/* Actions */}
-        <div className="grid grid-cols-3 gap-2 px-4 sm:px-5 py-3 pb-[max(0.75rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shrink-0">
+        <div className={`grid ${isAndroid ? 'grid-cols-4' : 'grid-cols-3'} gap-2 px-4 sm:px-5 py-3 pb-[max(0.75rem,var(--safe-bottom,env(safe-area-inset-bottom,0px)))] border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shrink-0`}>
+          {isAndroid && (
+            <button
+              type="button"
+              onClick={handleSavePdf}
+              disabled={!!busy}
+              className="min-h-[44px] px-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:opacity-90 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+            >
+              {busy === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Download className="w-4 h-4 shrink-0" />}
+              <span>PDF</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handlePrint}
             disabled={!!busy}
-            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+            className="min-h-[44px] px-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-600 text-white active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
           >
             <Printer className="w-4 h-4 shrink-0" />
             <span>Print</span>
@@ -264,7 +293,7 @@ export const StudentCardModal: React.FC<Props> = ({
             type="button"
             onClick={() => run('img')}
             disabled={!!busy}
-            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+            className="min-h-[44px] px-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
           >
             {busy === 'img' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <ImageIcon className="w-4 h-4 shrink-0" />}
             <span>Image</span>
@@ -273,7 +302,7 @@ export const StudentCardModal: React.FC<Props> = ({
             type="button"
             onClick={() => run('share')}
             disabled={!!busy}
-            className="min-h-[44px] px-3 rounded-xl inline-flex items-center justify-center gap-2 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
+            className="min-h-[44px] px-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:scale-[0.99] transition disabled:opacity-40 cursor-pointer"
           >
             {busy === 'share' ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Share2 className="w-4 h-4 shrink-0" />}
             <span>Share</span>

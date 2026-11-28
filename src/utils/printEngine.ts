@@ -2,7 +2,7 @@ import { PrintSizeKey } from '../types';
 import { PRINT_SIZES, esc } from './helpers';
 import { Capacitor } from '@capacitor/core';
 import { Printer } from '@capgo/capacitor-printer';
-import { NativePrint } from '../plugins/nativePrint';
+import { NativePrint, ANDROID_DOWNLOAD_FOLDER } from '../plugins/nativePrint';
 import { loadCapsPrint } from './capsPrint';
 import { fitLongNames } from './fitText';
 
@@ -570,3 +570,58 @@ export function classPrintTitle(className: string | undefined, contentHTML: stri
   if (!c || t.toLowerCase().includes(c.toLowerCase())) return t;
   return `${c} - ${t}`;
 }
+
+export interface SavePdfResult {
+  saved: boolean;
+  path?: string;
+  fileName?: string;
+}
+
+/**
+ * Directly renders standalone print HTML into a multi-page ISO A4 PDF inside
+ * Android's `Download/ClassGrid` folder using the custom NativePrint plugin.
+ * Returns `{ saved: false }` when not on Android or if direct save fails so
+ * callers can seamlessly fall back to the print dialog.
+ */
+export async function savePdfToDownloads(
+  contentHTML: string,
+  orientation: 'portrait' | 'landscape' = 'portrait',
+  printSize: PrintSizeKey = 'm',
+  forceOrientation: string = '',
+  pageNumbers: boolean = false,
+  title?: string
+): Promise<SavePdfResult> {
+  if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('NativePrint')) {
+    return { saved: false };
+  }
+
+  const mult = (PRINT_SIZES[printSize] || PRINT_SIZES.m).mult;
+  const finalOrientation = (forceOrientation || orientation || 'portrait') as 'portrait' | 'landscape';
+  const fittedHTML = await fitLongNames(contentHTML, { orientation: finalOrientation, mult });
+  const docTitle =
+    (title || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) ||
+    extractDocumentTitle(fittedHTML);
+
+  try {
+    const fullHtml = buildStandalonePrintHTML(
+      fittedHTML,
+      mult,
+      finalOrientation,
+      pageNumbers,
+      docTitle
+    );
+    const res = await NativePrint.savePdfToDownloads({
+      name: docTitle,
+      html: fullHtml,
+      orientation: finalOrientation,
+      paperSize: 'A4',
+      colorMode: 'color',
+      folder: ANDROID_DOWNLOAD_FOLDER,
+    });
+    return { saved: true, path: res.path, fileName: res.fileName };
+  } catch (err) {
+    console.warn('NativePrint.savePdfToDownloads failed:', err);
+    return { saved: false };
+  }
+}
+

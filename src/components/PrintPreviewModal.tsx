@@ -2,12 +2,13 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useClassroom } from '../context/ClassroomContext';
 import { PrintSizeKey } from '../types';
 import { PRINT_SIZES } from '../utils/helpers';
-import { triggerPrint, buildStandalonePrintHTML, classPrintTitle } from '../utils/printEngine';
+import { Capacitor } from '@capacitor/core';
+import { triggerPrint, savePdfToDownloads, buildStandalonePrintHTML, classPrintTitle } from '../utils/printEngine';
 import { fitLongNames } from '../utils/fitText';
 import { registerPrintPreview, PrintRequest } from '../utils/printPreviewBus';
 import { FitMeasurer, autoFit, pageGeometry, SIZE_ORDER, Orientation } from '../utils/printFit';
 import { useCapsPrint, saveCapsPrint } from '../utils/capsPrint';
-import { Printer, Wand2, X, Loader2 } from 'lucide-react';
+import { Printer, Wand2, X, Loader2, Download } from 'lucide-react';
 
 /**
  * Print preview with Auto-fit. Opens with the best layout already chosen (fewest pages,
@@ -21,6 +22,8 @@ export const PrintPreviewModal: React.FC = () => {
   const [orientation, setOrientation] = useState<Orientation>('portrait');
   const [size, setSize] = useState<PrintSizeKey>('m');
   const [pageNumbers, setPageNumbers] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
+  const isAndroid = Capacitor.getPlatform() === 'android';
   const boolPref = (key: string, def: boolean) => {
     try { const v = localStorage.getItem(key); return v === null ? def : v === '1'; } catch { return def; }
   };
@@ -200,6 +203,26 @@ export const PrintPreviewModal: React.FC = () => {
     if (!ok) toast('Could not open the print dialog. Try again.', 'error');
   };
 
+  const handleSavePdf = async () => {
+    if (savingPdf) return;
+    const html = content || req.html;
+    const title = classPrintTitle(data.className, html);
+    setSavingPdf(true);
+    try {
+      const res = await savePdfToDownloads(html, orientation, size, orientation, pageNumbers, title);
+      if (res.saved) {
+        close();
+        toast(`Saved to ${res.path || 'Download/ClassGrid'}`, 'success');
+      } else {
+        close();
+        const ok = await triggerPrint(html, orientation, size, orientation, pageNumbers, title);
+        if (!ok) toast('Could not save PDF or open print dialog. Try again.', 'error');
+      }
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
   const manual = () => setAutoNote('');
 
   return (
@@ -324,15 +347,26 @@ export const PrintPreviewModal: React.FC = () => {
         <div className="p-3 flex gap-2 border-t border-[#E7E5E4] dark:border-[#44403C]">
           <button
             type="button"
-            disabled={busy || !req}
+            disabled={busy || savingPdf || !req}
             onClick={() => req && runAuto(req)}
             className="py-2.5 px-3 text-xs font-bold rounded-xl bg-[#F5F5F4] dark:bg-[#292524] text-[#1C1917] dark:text-[#F5F5F4] hover:bg-[#E7E5E4] disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
           >
             <Wand2 className="w-4 h-4" /> Auto-fit
           </button>
+          {isAndroid && (
+            <button
+              type="button"
+              disabled={busy || savingPdf || !content}
+              onClick={handleSavePdf}
+              className="flex-1 py-2.5 px-3 text-xs font-bold rounded-xl bg-[#1C1917] dark:bg-[#F5F5F4] text-white dark:text-[#1C1917] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              {savingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {savingPdf ? 'Saving…' : 'Save PDF'}
+            </button>
+          )}
           <button
             type="button"
-            disabled={busy || !content}
+            disabled={busy || savingPdf || !content}
             onClick={handlePrint}
             className="flex-1 py-2.5 px-3 text-xs font-bold rounded-xl bg-[#B91C1C] text-white hover:bg-[#991B1B] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
           >

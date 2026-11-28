@@ -17,8 +17,9 @@ import {
   gridTabIndex,
   fileTitle,
 } from '../../utils/helpers';
+import { Capacitor } from '@capacitor/core';
 import { previewPrint } from '../../utils/printPreviewBus';
-import { triggerPrint } from '../../utils/printEngine';
+import { triggerPrint, savePdfToDownloads } from '../../utils/printEngine';
 import { exportFileBlob } from '../../utils/nativeFileExport';
 import { buildResultsAiFile, planResultsImport } from '../../utils/aiExchange';
 import {
@@ -68,6 +69,7 @@ import {
   Table2,
   UserCheck,
   BookOpen,
+  Download,
 } from 'lucide-react';
 import {
   loadResultsCollapse,
@@ -772,6 +774,20 @@ export const ResultsView: React.FC = () => {
     if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
     const ok = await triggerPrint(buildReportCardsHTML(printCtx()), "portrait", data.printSize, data.forceOrientation, false, `${data.className || "Class"} - ${activeAsmt.name} - Report Cards`);
     if (!ok) toast("Could not open the print dialog. Try again.", "error");
+  };
+
+  const handleCardsSavePdf = async () => {
+    setCardChoice(false);
+    if (!(await confirmCardPrintSettings(uiConfirm, data.printSize, data.forceOrientation))) { setActiveTab('settings'); return; }
+    const title = `${data.className || "Class"} - ${activeAsmt.name} - Report Cards`;
+    const html = buildReportCardsHTML(printCtx());
+    const res = await savePdfToDownloads(html, "portrait", data.printSize, data.forceOrientation, false, title);
+    if (res.saved) {
+      toast(`Saved to ${res.path || 'Download/ClassGrid'}`, "success");
+    } else {
+      const ok = await triggerPrint(html, "portrait", data.printSize, data.forceOrientation, false, title);
+      if (!ok) toast("Could not save PDF or open print dialog. Try again.", "error");
+    }
   };
 
   const handlePrintBlankCard = async () => {
@@ -1901,6 +1917,21 @@ export const ResultsView: React.FC = () => {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            {Capacitor.getPlatform() === 'android' && (
+              <button
+                type="button"
+                onClick={handleCardsSavePdf}
+                className="w-full text-left p-3.5 rounded-xl bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:opacity-90 transition-opacity cursor-pointer flex items-start gap-3"
+              >
+                <Download className="w-5 h-5 shrink-0 mt-0.5 opacity-90" />
+                <div>
+                  <div className="text-sm font-semibold">Save PDF to Download/ClassGrid</div>
+                  <div className="text-xs opacity-80 mt-0.5">
+                    Saves all student report cards directly as an A4 PDF in your Download/ClassGrid folder.
+                  </div>
+                </div>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCardsPdf}
