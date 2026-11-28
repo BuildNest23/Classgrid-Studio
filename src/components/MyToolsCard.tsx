@@ -84,7 +84,7 @@ export const MyToolsCard: React.FC<MyToolsCardProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await performRestore(file, replaceAllData, uiConfirm, toast);
+    await performRestore(file, replaceAllData, uiConfirm, toast, data);
     e.target.value = '';
   };
 

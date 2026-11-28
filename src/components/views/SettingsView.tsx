@@ -29,9 +29,16 @@ import { getStorage } from '../../storage';
 import { getLastAutoBackupTimestamp } from '../../storage/autoBackup';
 import { useCapsPrint, saveCapsPrint } from '../../utils/capsPrint';
 import { NewClassDialog, shelveOpenClass } from './ClassesView';
-import { setActiveShelfId, getActiveShelfId, exportAllClasses, restoreClasses } from '../../utils/classShelf';
+import {
+  setActiveShelfId,
+  getActiveShelfId,
+  exportAllClasses,
+  findMatchingShelfId,
+  isBlankClass,
+} from '../../utils/classShelf';
+import { performRestore } from '../../utils/backupActions';
 import { MyToolsCard } from '../MyToolsCard';
-import { useClassgridPrefs, savePrefs } from '../../utils/prefs';
+import { useClassgridPrefs } from '../../utils/prefs';
 import { PlainTextInput } from '../PlainTextInput';
 
 const LAST_BACKUP_KEY = 'classgrid_last_backup';
@@ -237,6 +244,16 @@ export const SettingsView: React.FC = () => {
 
   const handleExportBackup = async (full: boolean) => {
     setBackupChoice(false);
+    let activeId = getActiveShelfId();
+    if (!activeId && !isBlankClass(data)) {
+      try {
+        const matched = await findMatchingShelfId(data);
+        if (matched) {
+          activeId = matched;
+          setActiveShelfId(matched);
+        }
+      } catch { /* ignore */ }
+    }
     let classes: Awaited<ReturnType<typeof exportAllClasses>> = [];
     if (full) try {
       classes = await exportAllClasses(data);
@@ -253,7 +270,7 @@ export const SettingsView: React.FC = () => {
       app: "ClassroomManager",
       version: 6,
       exportedAt: new Date().toISOString(),
-      ...(getActiveShelfId() ? { classId: getActiveShelfId() } : {}),
+      ...(activeId ? { classId: activeId } : {}),
       data: data,
       ...(classes.length > 0 ? { classes } : {})
     };
@@ -282,63 +299,15 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      try {
-        const text = ev.target?.result as string;
-        const parsed = JSON.parse(text);
-
-        let importedData = null;
-        if (parsed && parsed.app === "ClassgridAI") {
-          throw new Error("This is an Edit with AI file, not a backup. Import it in the Students tab instead.");
-        }
-        if (parsed.app === "ClassroomManager" && parsed.data) {
-          importedData = parsed.data;
-        } else if (parsed.students && Array.isArray(parsed.students)) {
-          importedData = parsed;
-        } else {
-          throw new Error("Invalid backup format");
-        }
-
-        const savedClasses: unknown = Array.isArray(parsed.classes) ? parsed.classes : [];
-        const classCount = (savedClasses as unknown[]).length;
-        const ok = await uiConfirm(
-          `Replace current data with imported backup?\n\nThis will overwrite the open class.${classCount ? `\nIt also restores ${classCount} saved class${classCount === 1 ? '' : 'es'} in the Classes tab.` : ''}`, {
-          title: "Restore from file",
-          yesText: "Restore",
-          danger: true,
-          icon: "warning"
-        });
-        if (!ok) return;
-
-        replaceAllData(importedData);
-        setActiveShelfId(null);
-        let restored = 0;
-        if (classCount) {
-          try {
-            restored = await restoreClasses(savedClasses);
-          } catch {
-            toast("The open class was imported, but the saved classes could not be restored.", "error");
-          }
-        }
-
-        savePrefs({ welcomeDone: true });
-        toast(restored ? `Backup imported. ${restored} saved class${restored === 1 ? '' : 'es'} restored.` : "Backup imported successfully.", "success");
-        setActiveTab("dashboard");
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error reading file";
-        toast("Could not import: " + msg, "error");
-      }
-    };
-    reader.onerror = () => {
-      toast("Could not read backup file.", "error");
-    };
-    reader.readAsText(file);
-    e.target.value = "";
+    const ok = await performRestore(file, replaceAllData, uiConfirm, toast, data);
+    if (ok) {
+      setActiveTab("dashboard");
+    }
   };
 
   const handleLoadSampleData = async () => {

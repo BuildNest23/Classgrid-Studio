@@ -91,7 +91,7 @@ export const WelcomeSheet: React.FC = () => {
     e.target.value = '';
     // Hide this sheet while the restore confirmation is showing (it would otherwise cover it).
     setIsOpen(false);
-    const ok = await performRestore(file, replaceAllData, uiConfirm, toast);
+    const ok = await performRestore(file, replaceAllData, uiConfirm, toast, data);
     if (ok) {
       dismissForever();
     } else {

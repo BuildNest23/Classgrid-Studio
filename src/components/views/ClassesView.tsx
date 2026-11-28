@@ -6,6 +6,7 @@ import {
   buildShelfBackup,
   defaultClassName,
   deleteFromShelf,
+  findMatchingShelfId,
   getActiveShelfId,
   importIntoShelf,
   isBlankClass,
@@ -40,7 +41,11 @@ import {
  */
 export async function shelveOpenClass(current: AppData): Promise<ShelfEntry | null> {
   if (isBlankClass(current)) return null;
-  const entry = await saveToShelf(current, { id: getActiveShelfId() });
+  let targetId = getActiveShelfId();
+  if (!targetId) {
+    targetId = await findMatchingShelfId(current);
+  }
+  const entry = await saveToShelf(current, { id: targetId });
   setActiveShelfId(entry.id);
   return entry;
 }
@@ -281,9 +286,10 @@ export const ClassesView: React.FC<ClassesViewProps> = ({ onShelfChanged }) => {
         toast('The open class is empty, nothing to save yet.', 'info');
         return;
       }
-      const entry = await saveToShelf(data, { id: activeEntry ? activeEntry.id : null });
+      const targetId = activeEntry ? activeEntry.id : await findMatchingShelfId(data);
+      const entry = await saveToShelf(data, { id: targetId });
       setActiveShelfId(entry.id);
-      toast(activeEntry ? `"${entry.name}" updated.` : `Saved as "${entry.name}".`, 'success');
+      toast(targetId ? `"${entry.name}" updated.` : `Saved as "${entry.name}".`, 'success');
     });
 
   const handleOpen = (entry: ShelfEntry) =>
@@ -413,7 +419,7 @@ export const ClassesView: React.FC<ClassesViewProps> = ({ onShelfChanged }) => {
       } catch {
         throw new Error('This file could not be read as a backup.');
       }
-      const { added, updated } = await importIntoShelf(parsed);
+      const { added, updated } = await importIntoShelf(parsed, data);
       const parts: string[] = [];
       if (updated) parts.push(`Updated ${updated} existing class${updated === 1 ? '' : 'es'}`);
       if (added) parts.push(`Added ${added} new class${added === 1 ? '' : 'es'}`);

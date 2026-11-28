@@ -190,39 +190,216 @@ export async function restoreShelfRaw(entry: ShelfEntry, data: AppData, position
   await writeVerified(INDEX_KEY, JSON.stringify(rest));
 }
 
+function normText(v: unknown): string {
+  return typeof v === 'string' ? v.trim().toLowerCase() : '';
+}
+
+/**
+ * Returns true when two normalized AppData objects represent the same class
+ * (used to avoid duplicating the active class when restoring or importing older backups
+ * whose shelf id was missing or unlinked).
+ */
+export function isSameClassData(a: AppData, b: AppData): boolean {
+  if (a.classId && b.classId) {
+    return a.classId === b.classId;
+  }
+
+  const sameClass =
+    normText(a.className) === normText(b.className) &&
+    normText(a.section) === normText(b.section) &&
+    normText(a.academicYear) === normText(b.academicYear);
+
+  if (!sameClass) return false;
+
+  const aStudentIds = new Set(a.students.map(s => s.id).filter(Boolean));
+  const bStudentIds = new Set(b.students.map(s => s.id).filter(Boolean));
+
+  if (aStudentIds.size > 0 && bStudentIds.size > 0) {
+    let overlap = 0;
+    for (const id of aStudentIds) {
+      if (bStudentIds.has(id)) overlap++;
+    }
+    const minCount = Math.min(aStudentIds.size, bStudentIds.size);
+    return overlap >= Math.max(1, Math.ceil(minCount * 0.6));
+  }
+
+  if (aStudentIds.size === 0 && bStudentIds.size === 0) {
+    // Both have no students: require a non-empty class name and matching incharge
+    if (!normText(a.className) && !normText(a.section)) return false;
+    if (normText(a.inchargeName) !== normText(b.inchargeName)) return false;
+
+    const aAsmtIds = new Set(a.assessments.map(x => x.id).filter(Boolean));
+    const bAsmtIds = new Set(b.assessments.map(x => x.id).filter(Boolean));
+    if (aAsmtIds.size > 0 && bAsmtIds.size > 0) {
+      for (const id of aAsmtIds) if (bAsmtIds.has(id)) return true;
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/** Finds an existing shelf entry matching `target` by class identity & student overlap. */
+export async function findMatchingShelfId(target: AppData): Promise<string | null> {
+  if (isBlankClass(target)) return null;
+  const index = await readIndex();
+  for (const e of index) {
+    const saved = await loadFromShelf(e.id);
+    if (saved && isSameClassData(target, saved)) {
+      return e.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ensures the restored open class is linked to its matching shelf card (by explicit id or
+ * by class content match) so it never appears twice in Classes / Overview / Switcher.
+ */
+export async function resolveRestoredActiveId(
+  openData: AppData,
+  explicitClassId?: string | null
+): Promise<string | null> {
+  const index = await readIndex();
+  const cleanId = typeof explicitClassId === 'string' && explicitClassId.trim() ? explicitClassId.trim() : null;
+
+  if (cleanId && index.some(e => e.id === cleanId)) {
+    // Sync the shelf card with the restored open class so both copies stay identical
+    await saveToShelf(openData, { id: cleanId });
+    return cleanId;
+  }
+
+  if (!isBlankClass(openData)) {
+    const matchedId = await findMatchingShelfId(openData);
+    if (matchedId) {
+      await saveToShelf(openData, { id: matchedId });
+      return matchedId;
+    }
+  }
+
+  return null;
+}
+
+interface ImportCandidate {
+  id?: string;
+  name?: string;
+  data: AppData;
+}
+
+function deduplicateCandidates(list: ImportCandidate[]): ImportCandidate[] {
+  const unique: ImportCandidate[] = [];
+  for (const cand of list) {
+    const byId = cand.id ? unique.findIndex(u => u.id === cand.id) : -1;
+    if (byId >= 0) {
+      unique[byId] = {
+        id: unique[byId].id || cand.id,
+        name: cand.name || unique[byId].name,
+        data: cand.data,
+      };
+      continue;
+    }
+    const byData = unique.findIndex(u => isSameClassData(u.data, cand.data));
+    if (byData >= 0) {
+      unique[byData] = {
+        id: unique[byData].id || cand.id,
+        name: unique[byData].name || cand.name,
+        data: cand.data,
+      };
+      continue;
+    }
+    unique.push(cand);
+  }
+  return unique;
+}
+
 /**
  * Adds classes from a file the user picked: a single class backup (what Export Backup makes)
- * or a "back up all classes" file. Returns how many cards were added.
+ * or a "back up all classes" file. Deduplicates the open class against `classes` and against
+ * existing shelf cards so importing a backup never creates duplicate classes.
  */
-export async function importIntoShelf(parsed: unknown): Promise<{ added: number; updated: number }> {
+export async function importIntoShelf(
+  parsed: unknown,
+  currentOpen?: AppData
+): Promise<{ added: number; updated: number }> {
   const p = parsed as any;
-  const found: Array<{ id?: string; name?: string; data: unknown }> = [];
-  const idOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
+  const rawFound: ImportCandidate[] = [];
+  const idOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 
   if (p && p.app === 'ClassGridShelf' && Array.isArray(p.classes)) {
-    for (const c of p.classes) if (c && c.data) found.push({ id: idOf(c.id), name: c.name, data: c.data });
+    for (const c of p.classes) {
+      if (c && c.data) {
+        rawFound.push({ id: idOf(c.id), name: typeof c.name === 'string' ? c.name : undefined, data: normalizeData(c.data) });
+      }
+    }
   } else if (p && p.data && typeof p.data === 'object') {
-    // regular Export Backup file (the open class); classId ties it to its card so re-importing updates it
-    found.push({ id: idOf(p.classId), data: p.data });
+    // Load `classes` first so their custom shelf names and ids are preserved, then merge `p.data`
     if (Array.isArray(p.classes)) {
-      for (const c of p.classes) if (c && c.data) found.push({ id: idOf(c.id), name: c.name, data: c.data });
+      for (const c of p.classes) {
+        if (c && c.data) {
+          rawFound.push({ id: idOf(c.id), name: typeof c.name === 'string' ? c.name : undefined, data: normalizeData(c.data) });
+        }
+      }
+    }
+    const openNorm = normalizeData(p.data);
+    const openId = idOf(p.classId);
+    if (!isBlankClass(openNorm) || rawFound.length === 0) {
+      rawFound.push({ id: openId, data: openNorm });
     }
   } else if (p && typeof p === 'object' && Array.isArray(p.students)) {
-    found.push({ data: p }); // bare data
+    rawFound.push({ data: normalizeData(p) }); // bare data
   }
+
+  const found = deduplicateCandidates(rawFound);
   if (found.length === 0) throw new Error('This file is not a ClassGrid backup.');
 
-  // A class whose id is already on the shelf is updated in place instead of added again.
-  const existingIds = new Set((await readIndex()).map(e => e.id));
+  // Load current shelf entries once so we can match both by id and by class content
+  const currentIndex = await readIndex();
+  const existingEntries: Array<{ id: string; data: AppData | null }> = [];
+  for (const e of currentIndex) {
+    existingEntries.push({ id: e.id, data: await loadFromShelf(e.id) });
+  }
+  const existingIds = new Set(existingEntries.map(e => e.id));
+
   let added = 0;
   let updated = 0;
-  for (const c of found) {
-    const data = normalizeData(c.data);
-    if (c.id && existingIds.has(c.id)) updated++;
-    else added++;
-    const entry = await saveToShelf(data, { id: c.id, name: c.name });
+
+  // Iterate in reverse so newly added classes preserve their order from the backup file
+  for (let i = found.length - 1; i >= 0; i--) {
+    const c = found[i];
+    let targetId = c.id;
+
+    if (!targetId || !existingIds.has(targetId)) {
+      const contentMatch = existingEntries.find(e => e.data && isSameClassData(c.data, e.data));
+      if (contentMatch) {
+        targetId = contentMatch.id;
+      }
+    }
+
+    if (targetId && existingIds.has(targetId)) {
+      updated++;
+    } else {
+      added++;
+    }
+
+    const entry = await saveToShelf(c.data, { id: targetId, name: c.name });
     existingIds.add(entry.id);
+    const existingSlot = existingEntries.find(e => e.id === entry.id);
+    if (existingSlot) existingSlot.data = c.data;
+    else existingEntries.push({ id: entry.id, data: c.data });
   }
+
+  // If the currently open class was unshelved (activeShelfId === null) and now matches a shelf card,
+  // link it so it does not appear twice in Overview / Class Switcher.
+  if (currentOpen && !isBlankClass(currentOpen)) {
+    const activeId = getActiveShelfId();
+    const activeStillExists = Boolean(activeId && existingIds.has(activeId));
+    if (!activeStillExists) {
+      const matched = existingEntries.find(e => e.data && isSameClassData(currentOpen, e.data));
+      if (matched) setActiveShelfId(matched.id);
+    }
+  }
+
   return { added, updated };
 }
 
@@ -260,7 +437,10 @@ export function makeNewClassData(current: AppData, keepSchool: boolean): AppData
 /** All saved classes with their ids, for the main backup file. */
 export async function exportAllClasses(current?: AppData): Promise<Array<{ id: string; name: string; data: AppData }>> {
   const index = await listShelf();
-  const activeId = getActiveShelfId();
+  let activeId = getActiveShelfId();
+  if ((!activeId || !index.some(e => e.id === activeId)) && current && !isBlankClass(current)) {
+    activeId = await findMatchingShelfId(current);
+  }
   const out: Array<{ id: string; name: string; data: AppData }> = [];
   for (const e of index) {
     // The open class is the live copy: its saved card may be older (edits made after the last "Save"),
@@ -276,16 +456,41 @@ export async function exportAllClasses(current?: AppData): Promise<Array<{ id: s
   return out;
 }
 
-/** Puts classes from a main backup file back on the shelf (same id = updated, not duplicated). */
+/** Puts classes from a main backup file back on the shelf (same id or same class = updated, not duplicated). */
 export async function restoreClasses(list: unknown): Promise<number> {
   if (!Array.isArray(list)) return 0;
-  let n = 0;
+  const raw: ImportCandidate[] = [];
   for (const c of list) {
     if (!c || typeof c !== 'object' || !(c as any).data) continue;
-    const data = normalizeData((c as any).data);
-    const id = typeof (c as any).id === 'string' ? (c as any).id : undefined;
-    await saveToShelf(data, { id, name: typeof (c as any).name === 'string' ? (c as any).name : undefined });
+    const id = typeof (c as any).id === 'string' && (c as any).id.trim() ? (c as any).id.trim() : undefined;
+    const name = typeof (c as any).name === 'string' ? (c as any).name : undefined;
+    raw.push({ id, name, data: normalizeData((c as any).data) });
+  }
+  const unique = deduplicateCandidates(raw);
+
+  // Match against existing shelf so older/unlinked cards are updated in place instead of duplicated
+  const currentIndex = await readIndex();
+  const existingEntries: Array<{ id: string; data: AppData | null }> = [];
+  for (const e of currentIndex) {
+    existingEntries.push({ id: e.id, data: await loadFromShelf(e.id) });
+  }
+  const existingIds = new Set(existingEntries.map(e => e.id));
+
+  let n = 0;
+  for (let i = unique.length - 1; i >= 0; i--) {
+    const c = unique[i];
+    let targetId = c.id;
+    if (!targetId || !existingIds.has(targetId)) {
+      const contentMatch = existingEntries.find(e => e.data && isSameClassData(c.data, e.data));
+      if (contentMatch) targetId = contentMatch.id;
+    }
+    const entry = await saveToShelf(c.data, { id: targetId, name: c.name });
+    existingIds.add(entry.id);
+    const slot = existingEntries.find(e => e.id === entry.id);
+    if (slot) slot.data = c.data;
+    else existingEntries.push({ id: entry.id, data: c.data });
     n++;
   }
   return n;
 }
+
